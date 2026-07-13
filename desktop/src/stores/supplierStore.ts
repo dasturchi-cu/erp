@@ -35,7 +35,7 @@ interface SupplierState {
   restoreSupplier: (id: string) => Promise<void>;
   recordPayment: (
     supplierId: string,
-    input: { amountUzs: number; method: SupplierPayment['method']; note?: string },
+    input: { amount: number; currency: 'UZS' | 'USD'; method: SupplierPayment['method']; note?: string },
   ) => Promise<SupplierPayment>;
   getPaymentsBySupplier: (supplierId: string) => SupplierPayment[];
   getReceipts: (supplierId: string) => SupplierReceipt[];
@@ -118,7 +118,8 @@ export const useSupplierStore = create<SupplierState>()((set, get) => ({
 
   recordPayment: async (supplierId, input) => {
     const payment = await suppliersApi.recordPayment(supplierId, {
-      amountUzs: input.amountUzs,
+      amount: input.amount,
+      currency: input.currency,
       paymentMethod: methodToApi(input.method),
       notes: input.note,
     });

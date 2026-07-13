@@ -54,6 +54,17 @@ export class AnalyticsController {
     return this.analyticsService.getDashboardKpi(user.companyId!, query, user.sub, this.canViewAllSales(user));
   }
 
+  @Get('dashboard/enterprise')
+  @RequirePermissions('analytics.view')
+  @ApiOperation({ summary: 'Enterprise dashboard raw SQL aggregates' })
+  enterpriseDashboard(@CurrentUser() user: JwtPayload) {
+    return this.analyticsService.getEnterpriseDashboard(
+      user.companyId!,
+      user.sub,
+      this.canViewAllSales(user),
+    );
+  }
+
   @Get('sales')
   @RequirePermissions('analytics.view')
   @ApiOperation({ summary: 'Sales analytics' })

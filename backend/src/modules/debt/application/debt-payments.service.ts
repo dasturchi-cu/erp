@@ -171,14 +171,17 @@ export class DebtPaymentsService {
       },
     });
 
+    const activeRate = await this.prisma.exchangeRate.findFirst({
+      where: { companyId, status: 'ACTIVE' },
+      orderBy: { effectiveFrom: 'desc' },
+    });
+    const rate = activeRate?.rate ?? new Decimal(12620);
+
     const totalDebtUzs = customers.reduce(
       (sum, c) => sum.add(c.totalDebtUzs),
       new Decimal(0),
     );
-    const totalDebtUsd = customers.reduce(
-      (sum, c) => sum.add(c.totalDebtUsd),
-      new Decimal(0),
-    );
+    const totalDebtUsd = totalDebtUzs.div(rate);
 
     const now = Date.now();
     const overdueMs = 30 * 24 * 60 * 60 * 1000;
@@ -202,6 +205,12 @@ export class DebtPaymentsService {
       OR: [{ totalDebtUzs: { gt: 0 } }, { totalDebtUsd: { gt: 0 } }],
     };
 
+    const activeRate = await this.prisma.exchangeRate.findFirst({
+      where: { companyId, status: 'ACTIVE' },
+      orderBy: { effectiveFrom: 'desc' },
+    });
+    const rate = activeRate?.rate ?? new Decimal(12620);
+
     const [total, rows] = await this.prisma.$transaction([
       this.prisma.customer.count({ where }),
       this.prisma.customer.findMany({
@@ -217,7 +226,7 @@ export class DebtPaymentsService {
       name: c.name,
       phone: c.phone,
       debtUzs: formatMoney(c.totalDebtUzs),
-      debtUsd: formatMoney(c.totalDebtUsd),
+      debtUsd: formatMoney(c.totalDebtUzs.div(rate)),
       lastPurchaseAt: c.lastPurchaseAt?.toISOString() ?? null,
       lastPaymentAt: c.lastPaymentAt?.toISOString() ?? null,
     }));

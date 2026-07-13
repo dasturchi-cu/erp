@@ -5,6 +5,7 @@ import {
   InventoryMovementType,
   Prisma,
   SupplierReceivePaymentType,
+  OriginalCurrency,
 } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import { PrismaService } from '../../../core/database/prisma.service';
@@ -231,9 +232,9 @@ export class InventoryService {
     requestId?: string,
   ): Promise<ReceiveStockResponseDto> {
     const quantity = parseMoney(dto.quantity);
-    const unitCostUzs = parseMoney(dto.unitCostUzs);
+    const costInput = parseMoney(dto.unitCostUzs);
 
-    if (!isPositiveMoney(quantity) || !isNonNegativeMoney(unitCostUzs)) {
+    if (!isPositiveMoney(quantity) || !isNonNegativeMoney(costInput)) {
       throw AppException.validation('Validation failed', [
         { field: 'quantity', message: 'Quantity must be greater than 0', code: 'INVALID_QUANTITY' },
       ]);
@@ -243,11 +244,12 @@ export class InventoryService {
     await this.ensureWarehouse(companyId, dto.warehouseId);
     await this.supplierDebt.ensureSupplier(companyId, dto.supplierId);
 
-    let unitCostUsd = dto.unitCostUsd ? parseMoney(dto.unitCostUsd) : null;
-    if (unitCostUsd == null) {
-      const rate = await this.currencyService.getActiveRateOrThrow(companyId);
-      unitCostUsd = uzsToUsd(unitCostUzs, rate.rate);
-    }
+    const activeRate = await this.currencyService.getActiveRateOrThrow(companyId);
+    const exchangeRate = dto.exchangeRateUsed ? parseMoney(dto.exchangeRateUsed) : activeRate.rate;
+    const originalCurrency = dto.originalCurrency ?? OriginalCurrency.UZS;
+
+    const unitCostUzs = originalCurrency === OriginalCurrency.UZS ? costInput : costInput.mul(exchangeRate);
+    const unitCostUsd = originalCurrency === OriginalCurrency.USD ? costInput : costInput.div(exchangeRate);
 
     const receiptInput = {
       companyId,
@@ -256,6 +258,9 @@ export class InventoryService {
       warehouseId: dto.warehouseId,
       quantity,
       unitCostUzs,
+      unitCostUsd,
+      originalCurrency,
+      exchangeRateUsed: exchangeRate,
       note: dto.note ?? null,
       receivedBy: userId,
     };
@@ -269,6 +274,8 @@ export class InventoryService {
         unitCostUzs,
         unitCostUsd,
         sourceType: InventoryBatchSourceType.RECEIPT,
+        batchNumber: dto.batchNumber,
+        expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : undefined,
       });
 
       const movement = await createMovement(tx, {
@@ -295,6 +302,20 @@ export class InventoryService {
           inventoryBatchId: batch.id,
         });
       }
+
+      const rate = await this.currencyService.getActiveRateOrThrow(companyId);
+      await tx.supplierPriceHistory.create({
+        data: {
+          supplierId: dto.supplierId,
+          productId: dto.productId,
+          batchId: batch.id,
+          currency: OriginalCurrency.UZS,
+          exchangeRate: rate.rate,
+          quantity,
+          unitCost: unitCostUzs,
+          userId,
+        },
+      });
 
       const productStock = await getProductStockTotal(tx, companyId, dto.productId);
 

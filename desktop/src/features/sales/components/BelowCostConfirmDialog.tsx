@@ -28,12 +28,11 @@ export function BelowCostConfirmDialog({
   return (
     <Dialog open={open} onClose={onCancel} maxWidth="sm" fullWidth>
       <DialogTitle sx={{ color: 'warning.main', fontWeight: 700 }}>
-        Olish narxidan arzonroq sotilyapti!
+        Diqqat! Mahsulot tannarxidan past narxda sotilyapti.
+        <br />
+        Davom etasizmi?
       </DialogTitle>
       <DialogContent>
-        <Typography sx={{ mb: 2, fontWeight: 500 }}>
-          Quyidagi mahsulotlar olish narxidan arzon narxda sotilmoqda. Davom etasizmi?
-        </Typography>
         <List dense>
           {lines.map((line) => (
             <ListItem key={`${line.product.id}-${line.saleUnit}`} disablePadding>
@@ -47,10 +46,10 @@ export function BelowCostConfirmDialog({
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button onClick={onCancel} variant="outlined">
-          Yo&apos;q, orqaga
+          Yo'q
         </Button>
         <Button variant="contained" color="warning" onClick={onConfirm}>
-          Ha, sotilsin
+          Ha
         </Button>
       </DialogActions>
     </Dialog>

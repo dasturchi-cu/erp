@@ -48,26 +48,31 @@ export class AuthService {
       throw AppException.unauthorized('UNAUTHORIZED', 'Invalid email or password');
     }
 
+    const deviceUuid = deviceInfo?.deviceId ?? '00000000-0000-0000-0000-000000000000';
+    const deviceName = deviceInfo?.name ?? 'Unknown Device';
+    const devicePlatform = deviceInfo?.platform ?? 'windows';
+    const deviceOs = deviceInfo?.osVersion ?? 'unknown';
+
     const device = await this.prisma.device.upsert({
       where: {
         userId_deviceUuid: {
           userId: user.id,
-          deviceUuid: deviceInfo.deviceId,
+          deviceUuid,
         },
       },
       create: {
         userId: user.id,
-        deviceUuid: deviceInfo.deviceId,
-        name: deviceInfo.name,
-        platform: deviceInfo.platform,
-        osVersion: deviceInfo.osVersion,
+        deviceUuid,
+        name: deviceName,
+        platform: devicePlatform,
+        osVersion: deviceOs,
         ipAddress: ipAddress ?? null,
         lastSeenAt: new Date(),
       },
       update: {
-        name: deviceInfo.name,
-        platform: deviceInfo.platform,
-        osVersion: deviceInfo.osVersion,
+        name: deviceName,
+        platform: devicePlatform,
+        osVersion: deviceOs,
         ipAddress: ipAddress ?? null,
         lastSeenAt: new Date(),
       },
@@ -93,7 +98,7 @@ export class AuthService {
       companyId,
       branchId,
       sessionId: session.id,
-      deviceId: deviceInfo.deviceId,
+      deviceId: deviceUuid,
       permissions,
       modules,
     });
@@ -114,7 +119,7 @@ export class AuthService {
       action: 'LOGIN',
       entityType: 'session',
       entityId: session.id,
-      newValue: { deviceId: deviceInfo.deviceId },
+      newValue: { deviceId: deviceUuid },
       ipAddress: ipAddress ?? null,
       requestId: requestId ?? null,
     });
@@ -123,7 +128,7 @@ export class AuthService {
       await this.notificationsService.createLoginNotification(
         companyId,
         user.id,
-        deviceInfo.name,
+        deviceName,
         ipAddress,
       );
     }

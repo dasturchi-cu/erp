@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Box,
   Button,
+  Card,
   CircularProgress,
   Dialog,
   DialogActions,
@@ -13,6 +14,8 @@ import {
   InputLabel,
   MenuItem,
   Select,
+  Tab,
+  Tabs,
   TextField,
   Typography,
 } from '@mui/material';
@@ -54,6 +57,97 @@ export function ReportsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = useState('all');
+
+  const [activeTab, setActiveTab] = useState(0);
+  const [historyList, setHistoryList] = useState<any[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyPageSize, setHistoryPageSize] = useState(10);
+  const [historyTotal, setHistoryTotal] = useState(0);
+
+  const fetchHistory = useCallback(async () => {
+    setLoadingHistory(true);
+    try {
+      const data = await reportsApi.listHistory({
+        page: historyPage,
+        limit: historyPageSize,
+      });
+      setHistoryList(data.data || []);
+      setHistoryTotal(data.meta?.total || 0);
+    } catch (err) {
+      console.error('History fetch error:', err);
+    } finally {
+      setLoadingHistory(false);
+    }
+  }, [historyPage, historyPageSize]);
+
+  useEffect(() => {
+    if (activeTab === 1) {
+      void fetchHistory();
+    }
+  }, [activeTab, fetchHistory]);
+
+  const historyColumns = useMemo(
+    () => [
+      { id: 'reportName', label: 'Hisobot nomi', render: (r: any) => r.reportName },
+      { id: 'category', label: 'Kategoriya', render: (r: any) => r.category },
+      { id: 'format', label: 'Format', render: (r: any) => r.format },
+      {
+        id: 'status',
+        label: 'Holat',
+        render: (r: any) => (
+          <Typography
+            variant="body2"
+            sx={{
+              color:
+                r.status === 'COMPLETED'
+                  ? 'success.main'
+                  : r.status === 'FAILED'
+                    ? 'error.main'
+                    : 'warning.main',
+              fontWeight: 600,
+            }}
+          >
+            {r.status === 'COMPLETED'
+              ? 'Tayyor'
+              : r.status === 'FAILED'
+                ? 'Xatolik'
+                : 'Tayyorlanmoqda'}
+          </Typography>
+        ),
+      },
+      { id: 'rowCount', label: 'Qatorlar', render: (r: any) => r.rowCount ?? '—' },
+      {
+        id: 'createdAt',
+        label: 'Sana',
+        render: (r: any) => formatDateTime(r.createdAt),
+      },
+      {
+        id: 'actions',
+        label: 'Yuklab olish',
+        render: (r: any) => (
+          <Button
+            size="small"
+            variant="outlined"
+            disabled={r.status !== 'COMPLETED'}
+            onClick={() => {
+              if (r.downloadUrl) {
+                const parts = r.downloadUrl.split('/');
+                const jobId = parts[parts.length - 2];
+                const filename = `${r.reportName.replace(/\s+/g, '_')}.${r.format.toLowerCase()}`;
+                downloadReportFile(jobId, filename)
+                  .then(() => success('Hujjat yuklab olindi!'))
+                  .catch((err) => notifyError('Yuklab olishda xatolik yuz berdi'));
+              }
+            }}
+          >
+            Yuklash
+          </Button>
+        ),
+      },
+    ],
+    [success, notifyError],
+  );
 
   // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -171,6 +265,7 @@ export function ReportsPage() {
             success('Hisobot tayyor! Yuklab olinmoqda...');
             await downloadReportFile(jobId, filename);
             void fetchCatalog(); // Refresh list to update lastGenerated date
+            void fetchHistory(); // Update generated history list
           } else if (statusRes.status === 'FAILED') {
             setIsGenerating(false);
             setGenerationError(statusRes.errorMessage ?? 'Hisobot yaratish muvaffaqiyatsiz yakunlandi');
@@ -222,46 +317,82 @@ export function ReportsPage() {
         subtitle="Savdo, moliya va ombor hisobotlari"
       />
 
-      <FilterBar
-        search={{ value: search, onChange: setSearch, placeholder: 'Hisobot nomi…' }}
-        filters={
-          <FormControl size="small" sx={{ minWidth: 160 }}>
-            <InputLabel>Kategoriya</InputLabel>
-            <Select value={categoryFilter} label="Kategoriya" onChange={(e) => setCategoryFilter(e.target.value)}>
-              <MenuItem value="all">Barchasi</MenuItem>
-              {categories.map((cat) => (
-                <MenuItem key={cat} value={cat}>
-                  {cat}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-        }
-      />
+      <Card variant="outlined" sx={{ mb: 3 }}>
+        <Tabs
+          value={activeTab}
+          onChange={(_, val) => setActiveTab(val)}
+          sx={{ borderBottom: 1, borderColor: 'divider', px: 2 }}
+        >
+          <Tab label="Hisobot shablonlari" />
+          <Tab label="Generatsiya tarixi (Excel / PDF)" />
+        </Tabs>
 
-      {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
-          <CircularProgress />
+        <Box sx={{ p: 2 }}>
+          {activeTab === 0 ? (
+            <>
+              <FilterBar
+                search={{ value: search, onChange: setSearch, placeholder: 'Hisobot nomi…' }}
+                filters={
+                  <FormControl size="small" sx={{ minWidth: 160 }}>
+                    <InputLabel>Kategoriya</InputLabel>
+                    <Select value={categoryFilter} label="Kategoriya" onChange={(e) => setCategoryFilter(e.target.value)}>
+                      <MenuItem value="all">Barchasi</MenuItem>
+                      {categories.map((cat) => (
+                        <MenuItem key={cat} value={cat}>
+                          {cat}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                }
+              />
+
+              {loading ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
+                  <CircularProgress />
+                </Box>
+              ) : error ? (
+                <Box sx={{ p: 4, textAlign: 'center' }}>
+                  <Typography color="error">{error}</Typography>
+                </Box>
+              ) : (
+                <DataTable
+                  columns={columns}
+                  rows={paginated}
+                  rowKey={(r) => r.id}
+                  page={page}
+                  pageSize={pageSize}
+                  total={total}
+                  onPageChange={setPage}
+                  onPageSizeChange={setPageSize}
+                  sortBy={sortBy}
+                  sortOrder={sortOrder}
+                  onSort={handleSort}
+                />
+              )}
+            </>
+          ) : (
+            <>
+              {loadingHistory ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
+                  <CircularProgress />
+                </Box>
+              ) : (
+                <DataTable
+                  columns={historyColumns}
+                  rows={historyList}
+                  rowKey={(r) => r.id}
+                  page={historyPage}
+                  pageSize={historyPageSize}
+                  total={historyTotal}
+                  onPageChange={setHistoryPage}
+                  onPageSizeChange={setHistoryPageSize}
+                />
+              )}
+            </>
+          )}
         </Box>
-      ) : error ? (
-        <Box sx={{ p: 4, textAlign: 'center' }}>
-          <Typography color="error">{error}</Typography>
-        </Box>
-      ) : (
-        <DataTable
-          columns={columns}
-          rows={paginated}
-          rowKey={(r) => r.id}
-          page={page}
-          pageSize={pageSize}
-          total={total}
-          onPageChange={setPage}
-          onPageSizeChange={setPageSize}
-          sortBy={sortBy}
-          sortOrder={sortOrder}
-          onSort={handleSort}
-        />
-      )}
+      </Card>
 
       {/* Generate Report Dialog */}
       <Dialog open={dialogOpen} onClose={() => !isGenerating && setDialogOpen(false)} maxWidth="sm" fullWidth>

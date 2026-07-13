@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, FormControl, InputLabel, MenuItem, Select } from '@mui/material';
+import { Button, FormControl, InputLabel, MenuItem, Select, Box, Tooltip, Typography } from '@mui/material';
 import { PageHeader } from '@/components/common/PageHeader';
 import { FilterBar } from '@/components/common/FilterBar';
 import { DataTable, StatusChip, type Column } from '@/components/common/DataTable';
@@ -8,9 +8,11 @@ import { ProductImportDialog } from '@/features/products/ProductImportDialog';
 import { productsApi, customersApi, suppliersApi, inventoryApi, salesApi } from '@/api/services';
 import { useCurrencyStore } from '@/stores/currencyStore';
 import { productUnitLabel } from '@/constants/productUnits';
+import { useNotification } from '@/components/feedback/NotificationProvider';
 import { productUsdFromUzs } from '@/utils/currency';
 import { formatUzs, formatUsd } from '@/utils/format';
 import { downloadSpreadsheet, type ExportFormat } from '@/utils/spreadsheet';
+import { API_BASE_URL } from '@/api/client';
 import type { Product, Sale } from '@/types/entities';
 
 const statusLabels: Record<Product['status'], string> = {
@@ -37,10 +39,30 @@ const SORT_FIELD_MAP: Record<string, string> = {
 
 export function ProductsPage() {
   const navigate = useNavigate();
+  const { success, error: notifyError } = useNotification();
+  const [zipUploading, setZipUploading] = useState(false);
   const exchangeRate = useCurrencyStore((s) => s.rates.find((r) => r.status === 'active')?.rate ?? 12_620);
   const [products, setProducts] = useState<Product[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
+
+  const handleZipImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setZipUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await (productsApi as any).bulkImportImages(formData);
+      success(res.message || 'ZIP rasmlar muvaffaqiyatli import qilindi');
+      void fetchProducts();
+    } catch (err: any) {
+      notifyError(err.message || 'ZIP importda xatolik yuz berdi');
+    } finally {
+      setZipUploading(false);
+      e.target.value = '';
+    }
+  };
   const [search, setSearch] = useState('');
   const [searchDebounced, setSearchDebounced] = useState('');
   const [page, setPage] = useState(0);
@@ -102,6 +124,42 @@ export function ProductsPage() {
 
   const columns: Column<Product>[] = useMemo(
     () => [
+      {
+        id: 'image',
+        label: 'Rasm',
+        width: 60,
+        render: (r) => (
+          <Tooltip
+            title={
+              r.imageUrl ? (
+                <Box sx={{ p: 0.5 }}>
+                  <img
+                    src={`${API_BASE_URL}/products/image/served/medium/${r.imageUrl}`}
+                    alt={r.name}
+                    style={{ maxWidth: 200, maxHeight: 200, display: 'block', borderRadius: 4 }}
+                  />
+                </Box>
+              ) : (
+                'Rasm yo\'q'
+              )
+            }
+            arrow
+          >
+            <Box sx={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'grey.100', borderRadius: 1, overflow: 'hidden' }}>
+              {r.imageUrl ? (
+                <img
+                  src={`${API_BASE_URL}/products/image/served/thumb/${r.imageUrl}`}
+                  alt={r.name}
+                  style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                  loading="lazy"
+                />
+              ) : (
+                <Typography component="span" variant="caption" color="text.disabled" sx={{ fontSize: '0.65rem' }}>—</Typography>
+              )}
+            </Box>
+          </Tooltip>
+        ),
+      },
       { id: 'sku', label: 'SKU', sortable: true, width: 100, render: (r) => r.sku },
       {
         id: 'barcode',
@@ -237,6 +295,10 @@ export function ProductsPage() {
         secondaryActions={
           <>
             <Button variant="outlined" onClick={() => setImportOpen(true)}>Import Excel</Button>
+            <Button variant="outlined" component="label" disabled={zipUploading}>
+              {zipUploading ? 'ZIP yuklanmoqda…' : 'ZIP Import'}
+              <input type="file" accept=".zip" onChange={handleZipImport} hidden />
+            </Button>
             <FormControl size="small" sx={{ minWidth: 90 }}>
               <InputLabel>Format</InputLabel>
               <Select value={exportFormat} label="Format" onChange={(e) => setExportFormat(e.target.value as ExportFormat)}>
@@ -302,6 +364,7 @@ export function ProductsPage() {
       />
 
       <DataTable
+        tableName="products-catalog"
         columns={columns}
         rows={products}
         rowKey={(r) => r.id}
@@ -320,7 +383,6 @@ export function ProductsPage() {
         sortOrder={sortOrder}
         onSort={handleSort}
         onRowClick={handleRowClick}
-        dense
       />
     </>
   );

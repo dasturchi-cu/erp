@@ -7,6 +7,8 @@ import { AccessControlService } from './access/access-control.service';
 import { SecurityConfigService } from './security/security-config.service';
 import { IdempotencyService } from './idempotency/idempotency.service';
 import { PilotErrorLogger } from './logging/pilot-error.logger';
+import { EventBusService } from './event-bus/event-bus.service';
+import { JobQueueService } from './job-queue/job-queue.service';
 
 @Global()
 @Module({
@@ -19,6 +21,8 @@ import { PilotErrorLogger } from './logging/pilot-error.logger';
     SecurityConfigService,
     IdempotencyService,
     PilotErrorLogger,
+    EventBusService,
+    JobQueueService,
   ],
   exports: [
     PrismaService,
@@ -29,6 +33,8 @@ import { PilotErrorLogger } from './logging/pilot-error.logger';
     SecurityConfigService,
     IdempotencyService,
     PilotErrorLogger,
+    EventBusService,
+    JobQueueService,
   ],
 })
 export class CoreModule {}

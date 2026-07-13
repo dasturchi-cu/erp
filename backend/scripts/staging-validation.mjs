@@ -163,17 +163,22 @@ async function bootstrap(session) {
   });
   if (!custRes.ok) throw new Error(`Customer create failed: ${JSON.stringify(custRes.data)}`);
 
+  const supRes = await request('GET', '/suppliers', { token, companyId, deviceId });
+  const supplierId = supRes.data?.data?.[0]?.id;
+  if (!supplierId) throw new Error('No supplier');
+
   return {
     productId: prodRes.data.id,
     customerId: custRes.data.id,
     warehouseId,
+    supplierId,
     salePriceUzs: 10000,
   };
 }
 
-async function createCashSale(session, productId, qty = 1, unitPriceUzs = 10000, idempotencyKey) {
+async function createCashSale(session, productId, qty = 1, unitPriceUzs = 10000, idempotencyKey = uuid()) {
   const { token, companyId, deviceId } = session;
-  const headers = idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {};
+  const headers = { 'Idempotency-Key': idempotencyKey };
   const total = unitPriceUzs * qty;
   return request('POST', '/sales', {
     token,
@@ -223,7 +228,7 @@ async function runSuite() {
   }
 
   const { token, companyId, deviceId, refreshToken } = session;
-  const { productId, customerId, warehouseId } = ctx;
+  const { productId, customerId, warehouseId, supplierId } = ctx;
 
   const unitPrice = ctx.salePriceUzs;
 
@@ -357,16 +362,25 @@ async function runSuite() {
         warehouseId,
         quantity: money(20),
         unitCostUzs: money(7200),
+        supplierId,
+        paymentType: 'CASH',
       },
     }),
     ...Array.from({ length: 5 }, () => createCashSale(session, productId, 1, unitPrice)),
   ]);
   const invRecv = await checkInventoryConsistency(token, companyId, deviceId, productId);
+  if (!(invRecv.ok && receiveAndSell[0].ok)) {
+    console.log('DEBUG S09a:', {
+      invRecv,
+      receiveStatus: receiveAndSell[0].status,
+      receiveData: receiveAndSell[0].data,
+    });
+  }
   record(
     'S09a',
     'Receive during parallel sales',
     invRecv.ok && receiveAndSell[0].ok,
-    `stock=${invRecv.stock}`,
+    `stock=${invRecv.stock} delta=${invRecv.delta} recvOk=${receiveAndSell[0].ok}`,
   );
 
   // S08a — Refresh token

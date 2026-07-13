@@ -4,6 +4,7 @@ import {
   SupplierDebtHistoryType,
   SupplierReceivePaymentType,
   SupplierStatus,
+  OriginalCurrency,
 } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import { PrismaService } from '../../../core/database/prisma.service';
@@ -24,11 +25,21 @@ export class SupplierDebtService {
       inventoryBatchId: string;
       quantity: Decimal;
       unitCostUzs: Decimal;
+      unitCostUsd?: Decimal;
+      originalCurrency?: OriginalCurrency;
+      exchangeRateUsed?: Decimal;
       note: string | null;
       receivedBy: string;
     },
   ): Promise<void> {
-    const totalCostUzs = input.unitCostUzs.mul(input.quantity).toDecimalPlaces(4);
+    const originalCurrency = input.originalCurrency ?? OriginalCurrency.UZS;
+    const exchangeRateUsed = input.exchangeRateUsed ?? new Decimal(1);
+    
+    const unitCostUzs = input.unitCostUzs;
+    const unitCostUsd = input.unitCostUsd ?? (originalCurrency === OriginalCurrency.USD ? unitCostUzs : unitCostUzs.div(exchangeRateUsed));
+
+    const totalCostUzs = unitCostUzs.mul(input.quantity).toDecimalPlaces(4);
+    const totalCostUsd = unitCostUsd.mul(input.quantity).toDecimalPlaces(4);
 
     await tx.supplierReceipt.create({
       data: {
@@ -38,8 +49,12 @@ export class SupplierDebtService {
         warehouseId: input.warehouseId,
         inventoryBatchId: input.inventoryBatchId,
         quantity: input.quantity,
-        unitCostUzs: input.unitCostUzs,
+        originalCurrency,
+        exchangeRateUsed,
+        unitCostUzs,
+        unitCostUsd,
         totalCostUzs,
+        totalCostUsd,
         paymentType: SupplierReceivePaymentType.CREDIT,
         note: input.note,
         receivedBy: input.receivedBy,
@@ -48,10 +63,14 @@ export class SupplierDebtService {
 
     const supplier = await tx.supplier.update({
       where: { id: input.supplierId, companyId: input.companyId },
-      data: { totalDebtUzs: { increment: totalCostUzs } },
+      data: { 
+        totalDebtUzs: { increment: totalCostUzs },
+        totalDebtUsd: { increment: totalCostUsd }
+      },
     });
 
-    const balanceAfter = supplier.totalDebtUzs.sub(supplier.totalPaidUzs);
+    const balanceAfterUzs = supplier.totalDebtUzs.sub(supplier.totalPaidUzs);
+    const balanceAfterUsd = supplier.totalDebtUsd.sub(supplier.totalPaidUsd);
 
     await tx.supplierDebtHistory.create({
       data: {
@@ -59,7 +78,9 @@ export class SupplierDebtService {
         supplierId: input.supplierId,
         type: SupplierDebtHistoryType.receipt_credit,
         amountUzs: totalCostUzs,
-        balanceAfterUzs: balanceAfter,
+        amountUsd: totalCostUsd,
+        balanceAfterUzs,
+        balanceAfterUsd,
         reference: input.inventoryBatchId,
         recordedBy: input.receivedBy,
       },
@@ -76,11 +97,19 @@ export class SupplierDebtService {
       inventoryBatchId: string;
       quantity: Decimal;
       unitCostUzs: Decimal;
+      unitCostUsd?: Decimal;
+      originalCurrency?: OriginalCurrency;
+      exchangeRateUsed?: Decimal;
       note: string | null;
       receivedBy: string;
     },
   ): Promise<void> {
-    const totalCostUzs = input.unitCostUzs.mul(input.quantity).toDecimalPlaces(4);
+    const originalCurrency = input.originalCurrency ?? OriginalCurrency.UZS;
+    const exchangeRateUsed = input.exchangeRateUsed ?? new Decimal(1);
+    const unitCostUzs = input.unitCostUzs;
+    const unitCostUsd = input.unitCostUsd ?? (originalCurrency === OriginalCurrency.USD ? unitCostUzs : unitCostUzs.div(exchangeRateUsed));
+    const totalCostUzs = unitCostUzs.mul(input.quantity).toDecimalPlaces(4);
+    const totalCostUsd = unitCostUsd.mul(input.quantity).toDecimalPlaces(4);
 
     await tx.supplierReceipt.create({
       data: {
@@ -90,8 +119,12 @@ export class SupplierDebtService {
         warehouseId: input.warehouseId,
         inventoryBatchId: input.inventoryBatchId,
         quantity: input.quantity,
-        unitCostUzs: input.unitCostUzs,
+        originalCurrency,
+        exchangeRateUsed,
+        unitCostUzs,
+        unitCostUsd,
         totalCostUzs,
+        totalCostUsd,
         paymentType: SupplierReceivePaymentType.CASH,
         note: input.note,
         receivedBy: input.receivedBy,
@@ -109,10 +142,10 @@ export class SupplierDebtService {
     return supplier;
   }
 
-  validatePaymentAmount(amountUzs: Decimal): void {
-    if (!isPositiveMoney(amountUzs)) {
+  validatePaymentAmount(amount: Decimal): void {
+    if (!isPositiveMoney(amount)) {
       throw AppException.validation('Validation failed', [
-        { field: 'amountUzs', message: 'Must be > 0', code: 'INVALID_AMOUNT' },
+        { field: 'amount', message: 'Must be > 0', code: 'INVALID_AMOUNT' },
       ]);
     }
   }
@@ -120,7 +153,9 @@ export class SupplierDebtService {
   async applyPayment(
     companyId: string,
     supplierId: string,
-    amountUzs: Decimal,
+    amount: Decimal,
+    currency: OriginalCurrency,
+    exchangeRate: Decimal,
     userId: string,
     paymentId: string,
     tx?: Prisma.TransactionClient,
@@ -133,20 +168,28 @@ export class SupplierDebtService {
       throw AppException.notFound('Supplier', supplierId);
     }
 
-    const remaining = supplier.totalDebtUzs.sub(supplier.totalPaidUzs);
-    if (amountUzs.gt(remaining)) {
-      throw AppException.businessRule('Payment exceeds remaining supplier debt', {
-        remaining: formatMoney(remaining),
-        amount: formatMoney(amountUzs),
+    const remainingUzs = supplier.totalDebtUzs.sub(supplier.totalPaidUzs);
+    const amountUzs = currency === OriginalCurrency.UZS ? amount : amount.mul(exchangeRate);
+    const amountUsd = currency === OriginalCurrency.USD ? amount : amount.div(exchangeRate);
+
+    if (amountUzs.gt(remainingUzs)) {
+      const remainingInPaidCurrency = currency === OriginalCurrency.UZS ? remainingUzs : remainingUzs.div(exchangeRate);
+      throw AppException.businessRule(`Payment exceeds remaining supplier debt in ${currency}`, {
+        remaining: formatMoney(remainingInPaidCurrency),
+        amount: formatMoney(amount),
       });
     }
 
     const updated = await db.supplier.update({
       where: { id: supplierId, companyId },
-      data: { totalPaidUzs: { increment: amountUzs } },
+      data: { 
+        totalPaidUzs: { increment: amountUzs },
+        totalPaidUsd: { increment: amountUsd }
+      },
     });
 
-    const balanceAfter = updated.totalDebtUzs.sub(updated.totalPaidUzs);
+    const balanceAfterUzs = updated.totalDebtUzs.sub(updated.totalPaidUzs);
+    const balanceAfterUsd = updated.totalDebtUsd.sub(updated.totalPaidUsd);
 
     await db.supplierDebtHistory.create({
       data: {
@@ -154,12 +197,14 @@ export class SupplierDebtService {
         supplierId,
         type: SupplierDebtHistoryType.payment,
         amountUzs,
-        balanceAfterUzs: balanceAfter,
+        amountUsd,
+        balanceAfterUzs,
+        balanceAfterUsd,
         reference: paymentId,
         recordedBy: userId,
       },
     });
 
-    return balanceAfter;
+    return currency === OriginalCurrency.UZS ? balanceAfterUzs : balanceAfterUsd;
   }
 }

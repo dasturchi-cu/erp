@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma, SupplierStatus } from '@prisma/client';
+import { Prisma, SupplierStatus, OriginalCurrency } from '@prisma/client';
+import { CurrencyService } from '../../currency/application/currency.service';
 import { Decimal } from '@prisma/client/runtime/library';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { AuditService } from '../../../core/audit/audit.service';
@@ -49,14 +50,20 @@ export class SuppliersService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly supplierDebt: SupplierDebtService,
+    private readonly currencyService: CurrencyService,
   ) {}
 
   async list(companyId: string, query: SupplierListQueryDto) {
     const page = query.resolvedPage();
     const limit = query.resolvedLimit();
-    const where: Prisma.SupplierWhereInput = { companyId, deletedAt: null };
+    const where: Prisma.SupplierWhereInput = { companyId };
 
-    if (query.status) where.status = query.status;
+    if (query.status) {
+      where.status = query.status;
+      if (query.status === SupplierStatus.ACTIVE) {
+        where.deletedAt = null;
+      }
+    }
     if (query.q) {
       where.OR = [
         { name: { contains: query.q, mode: 'insensitive' } },
@@ -110,7 +117,7 @@ export class SuppliersService {
       }),
       this.prisma.supplier.aggregate({
         where: { companyId, deletedAt: null },
-        _sum: { totalDebtUzs: true, totalPaidUzs: true },
+        _sum: { totalDebtUzs: true, totalDebtUsd: true, totalPaidUzs: true, totalPaidUsd: true },
       }),
       this.prisma.supplier.findFirst({
         where: { companyId, deletedAt: null, status: SupplierStatus.ACTIVE },
@@ -124,19 +131,24 @@ export class SuppliersService {
       }),
     ]);
 
-    const totalDebt = aggregates._sum.totalDebtUzs ?? new Decimal(0);
-    const totalPaid = aggregates._sum.totalPaidUzs ?? new Decimal(0);
+    const totalDebtUzs = aggregates._sum.totalDebtUzs ?? new Decimal(0);
+    const totalDebtUsd = aggregates._sum.totalDebtUsd ?? new Decimal(0);
+    const totalPaidUzs = aggregates._sum.totalPaidUzs ?? new Decimal(0);
+    const totalPaidUsd = aggregates._sum.totalPaidUsd ?? new Decimal(0);
 
     return {
       supplierCount,
-      totalDebtUzs: formatMoney(totalDebt),
-      totalPaidUzs: formatMoney(totalPaid),
-      remainingDebtUzs: formatMoney(totalDebt.sub(totalPaid)),
+      totalDebtUzs: formatMoney(totalDebtUzs),
+      totalDebtUsd: formatMoney(totalDebtUsd),
+      totalPaidUzs: formatMoney(totalPaidUzs),
+      totalPaidUsd: formatMoney(totalPaidUsd),
+      remainingDebtUzs: formatMoney(totalDebtUzs.sub(totalPaidUzs)),
+      remainingDebtUsd: formatMoney(totalDebtUsd.sub(totalPaidUsd)),
       topSupplierName: topSupplier?.name ?? null,
       topSupplierDebtUzs: topSupplier
         ? formatMoney(topSupplier.totalDebtUzs.sub(topSupplier.totalPaidUzs))
         : '0',
-      recentPayments: recentRows.map((row) => this.toPaymentResponse(row)),
+      recentPayments: recentRows.map((row) => this.toPaymentResponse(row as any)),
     };
   }
 
@@ -377,6 +389,8 @@ export class SuppliersService {
       type: row.type,
       amountUzs: formatMoney(row.amountUzs),
       balanceAfterUzs: formatMoney(row.balanceAfterUzs),
+      amountUsd: formatMoney(row.amountUsd),
+      balanceAfterUsd: formatMoney(row.balanceAfterUsd),
       reference: row.reference,
       createdAt: row.createdAt.toISOString(),
       recordedBy: userMap.get(row.recordedBy) ?? row.recordedBy,
@@ -394,15 +408,25 @@ export class SuppliersService {
     requestId?: string,
   ): Promise<SupplierPaymentResponseDto> {
     await this.findSupplierOrThrow(companyId, supplierId);
-    const amountUzs = parseMoney(dto.amountUzs);
-    this.supplierDebt.validatePaymentAmount(amountUzs);
+    const amount = parseMoney(dto.amount);
+    this.supplierDebt.validatePaymentAmount(amount);
+
+    const rate = await this.currencyService.getActiveRateOrThrow(companyId);
+    const exchangeRate = rate.rate;
+
+    const amountUzs = dto.currency === OriginalCurrency.UZS ? amount : amount.mul(exchangeRate);
+    const amountUsd = dto.currency === OriginalCurrency.USD ? amount : amount.div(exchangeRate);
 
     const payment = await this.prisma.$transaction(async (tx) => {
       const created = await tx.supplierPayment.create({
         data: {
           companyId,
           supplierId,
+          amount,
+          currency: dto.currency,
           amountUzs,
+          amountUsd,
+          exchangeRateUsed: exchangeRate,
           paymentMethod: dto.paymentMethod,
           notes: dto.notes ?? null,
           recordedBy: userId,
@@ -410,7 +434,7 @@ export class SuppliersService {
         include: { supplier: true, recorder: true },
       });
 
-      await this.supplierDebt.applyPayment(companyId, supplierId, amountUzs, userId, created.id, tx);
+      await this.supplierDebt.applyPayment(companyId, supplierId, amount, dto.currency, exchangeRate, userId, created.id, tx);
       return created;
     });
 
@@ -420,12 +444,19 @@ export class SuppliersService {
       action: 'CREATE',
       entityType: 'supplier_payment',
       entityId: payment.id,
-      newValue: { supplierId, amountUzs: formatMoney(amountUzs) },
+      newValue: { 
+        supplierId, 
+        amount: formatMoney(amount), 
+        currency: dto.currency, 
+        exchangeRateUsed: formatMoney(exchangeRate),
+        amountUzs: formatMoney(amountUzs),
+        amountUsd: formatMoney(amountUsd)
+      },
       ipAddress: ip,
       requestId,
     });
 
-    return this.toPaymentResponse(payment);
+    return this.toPaymentResponse(payment as any);
   }
 
   async listDebtsForExport(companyId: string) {
@@ -447,7 +478,7 @@ export class SuppliersService {
 
   private async findSupplierOrThrow(companyId: string, id: string) {
     const supplier = await this.prisma.supplier.findFirst({
-      where: { id, companyId, deletedAt: null },
+      where: { id, companyId },
     });
     if (!supplier) {
       throw AppException.notFound('Supplier', id);
@@ -463,7 +494,9 @@ export class SuppliersService {
     notes: string | null;
     status: SupplierStatus;
     totalDebtUzs: Prisma.Decimal;
+    totalDebtUsd: Prisma.Decimal;
     totalPaidUzs: Prisma.Decimal;
+    totalPaidUsd: Prisma.Decimal;
     createdAt: Date;
     updatedAt: Date;
   }): SupplierResponseDto {
@@ -475,8 +508,11 @@ export class SuppliersService {
       notes: supplier.notes,
       status: supplier.status,
       totalDebtUzs: formatMoney(supplier.totalDebtUzs),
+      totalDebtUsd: formatMoney(supplier.totalDebtUsd),
       totalPaidUzs: formatMoney(supplier.totalPaidUzs),
+      totalPaidUsd: formatMoney(supplier.totalPaidUsd),
       remainingDebtUzs: formatMoney(supplier.totalDebtUzs.sub(supplier.totalPaidUzs)),
+      remainingDebtUsd: formatMoney(supplier.totalDebtUsd.sub(supplier.totalPaidUsd)),
       createdAt: supplier.createdAt.toISOString(),
       updatedAt: supplier.updatedAt.toISOString(),
     };
@@ -485,7 +521,11 @@ export class SuppliersService {
   private toPaymentResponse(row: {
     id: string;
     supplierId: string;
+    amount: Prisma.Decimal;
+    currency: OriginalCurrency;
     amountUzs: Prisma.Decimal;
+    amountUsd: Prisma.Decimal;
+    exchangeRateUsed: Prisma.Decimal;
     paymentMethod: string;
     notes: string | null;
     createdAt: Date;
@@ -496,7 +536,11 @@ export class SuppliersService {
       id: row.id,
       supplierId: row.supplierId,
       supplierName: row.supplier.name,
+      amount: formatMoney(row.amount),
+      currency: row.currency,
       amountUzs: formatMoney(row.amountUzs),
+      amountUsd: formatMoney(row.amountUsd),
+      exchangeRateUsed: formatMoney(row.exchangeRateUsed),
       paymentMethod: row.paymentMethod,
       notes: row.notes,
       createdAt: row.createdAt.toISOString(),

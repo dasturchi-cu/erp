@@ -16,6 +16,8 @@ import { AdminModule } from './modules/admin/admin.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { ExpensesModule } from './modules/expenses/expenses.module';
+import { SaasModule } from './modules/saas/saas.module';
 
 @Module({
   imports: [
@@ -41,6 +43,8 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
     ReportsModule,
     AnalyticsModule,
     NotificationsModule,
+    ExpensesModule,
+    SaasModule,
   ],
 })
 export class AppModule {}

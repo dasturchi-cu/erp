@@ -9,7 +9,7 @@ import {
   MaxLength,
 } from 'class-validator';
 import { PaginationQueryDto } from '../../../../core/dto/pagination-query.dto';
-import { InventoryMovementType, SupplierReceivePaymentType } from '@prisma/client';
+import { InventoryMovementType, SupplierReceivePaymentType, OriginalCurrency } from '@prisma/client';
 
 const MONEY_PATTERN = /^-?\d+(\.\d{1,4})?$/;
 const POSITIVE_MONEY_PATTERN = /^\d+(\.\d{1,4})?$/;
@@ -61,9 +61,27 @@ export class ReceiveStockRequestDto {
   unitCostUsd?: string;
 
   @IsOptional()
+  @IsEnum(OriginalCurrency)
+  originalCurrency?: OriginalCurrency;
+
+  @IsOptional()
+  @IsString()
+  @Matches(MONEY_PATTERN)
+  exchangeRateUsed?: string;
+
+  @IsOptional()
   @IsString()
   @MaxLength(2000)
   note?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  batchNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  expiresAt?: string;
 
   @IsUUID()
   supplierId!: string;

@@ -41,6 +41,7 @@ import { RecordSupplierPaymentPage } from '@/features/suppliers/RecordSupplierPa
 import { CreateReturnPage } from '@/features/sales/CreateReturnPage';
 import { WarehouseDetailPage } from '@/features/inventory/WarehouseDetailPage';
 import { CurrencyPage } from '@/features/finance/CurrencyPage';
+import { ExpensesPage } from '@/features/finance/ExpensesPage';
 import { ReportsPage } from '@/features/reports/ReportsPage';
 import { AnalyticsPage } from '@/features/reports/AnalyticsPage';
 import { NotificationsPage } from '@/features/notifications/NotificationsPage';
@@ -97,6 +98,7 @@ const shellRoutes = [
   { path: '/notifications', element: <NotificationsPage /> },
   { path: '/settings', element: <SettingsPage /> },
   { path: '/settings/exchange-rates', element: <CurrencyPage /> },
+  { path: '/expenses', element: <ExpensesPage /> },
   { path: '/admin', element: <AdminHomePage /> },
   { path: '/admin/users', element: <UsersPage /> },
   { path: '/admin/roles', element: <RolesPage /> },

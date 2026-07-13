@@ -55,10 +55,16 @@ export function ProductImportDialog({ open, onClose, onImported }: ProductImport
           unit: r.unit,
           purchasePrice: r.purchasePrice,
           sellingPrice: r.sellingPrice,
+          purchasePriceUzs: r.purchasePriceUzs,
+          sellingPriceUzs: r.sellingPriceUzs,
+          purchasePriceUsd: r.purchasePriceUsd,
+          sellingPriceUsd: r.sellingPriceUsd,
+          legacyId: r.legacyId,
           stock: r.stock,
         })),
       });
-      success(`${result.created} ta yaratildi, ${result.failed} ta xato`);
+      console.log('=== PRODUCTION IMPORT REPORT ===', result.report);
+      success(`${result.created} ta mahsulot muvaffaqiyatli import qilindi!`);
       onImported();
       onClose();
       setRows([]);
@@ -90,7 +96,7 @@ export function ProductImportDialog({ open, onClose, onImported }: ProductImport
             />
           </Button>
           <Typography variant="caption" color="text.secondary">
-            Ustunlar: SKU, Barcode, Name, Category, Unit, Purchase Price, Selling Price, Stock
+            Ustunlar: SKU, Barcode, Name, Category, Unit, Purchase Price UZS, Selling Price UZS, Purchase Price USD, Selling Price USD, Legacy ID, Stock
           </Typography>
           {rows.some((r) => r.stock && Number(r.stock) > 0) && (
             <TextField

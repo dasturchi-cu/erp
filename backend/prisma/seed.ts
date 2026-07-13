@@ -426,6 +426,7 @@ async function main() {
           name: c.name,
           phone: c.phone,
           totalDebtUzs: c.debtUzs,
+          totalPurchasesUzs: c.debtUzs,
           lastPurchaseAt: daysAgo(c.ageDays),
         },
       });

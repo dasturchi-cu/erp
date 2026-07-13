@@ -36,6 +36,19 @@ export interface Product {
   priceUsd: number;
   stock: number;
   status: 'active' | 'inactive';
+  wholesalePriceUzs?: number;
+  wholesalePriceUsd?: number;
+  recommendedPriceUzs?: number;
+  recommendedPriceUsd?: number;
+  minPriceUzs?: number;
+  minPriceUsd?: number;
+  imageUrl?: string | null;
+  pdfCatalogUrl?: string | null;
+  techPassportUrl?: string | null;
+  userManualUrl?: string | null;
+  barcodes?: string[];
+  aliases?: string[];
+  unitConversions?: Array<{ fromUnit: string; toUnit: string; conversionFactor: number }>;
 }
 
 export interface Category {
@@ -153,8 +166,11 @@ export interface Supplier {
   notes?: string;
   status: 'active' | 'archived';
   totalDebtUzs: number;
+  totalDebtUsd: number;
   totalPaidUzs: number;
+  totalPaidUsd: number;
   remainingDebtUzs: number;
+  remainingDebtUsd: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -177,7 +193,11 @@ export interface SupplierPayment {
   id: string;
   supplierId: string;
   supplierName: string;
+  amount: number;
+  currency: 'UZS' | 'USD';
   amountUzs: number;
+  amountUsd: number;
+  exchangeRateUsed: number;
   method: 'cash' | 'card' | 'transfer';
   note?: string;
   createdAt: string;
@@ -188,7 +208,9 @@ export interface SupplierDebtHistoryEntry {
   id: string;
   type: string;
   amountUzs: number;
+  amountUsd: number;
   balanceAfterUzs: number;
+  balanceAfterUsd: number;
   reference?: string;
   createdAt: string;
   recordedBy: string;

@@ -67,23 +67,7 @@ export function mapCompany(wire: {
   };
 }
 
-export function mapProduct(wire: {
-  id: string;
-  sku: string;
-  barcode?: string | null;
-  name: string;
-  categoryId: string;
-  categoryName: string;
-  status: string;
-  purchasePriceUzs: string;
-  purchasePriceUsd: string;
-  salePriceUzs: string;
-  salePriceUsd: string;
-  stock: string;
-  unitOfMeasure?: string;
-  unitsPerBox?: string;
-  minStockLevel?: string;
-}): Product {
+export function mapProduct(wire: any): Product {
   return {
     id: wire.id,
     sku: wire.sku,
@@ -99,6 +83,23 @@ export function mapProduct(wire: {
     priceUsd: parseMoney(wire.salePriceUsd),
     stock: parseMoney(wire.stock),
     status: lowerStatus(wire.status) as Product['status'],
+    wholesalePriceUzs: wire.wholesalePriceUzs ? parseMoney(wire.wholesalePriceUzs) : undefined,
+    wholesalePriceUsd: wire.wholesalePriceUsd ? parseMoney(wire.wholesalePriceUsd) : undefined,
+    recommendedPriceUzs: wire.recommendedPriceUzs ? parseMoney(wire.recommendedPriceUzs) : undefined,
+    recommendedPriceUsd: wire.recommendedPriceUsd ? parseMoney(wire.recommendedPriceUsd) : undefined,
+    minPriceUzs: wire.minPriceUzs ? parseMoney(wire.minPriceUzs) : undefined,
+    minPriceUsd: wire.minPriceUsd ? parseMoney(wire.minPriceUsd) : undefined,
+    imageUrl: wire.imageUrl ?? null,
+    pdfCatalogUrl: wire.pdfCatalogUrl ?? null,
+    techPassportUrl: wire.techPassportUrl ?? null,
+    userManualUrl: wire.userManualUrl ?? null,
+    barcodes: wire.barcodes ?? [],
+    aliases: wire.aliases ?? [],
+    unitConversions: wire.unitConversions?.map((uc: any) => ({
+      fromUnit: uc.fromUnit,
+      toUnit: uc.toUnit,
+      conversionFactor: parseMoney(uc.conversionFactor)
+    })) ?? []
   };
 }
 
@@ -481,8 +482,11 @@ export function mapSupplier(wire: {
   notes?: string | null;
   status: string;
   totalDebtUzs: string;
+  totalDebtUsd: string;
   totalPaidUzs: string;
+  totalPaidUsd: string;
   remainingDebtUzs: string;
+  remainingDebtUsd: string;
   createdAt: string;
   updatedAt: string;
 }): Supplier {
@@ -494,8 +498,11 @@ export function mapSupplier(wire: {
     notes: wire.notes ?? undefined,
     status: lowerStatus(wire.status) as Supplier['status'],
     totalDebtUzs: parseMoney(wire.totalDebtUzs),
+    totalDebtUsd: parseMoney(wire.totalDebtUsd),
     totalPaidUzs: parseMoney(wire.totalPaidUzs),
+    totalPaidUsd: parseMoney(wire.totalPaidUsd),
     remainingDebtUzs: parseMoney(wire.remainingDebtUzs),
+    remainingDebtUsd: parseMoney(wire.remainingDebtUsd),
     createdAt: wire.createdAt,
     updatedAt: wire.updatedAt,
   };
@@ -533,7 +540,11 @@ export function mapSupplierPayment(wire: {
   id: string;
   supplierId: string;
   supplierName: string;
+  amount: string;
+  currency: string;
   amountUzs: string;
+  amountUsd: string;
+  exchangeRateUsed: string;
   paymentMethod: string;
   notes?: string | null;
   createdAt: string;
@@ -543,7 +554,11 @@ export function mapSupplierPayment(wire: {
     id: wire.id,
     supplierId: wire.supplierId,
     supplierName: wire.supplierName,
+    amount: parseMoney(wire.amount),
+    currency: wire.currency as 'UZS' | 'USD',
     amountUzs: parseMoney(wire.amountUzs),
+    amountUsd: parseMoney(wire.amountUsd),
+    exchangeRateUsed: parseMoney(wire.exchangeRateUsed),
     method: paymentMethodMap[wire.paymentMethod] ?? 'cash',
     note: wire.notes ?? undefined,
     createdAt: wire.createdAt,
@@ -555,7 +570,9 @@ export function mapSupplierDebtHistoryEntry(wire: {
   id: string;
   type: string;
   amountUzs: string;
+  amountUsd: string;
   balanceAfterUzs: string;
+  balanceAfterUsd: string;
   reference?: string | null;
   createdAt: string;
   recordedBy: string;
@@ -564,7 +581,9 @@ export function mapSupplierDebtHistoryEntry(wire: {
     id: wire.id,
     type: wire.type,
     amountUzs: parseMoney(wire.amountUzs),
+    amountUsd: parseMoney(wire.amountUsd),
     balanceAfterUzs: parseMoney(wire.balanceAfterUzs),
+    balanceAfterUsd: parseMoney(wire.balanceAfterUsd),
     reference: wire.reference ?? undefined,
     createdAt: wire.createdAt,
     recordedBy: wire.recordedBy,

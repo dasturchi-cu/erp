@@ -4,6 +4,7 @@ import { Decimal } from '@prisma/client/runtime/library';
 import { AuditService } from '../../../core/audit/audit.service';
 import { formatMoney } from '../../../core/utils/money.util';
 import { AnalyticsCacheService } from './analytics-cache.service';
+import { PrismaService } from '../../../core/database/prisma.service';
 import {
   defaultChartPoints,
   formatMonthShort,
@@ -45,6 +46,7 @@ export class AnalyticsService {
     private readonly queries: AnalyticsQueriesService,
     private readonly cache: AnalyticsCacheService,
     private readonly audit: AuditService,
+    private readonly prisma: PrismaService,
   ) {}
 
   private scope(
@@ -543,4 +545,408 @@ export class AnalyticsService {
       },
     };
   }
+
+  async getEnterpriseDashboard(
+    companyId: string,
+    userId: string,
+    canViewAllSales: boolean,
+  ) {
+    const exchangeRate = await this.prisma.exchangeRate.findFirst({
+      where: { companyId, status: 'ACTIVE' },
+      orderBy: { effectiveFrom: 'desc' },
+    });
+    const rate = exchangeRate?.rate ? Number(exchangeRate.rate) : 12620;
+
+    const now = new Date();
+
+    // Time boundaries
+    const todayStart = new Date(now);
+    todayStart.setUTCHours(0, 0, 0, 0);
+    const todayEnd = new Date(now);
+    todayEnd.setUTCHours(23, 59, 59, 999);
+
+    const yesterdayStart = new Date(todayStart);
+    yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+    const yesterdayEnd = new Date(todayEnd);
+    yesterdayEnd.setDate(yesterdayEnd.getDate() - 1);
+
+    const weekStart = new Date(now);
+    weekStart.setDate(weekStart.getDate() - 7);
+    const prevWeekStart = new Date(now);
+    prevWeekStart.setDate(prevWeekStart.getDate() - 14);
+
+    const monthStart = new Date(now);
+    monthStart.setDate(monthStart.getDate() - 30);
+    const prevMonthStart = new Date(now);
+    prevMonthStart.setDate(prevMonthStart.getDate() - 60);
+
+    const yearStart = new Date(now);
+    yearStart.setDate(yearStart.getDate() - 365);
+    const prevYearStart = new Date(now);
+    prevYearStart.setDate(prevYearStart.getDate() - 730);
+
+    const cashierId = canViewAllSales ? undefined : userId;
+
+    const [
+      inventoryVal,
+      custDebt,
+      suppDebt,
+      todayAgg,
+      yesterdayAgg,
+      weekAgg,
+      prevWeekAgg,
+      monthAgg,
+      prevMonthAgg,
+      yearAgg,
+      prevYearAgg,
+      cogsAgg,
+      prevCogsAgg,
+      topProducts,
+      topCustomers,
+      dailyChartData
+    ] = await Promise.all([
+      // 1. Inventory Value (at cost)
+      this.prisma.$queryRaw<Array<{ total: number }>>`
+        SELECT COALESCE(SUM(remaining_qty * unit_cost_uzs), 0)::float AS total
+        FROM inventory_batches
+        WHERE company_id = ${companyId}::uuid AND remaining_qty > 0
+      `,
+      // 2. Customer Debt
+      this.prisma.$queryRaw<Array<{ total: number }>>`
+        SELECT COALESCE(SUM(total_debt_uzs), 0)::float AS total
+        FROM customers
+        WHERE company_id = ${companyId}::uuid AND deleted_at IS NULL
+      `,
+      // 3. Supplier Debt
+      this.prisma.$queryRaw<Array<{ total: number }>>`
+        SELECT COALESCE(SUM(total_debt_uzs - total_paid_uzs), 0)::float AS total
+        FROM suppliers
+        WHERE company_id = ${companyId}::uuid AND deleted_at IS NULL
+      `,
+      // Today Sales
+      cashierId 
+        ? this.prisma.$queryRaw<Array<{ revenue_uzs: number, revenue_usd: number, order_count: number }>>`
+            SELECT 
+              COALESCE(SUM(total_uzs), 0)::float as revenue_uzs,
+              COALESCE(SUM(total_usd), 0)::float as revenue_usd,
+              COUNT(id)::int as order_count
+            FROM sales
+            WHERE company_id = ${companyId}::uuid AND status = 'COMPLETED' AND cashier_id = ${cashierId}::uuid AND created_at >= ${todayStart} AND created_at <= ${todayEnd}
+          `
+        : this.prisma.$queryRaw<Array<{ revenue_uzs: number, revenue_usd: number, order_count: number }>>`
+            SELECT 
+              COALESCE(SUM(total_uzs), 0)::float as revenue_uzs,
+              COALESCE(SUM(total_usd), 0)::float as revenue_usd,
+              COUNT(id)::int as order_count
+            FROM sales
+            WHERE company_id = ${companyId}::uuid AND status = 'COMPLETED' AND created_at >= ${todayStart} AND created_at <= ${todayEnd}
+          `,
+      // Yesterday Sales
+      cashierId
+        ? this.prisma.$queryRaw<Array<{ revenue_uzs: number }>>`
+            SELECT COALESCE(SUM(total_uzs), 0)::float as revenue_uzs
+            FROM sales
+            WHERE company_id = ${companyId}::uuid AND status = 'COMPLETED' AND cashier_id = ${cashierId}::uuid AND created_at >= ${yesterdayStart} AND created_at <= ${yesterdayEnd}
+          `
+        : this.prisma.$queryRaw<Array<{ revenue_uzs: number }>>`
+            SELECT COALESCE(SUM(total_uzs), 0)::float as revenue_uzs
+            FROM sales
+            WHERE company_id = ${companyId}::uuid AND status = 'COMPLETED' AND created_at >= ${yesterdayStart} AND created_at <= ${yesterdayEnd}
+          `,
+      // Weekly Sales
+      cashierId
+        ? this.prisma.$queryRaw<Array<{ revenue_uzs: number, revenue_usd: number }>>`
+            SELECT 
+              COALESCE(SUM(total_uzs), 0)::float as revenue_uzs,
+              COALESCE(SUM(total_usd), 0)::float as revenue_usd
+            FROM sales
+            WHERE company_id = ${companyId}::uuid AND status = 'COMPLETED' AND cashier_id = ${cashierId}::uuid AND created_at >= ${weekStart}
+          `
+        : this.prisma.$queryRaw<Array<{ revenue_uzs: number, revenue_usd: number }>>`
+            SELECT 
+              COALESCE(SUM(total_uzs), 0)::float as revenue_uzs,
+              COALESCE(SUM(total_usd), 0)::float as revenue_usd
+            FROM sales
+            WHERE company_id = ${companyId}::uuid AND status = 'COMPLETED' AND created_at >= ${weekStart}
+          `,
+      // Prev Weekly Sales
+      cashierId
+        ? this.prisma.$queryRaw<Array<{ revenue_uzs: number }>>`
+            SELECT COALESCE(SUM(total_uzs), 0)::float as revenue_uzs
+            FROM sales
+            WHERE company_id = ${companyId}::uuid AND status = 'COMPLETED' AND cashier_id = ${cashierId}::uuid AND created_at >= ${prevWeekStart} AND created_at < ${weekStart}
+          `
+        : this.prisma.$queryRaw<Array<{ revenue_uzs: number }>>`
+            SELECT COALESCE(SUM(total_uzs), 0)::float as revenue_uzs
+            FROM sales
+            WHERE company_id = ${companyId}::uuid AND status = 'COMPLETED' AND created_at >= ${prevWeekStart} AND created_at < ${weekStart}
+          `,
+      // Monthly Sales
+      cashierId
+        ? this.prisma.$queryRaw<Array<{ revenue_uzs: number, revenue_usd: number }>>`
+            SELECT 
+              COALESCE(SUM(total_uzs), 0)::float as revenue_uzs,
+              COALESCE(SUM(total_usd), 0)::float as revenue_usd
+            FROM sales
+            WHERE company_id = ${companyId}::uuid AND status = 'COMPLETED' AND cashier_id = ${cashierId}::uuid AND created_at >= ${monthStart}
+          `
+        : this.prisma.$queryRaw<Array<{ revenue_uzs: number, revenue_usd: number }>>`
+            SELECT 
+              COALESCE(SUM(total_uzs), 0)::float as revenue_uzs,
+              COALESCE(SUM(total_usd), 0)::float as revenue_usd
+            FROM sales
+            WHERE company_id = ${companyId}::uuid AND status = 'COMPLETED' AND created_at >= ${monthStart}
+          `,
+      // Prev Monthly Sales
+      cashierId
+        ? this.prisma.$queryRaw<Array<{ revenue_uzs: number }>>`
+            SELECT COALESCE(SUM(total_uzs), 0)::float as revenue_uzs
+            FROM sales
+            WHERE company_id = ${companyId}::uuid AND status = 'COMPLETED' AND cashier_id = ${cashierId}::uuid AND created_at >= ${prevMonthStart} AND created_at < ${monthStart}
+          `
+        : this.prisma.$queryRaw<Array<{ revenue_uzs: number }>>`
+            SELECT COALESCE(SUM(total_uzs), 0)::float as revenue_uzs
+            FROM sales
+            WHERE company_id = ${companyId}::uuid AND status = 'COMPLETED' AND created_at >= ${prevMonthStart} AND created_at < ${monthStart}
+          `,
+      // Yearly Sales
+      cashierId
+        ? this.prisma.$queryRaw<Array<{ revenue_uzs: number, revenue_usd: number }>>`
+            SELECT 
+              COALESCE(SUM(total_uzs), 0)::float as revenue_uzs,
+              COALESCE(SUM(total_usd), 0)::float as revenue_usd
+            FROM sales
+            WHERE company_id = ${companyId}::uuid AND status = 'COMPLETED' AND cashier_id = ${cashierId}::uuid AND created_at >= ${yearStart}
+          `
+        : this.prisma.$queryRaw<Array<{ revenue_uzs: number, revenue_usd: number }>>`
+            SELECT 
+              COALESCE(SUM(total_uzs), 0)::float as revenue_uzs,
+              COALESCE(SUM(total_usd), 0)::float as revenue_usd
+            FROM sales
+            WHERE company_id = ${companyId}::uuid AND status = 'COMPLETED' AND created_at >= ${yearStart}
+          `,
+      // Prev Yearly Sales
+      cashierId
+        ? this.prisma.$queryRaw<Array<{ revenue_uzs: number }>>`
+            SELECT COALESCE(SUM(total_uzs), 0)::float as revenue_uzs
+            FROM sales
+            WHERE company_id = ${companyId}::uuid AND status = 'COMPLETED' AND cashier_id = ${cashierId}::uuid AND created_at >= ${prevYearStart} AND created_at < ${yearStart}
+          `
+        : this.prisma.$queryRaw<Array<{ revenue_uzs: number }>>`
+            SELECT COALESCE(SUM(total_uzs), 0)::float as revenue_uzs
+            FROM sales
+            WHERE company_id = ${companyId}::uuid AND status = 'COMPLETED' AND created_at >= ${prevYearStart} AND created_at < ${yearStart}
+          `,
+      // COGS in last 30 days
+      cashierId
+        ? this.prisma.$queryRaw<Array<{ total: number }>>`
+            SELECT COALESCE(SUM(sfa.cost_uzs), 0)::float as total
+            FROM sale_fifo_allocations sfa
+            JOIN sales s ON s.id = sfa.sale_id
+            WHERE s.company_id = ${companyId}::uuid AND s.status = 'COMPLETED' AND s.cashier_id = ${cashierId}::uuid AND s.created_at >= ${monthStart}
+          `
+        : this.prisma.$queryRaw<Array<{ total: number }>>`
+            SELECT COALESCE(SUM(sfa.cost_uzs), 0)::float as total
+            FROM sale_fifo_allocations sfa
+            JOIN sales s ON s.id = sfa.sale_id
+            WHERE s.company_id = ${companyId}::uuid AND s.status = 'COMPLETED' AND s.created_at >= ${monthStart}
+          `,
+      // Prev COGS in month prior
+      cashierId
+        ? this.prisma.$queryRaw<Array<{ total: number }>>`
+            SELECT COALESCE(SUM(sfa.cost_uzs), 0)::float as total
+            FROM sale_fifo_allocations sfa
+            JOIN sales s ON s.id = sfa.sale_id
+            WHERE s.company_id = ${companyId}::uuid AND s.status = 'COMPLETED' AND s.cashier_id = ${cashierId}::uuid AND s.created_at >= ${prevMonthStart} AND s.created_at < ${monthStart}
+          `
+        : this.prisma.$queryRaw<Array<{ total: number }>>`
+            SELECT COALESCE(SUM(sfa.cost_uzs), 0)::float as total
+            FROM sale_fifo_allocations sfa
+            JOIN sales s ON s.id = sfa.sale_id
+            WHERE s.company_id = ${companyId}::uuid AND s.status = 'COMPLETED' AND s.created_at >= ${prevMonthStart} AND s.created_at < ${monthStart}
+          `,
+      // Top products (revenue-based) in last 30 days
+      cashierId
+        ? this.prisma.$queryRaw<Array<{ name: string, quantity: number, revenue_uzs: number }>>`
+            SELECT 
+              p.name,
+              SUM(sli.quantity)::float as quantity,
+              SUM(sli.total_uzs)::float as revenue_uzs
+            FROM sale_items sli
+            JOIN sales s ON s.id = sli.sale_id
+            JOIN products p ON p.id = sli.product_id
+            WHERE s.company_id = ${companyId}::uuid AND s.status = 'COMPLETED' AND s.cashier_id = ${cashierId}::uuid AND s.created_at >= ${monthStart}
+            GROUP BY p.id, p.name
+            ORDER BY revenue_uzs DESC
+            LIMIT 10
+          `
+        : this.prisma.$queryRaw<Array<{ name: string, quantity: number, revenue_uzs: number }>>`
+            SELECT 
+              p.name,
+              SUM(sli.quantity)::float as quantity,
+              SUM(sli.total_uzs)::float as revenue_uzs
+            FROM sale_items sli
+            JOIN sales s ON s.id = sli.sale_id
+            JOIN products p ON p.id = sli.product_id
+            WHERE s.company_id = ${companyId}::uuid AND s.status = 'COMPLETED' AND s.created_at >= ${monthStart}
+            GROUP BY p.id, p.name
+            ORDER BY revenue_uzs DESC
+            LIMIT 10
+          `,
+      // Top customers in last 30 days
+      cashierId
+        ? this.prisma.$queryRaw<Array<{ name: string, revenue_uzs: number }>>`
+            SELECT 
+              c.name,
+              SUM(s.total_uzs)::float as revenue_uzs
+            FROM sales s
+            JOIN customers c ON c.id = s.customer_id
+            WHERE s.company_id = ${companyId}::uuid AND s.status = 'COMPLETED' AND s.cashier_id = ${cashierId}::uuid AND s.created_at >= ${monthStart}
+            GROUP BY c.id, c.name
+            ORDER BY revenue_uzs DESC
+            LIMIT 10
+          `
+        : this.prisma.$queryRaw<Array<{ name: string, revenue_uzs: number }>>`
+            SELECT 
+              c.name,
+              SUM(s.total_uzs)::float as revenue_uzs
+            FROM sales s
+            JOIN customers c ON c.id = s.customer_id
+            WHERE s.company_id = ${companyId}::uuid AND s.status = 'COMPLETED' AND s.created_at >= ${monthStart}
+            GROUP BY c.id, c.name
+            ORDER BY revenue_uzs DESC
+            LIMIT 10
+          `,
+      // Daily chart data for last 30 days
+      cashierId
+        ? this.prisma.$queryRaw<Array<{ date: Date, revenue_uzs: number, revenue_usd: number, cogs_uzs: number }>>`
+            SELECT 
+              DATE(s.created_at) as date,
+              SUM(s.total_uzs)::float as revenue_uzs,
+              SUM(s.total_usd)::float as revenue_usd,
+              COALESCE(SUM(sfa.cost_uzs), 0)::float as cogs_uzs
+            FROM sales s
+            LEFT JOIN (
+              SELECT sale_id, SUM(cost_uzs) as cost_uzs
+              FROM sale_fifo_allocations
+              GROUP BY sale_id
+            ) sfa ON sfa.sale_id = s.id
+            WHERE s.company_id = ${companyId}::uuid AND s.status = 'COMPLETED' AND s.cashier_id = ${cashierId}::uuid AND s.created_at >= ${monthStart}
+            GROUP BY DATE(s.created_at)
+            ORDER BY date ASC
+          `
+        : this.prisma.$queryRaw<Array<{ date: Date, revenue_uzs: number, revenue_usd: number, cogs_uzs: number }>>`
+            SELECT 
+              DATE(s.created_at) as date,
+              SUM(s.total_uzs)::float as revenue_uzs,
+              SUM(s.total_usd)::float as revenue_usd,
+              COALESCE(SUM(sfa.cost_uzs), 0)::float as cogs_uzs
+            FROM sales s
+            LEFT JOIN (
+              SELECT sale_id, SUM(cost_uzs) as cost_uzs
+              FROM sale_fifo_allocations
+              GROUP BY sale_id
+            ) sfa ON sfa.sale_id = s.id
+            WHERE s.company_id = ${companyId}::uuid AND s.status = 'COMPLETED' AND s.created_at >= ${monthStart}
+            GROUP BY DATE(s.created_at)
+            ORDER BY date ASC
+          `
+    ]);
+
+    // Trend calculations
+    const todayRev = todayAgg[0]?.revenue_uzs ?? 0;
+    const yesterdayRev = yesterdayAgg[0]?.revenue_uzs ?? 0;
+    const todayTrend = pctChange(todayRev, yesterdayRev);
+
+    const weekRev = weekAgg[0]?.revenue_uzs ?? 0;
+    const prevWeekRev = prevWeekAgg[0]?.revenue_uzs ?? 0;
+    const weekTrend = pctChange(weekRev, prevWeekRev);
+
+    const monthRev = monthAgg[0]?.revenue_uzs ?? 0;
+    const prevMonthRev = prevMonthAgg[0]?.revenue_uzs ?? 0;
+    const monthTrend = pctChange(monthRev, prevMonthRev);
+
+    const yearRev = yearAgg[0]?.revenue_uzs ?? 0;
+    const prevYearRev = prevYearAgg[0]?.revenue_uzs ?? 0;
+    const yearTrend = pctChange(yearRev, prevYearRev);
+
+    const monthCogs = cogsAgg[0]?.total ?? 0;
+    const monthProfit = monthRev - monthCogs;
+
+    const prevMonthCogs = prevCogsAgg[0]?.total ?? 0;
+    const prevMonthProfit = prevMonthRev - prevMonthCogs;
+    const profitTrend = pctChange(monthProfit, prevMonthProfit);
+
+    return {
+      exchangeRate: rate,
+      todaySales: {
+        uzs: todayRev,
+        usd: todayAgg[0]?.revenue_usd || (todayRev / rate),
+        trend: todayTrend
+      },
+      weeklySales: {
+        uzs: weekRev,
+        usd: weekAgg[0]?.revenue_usd || (weekRev / rate),
+        trend: weekTrend
+      },
+      monthlySales: {
+        uzs: monthRev,
+        usd: monthAgg[0]?.revenue_usd || (monthRev / rate),
+        trend: monthTrend
+      },
+      yearlySales: {
+        uzs: yearRev,
+        usd: yearAgg[0]?.revenue_usd || (yearRev / rate),
+        trend: yearTrend
+      },
+      netProfit: {
+        uzs: monthProfit,
+        usd: monthProfit / rate,
+        trend: profitTrend
+      },
+      inventoryValue: {
+        uzs: inventoryVal[0]?.total ?? 0,
+        usd: (inventoryVal[0]?.total ?? 0) / rate
+      },
+      customerDebt: {
+        uzs: custDebt[0]?.total ?? 0,
+        usd: (custDebt[0]?.total ?? 0) / rate
+      },
+      supplierDebt: {
+        uzs: suppDebt[0]?.total ?? 0,
+        usd: (suppDebt[0]?.total ?? 0) / rate
+      },
+      warehouseValue: {
+        uzs: inventoryVal[0]?.total ?? 0,
+        usd: (inventoryVal[0]?.total ?? 0) / rate
+      },
+      topProducts: topProducts.map((p: any) => ({
+        name: p.name,
+        qty: p.quantity,
+        revenueUzs: p.revenue_uzs,
+        revenueUsd: p.revenue_uzs / rate
+      })),
+      topCustomers: topCustomers.map((c: any) => ({
+        name: c.name,
+        revenueUzs: c.revenue_uzs,
+        revenueUsd: c.revenue_uzs / rate
+      })),
+      last30DaysChart: dailyChartData.map((point: any) => {
+        const rev = point.revenue_uzs ?? 0;
+        const cogs = point.cogs_uzs ?? 0;
+        const profit = rev - cogs;
+        const dateStr = point.date instanceof Date 
+          ? point.date.toISOString().slice(0, 10) 
+          : String(point.date);
+        return {
+          date: dateStr,
+          salesUzs: rev,
+          salesUsd: point.revenue_usd || (rev / rate),
+          profitUzs: profit,
+          profitUsd: profit / rate
+        };
+      })
+    };
+  }
 }
+

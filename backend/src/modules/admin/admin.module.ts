@@ -9,5 +9,6 @@ import {
 @Module({
   controllers: [AdminController],
   providers: [AdminService, AdminBackupService, AdminMonitoringService],
+  exports: [AdminBackupService],
 })
 export class AdminModule {}

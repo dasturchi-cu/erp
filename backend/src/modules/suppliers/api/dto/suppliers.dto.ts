@@ -1,4 +1,4 @@
-import { SupplierPaymentMethod, SupplierReceivePaymentType, SupplierStatus } from '@prisma/client';
+import { SupplierPaymentMethod, SupplierReceivePaymentType, SupplierStatus, OriginalCurrency } from '@prisma/client';
 import {
   IsEnum,
   IsOptional,
@@ -103,7 +103,10 @@ export class SupplierPaymentListQueryDto extends PaginationQueryDto {
 export class CreateSupplierPaymentRequestDto {
   @IsString()
   @Matches(MONEY_PATTERN)
-  amountUzs!: string;
+  amount!: string;
+
+  @IsEnum(OriginalCurrency)
+  currency!: OriginalCurrency;
 
   @IsEnum(SupplierPaymentMethod)
   paymentMethod!: SupplierPaymentMethod;
@@ -122,8 +125,11 @@ export class SupplierResponseDto {
   notes!: string | null;
   status!: string;
   totalDebtUzs!: string;
+  totalDebtUsd!: string;
   totalPaidUzs!: string;
+  totalPaidUsd!: string;
   remainingDebtUzs!: string;
+  remainingDebtUsd!: string;
   createdAt!: string;
   updatedAt!: string;
 }
@@ -146,7 +152,11 @@ export class SupplierPaymentResponseDto {
   id!: string;
   supplierId!: string;
   supplierName!: string;
+  amount!: string;
+  currency!: string;
   amountUzs!: string;
+  amountUsd!: string;
+  exchangeRateUsed!: string;
   paymentMethod!: string;
   notes!: string | null;
   createdAt!: string;
@@ -157,7 +167,9 @@ export class SupplierDebtHistoryEntryDto {
   id!: string;
   type!: string;
   amountUzs!: string;
+  amountUsd!: string;
   balanceAfterUzs!: string;
+  balanceAfterUsd!: string;
   reference!: string | null;
   createdAt!: string;
   recordedBy!: string;
@@ -166,8 +178,11 @@ export class SupplierDebtHistoryEntryDto {
 export class SupplierSummaryResponseDto {
   supplierCount!: number;
   totalDebtUzs!: string;
+  totalDebtUsd!: string;
   totalPaidUzs!: string;
+  totalPaidUsd!: string;
   remainingDebtUzs!: string;
+  remainingDebtUsd!: string;
   topSupplierName!: string | null;
   topSupplierDebtUzs!: string;
   recentPayments!: SupplierPaymentResponseDto[];

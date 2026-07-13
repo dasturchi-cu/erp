@@ -13,14 +13,14 @@ export class PaginationQueryDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  @Max(100)
+  @Max(1000)
   limit?: number;
 
   resolvedPage(): number {
     return normalizePage(this.page);
   }
 
-  resolvedLimit(max = 100): number {
+  resolvedLimit(max = 1000): number {
     return normalizeLimit(this.limit, max);
   }
 }

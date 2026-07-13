@@ -100,4 +100,14 @@ export const salesApi = {
     const { data } = await apiClient.post(`${API_ENDPOINTS.salesReturns}/${id}/reject`, { note });
     return mapSaleReturn(data);
   },
+
+  getReceiptTemplates: async (): Promise<any[]> => {
+    const { data } = await apiClient.get('/sales/receipt-templates');
+    return data;
+  },
+
+  saveReceiptTemplate: async (dto: any): Promise<any> => {
+    const { data } = await apiClient.post('/sales/receipt-templates', dto);
+    return data;
+  },
 };

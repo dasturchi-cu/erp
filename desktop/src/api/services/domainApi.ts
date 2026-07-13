@@ -70,6 +70,10 @@ export const inventoryApi = {
     note?: string;
     supplierId: string;
     paymentType: 'CASH' | 'CREDIT';
+    originalCurrency?: 'UZS' | 'USD';
+    exchangeRateUsed?: number;
+    batchNumber?: string;
+    expiresAt?: string;
   }) => {
     const { data } = await apiClient.post(API_ENDPOINTS.inventory.receive, {
       productId: input.productId,
@@ -79,6 +83,10 @@ export const inventoryApi = {
       note: input.note,
       supplierId: input.supplierId,
       paymentType: input.paymentType,
+      originalCurrency: input.originalCurrency,
+      exchangeRateUsed: input.exchangeRateUsed != null ? toMoneyString(input.exchangeRateUsed) : undefined,
+      batchNumber: input.batchNumber,
+      expiresAt: input.expiresAt,
     });
     return data;
   },

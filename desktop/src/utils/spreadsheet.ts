@@ -48,6 +48,11 @@ const IMPORT_COLUMN_ALIASES: Record<string, string[]> = {
   unit: ['unit', 'Unit', "O'lchov"],
   purchasePrice: ['purchase price', 'Purchase Price', 'purchaseprice', 'Olish narxi'],
   sellingPrice: ['selling price', 'Selling Price', 'sellingprice', 'Sotish narxi'],
+  purchasePriceUzs: ['purchase price uzs', 'purchasepriceuzs', 'Olish narxi UZS', 'purchasePriceUzs'],
+  sellingPriceUzs: ['selling price uzs', 'sellingpriceuzs', 'Sotish narxi UZS', 'sellingPriceUzs'],
+  purchasePriceUsd: ['purchase price usd', 'purchasepriceusd', 'Olish narxi USD', 'purchasePriceUsd'],
+  sellingPriceUsd: ['selling price usd', 'sellingpriceusd', 'Sotish narxi USD', 'sellingPriceUsd'],
+  legacyId: ['legacy id', 'legacyid', 'Eski ID', 'Legacy ID', 'legacyId'],
   stock: ['stock', 'Stock', 'Qoldiq'],
 };
 
@@ -59,6 +64,11 @@ export interface ParsedProductImportRow {
   unit?: string;
   purchasePrice: string;
   sellingPrice: string;
+  purchasePriceUzs?: string;
+  sellingPriceUzs?: string;
+  purchasePriceUsd?: string;
+  sellingPriceUsd?: string;
+  legacyId?: string;
   stock?: string;
 }
 
@@ -124,8 +134,13 @@ function rowToImport(row: Record<string, unknown>, headerMap: Map<string, string
     name: mapped.name ?? '',
     category: mapped.category ?? '',
     unit: mapped.unit || undefined,
-    purchasePrice: mapped.purchasePrice ?? '',
-    sellingPrice: mapped.sellingPrice ?? '',
+    purchasePrice: mapped.purchasePriceUzs || mapped.purchasePrice || '',
+    sellingPrice: mapped.sellingPriceUzs || mapped.sellingPrice || '',
+    purchasePriceUzs: mapped.purchasePriceUzs || mapped.purchasePrice || undefined,
+    sellingPriceUzs: mapped.sellingPriceUzs || mapped.sellingPrice || undefined,
+    purchasePriceUsd: mapped.purchasePriceUsd || undefined,
+    sellingPriceUsd: mapped.sellingPriceUsd || undefined,
+    legacyId: mapped.legacyId || undefined,
     stock: mapped.stock || undefined,
   };
 }
@@ -150,8 +165,13 @@ function parseDelimitedText(text: string): ParsedProductImportRow[] {
       name: row.name ?? '',
       category: row.category ?? '',
       unit: row.unit || undefined,
-      purchasePrice: row.purchasePrice ?? '',
-      sellingPrice: row.sellingPrice ?? '',
+      purchasePrice: row.purchasePriceUzs || row.purchasePrice || '',
+      sellingPrice: row.sellingPriceUzs || row.sellingPrice || '',
+      purchasePriceUzs: row.purchasePriceUzs || row.purchasePrice || undefined,
+      sellingPriceUzs: row.sellingPriceUzs || row.sellingPrice || undefined,
+      purchasePriceUsd: row.purchasePriceUsd || undefined,
+      sellingPriceUsd: row.sellingPriceUsd || undefined,
+      legacyId: row.legacyId || undefined,
       stock: row.stock || undefined,
     };
   });
@@ -202,9 +222,16 @@ export function validateImportRowsLocal(rows: ParsedProductImportRow[]) {
     if (!row.sku) errors.push('SKU required');
     if (!row.name) errors.push('Name required');
     if (!row.category) errors.push('Category required');
-    if (!row.purchasePrice || Number.isNaN(Number(row.purchasePrice))) errors.push('Invalid purchase price');
-    if (!row.sellingPrice || Number.isNaN(Number(row.sellingPrice))) errors.push('Invalid selling price');
+
+    const pPriceUzs = row.purchasePriceUzs || row.purchasePrice;
+    const sPriceUzs = row.sellingPriceUzs || row.sellingPrice;
+
+    if (!pPriceUzs || Number.isNaN(Number(pPriceUzs))) errors.push('Invalid purchase price UZS');
+    if (!sPriceUzs || Number.isNaN(Number(sPriceUzs))) errors.push('Invalid selling price UZS');
+    if (row.purchasePriceUsd && Number.isNaN(Number(row.purchasePriceUsd))) errors.push('Invalid purchase price USD');
+    if (row.sellingPriceUsd && Number.isNaN(Number(row.sellingPriceUsd))) errors.push('Invalid selling price USD');
     if (row.stock && Number.isNaN(Number(row.stock))) errors.push('Invalid stock');
+
     const key = row.sku.toLowerCase();
     if (key && seen.has(key)) errors.push('Duplicate SKU in file');
     if (key) seen.add(key);

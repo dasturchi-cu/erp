@@ -31,7 +31,7 @@ interface PaymentDialogProps {
     method: PaymentMethod;
     receivedUzs: number;
     receivedUsd?: number;
-    creditAmountUzs: number;
+    dialogCurrency: 'UZS' | 'USD';
   }) => void;
 }
 
@@ -46,18 +46,18 @@ export function PaymentDialog({
   onConfirm,
 }: PaymentDialogProps) {
   const [method, setMethod] = useState<PaymentMethod>('cash');
+  const [dialogCurrency, setDialogCurrency] = useState<'UZS' | 'USD'>(currency);
   const [received, setReceived] = useState('');
   const [credit, setCredit] = useState('');
 
-  const isUsdCash = currency === 'USD' && method === 'cash';
-  const isUsdCredit = currency === 'USD' && method === 'credit';
-  const payTotal = isUsdCash ? totalUsd : totalUzs;
-
   const receivedNum = parseFloat(received.replace(/\s/g, '').replace(',', '.')) || 0;
   const creditNum = parseFloat(credit.replace(/\s/g, '')) || 0;
+
+  const isUsd = dialogCurrency === 'USD';
+  const payTotal = isUsd ? totalUsd : totalUzs;
   const change = method === 'cash' ? calcChange(receivedNum, payTotal) : 0;
 
-  const mixedCreditAuto = Math.max(0, totalUzs - receivedNum);
+  const mixedCreditAuto = Math.max(0, payTotal - receivedNum);
   const effectiveCredit = method === 'mixed' ? (creditNum > 0 ? creditNum : mixedCreditAuto) : 0;
 
   const validationError = useMemo(() => {
@@ -68,7 +68,7 @@ export function PaymentDialog({
       return 'Aralash to\'lov uchun mijoz tanlang.';
     }
     if (method === 'cash') {
-      if (isUsdCash) {
+      if (isUsd) {
         if (receivedNum + 0.001 < totalUsd) {
           return `Naqd to'lov yetarli emas. Kamida $${totalUsd.toFixed(2)} kerak.`;
         }
@@ -80,49 +80,48 @@ export function PaymentDialog({
       if (receivedNum <= 0) {
         return 'Naqd qism 0 dan katta bo\'lishi kerak.';
       }
-      if (receivedNum >= totalUzs) {
+      if (receivedNum >= payTotal) {
         return 'Aralash to\'lovda naqd qism jami summadan kam bo\'lishi kerak.';
       }
       const creditPart = creditNum > 0 ? creditNum : mixedCreditAuto;
-      if (Math.abs(receivedNum + creditPart - totalUzs) > 1) {
-        return `Naqd + nasiya jami ${formatUzs(totalUzs)} ga teng bo\'lishi kerak.`;
+      if (Math.abs(receivedNum + creditPart - payTotal) > (isUsd ? 0.01 : 1)) {
+        return `Naqd + nasiya jami ${isUsd ? formatUsd(payTotal) : formatUzs(payTotal)} ga teng bo\'lishi kerak.`;
       }
     }
     return null;
-  }, [method, hasCustomer, receivedNum, creditNum, totalUzs, totalUsd, isUsdCash, mixedCreditAuto]);
+  }, [method, hasCustomer, receivedNum, creditNum, totalUzs, totalUsd, isUsd, payTotal, mixedCreditAuto]);
+
+  useEffect(() => {
+    if (open) {
+      setDialogCurrency(currency);
+      setMethod('cash');
+    }
+  }, [open, currency]);
 
   useEffect(() => {
     if (!open) return;
-    setMethod('cash');
-    if (currency === 'USD') {
+    if (dialogCurrency === 'USD') {
       setReceived(totalUsd.toFixed(2));
     } else {
       setReceived(String(Math.ceil(totalUzs)));
     }
     setCredit('0');
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- faqat ochilishda
-  }, [open]);
+  }, [dialogCurrency, open, totalUzs, totalUsd]);
 
   useEffect(() => {
     if (method === 'mixed' && open) {
-      const next = String(Math.max(0, Math.round(totalUzs - receivedNum)));
+      const next = String(Math.max(0, payTotal - receivedNum));
       setCredit((prev) => (prev === next ? prev : next));
     }
-  }, [method, receivedNum, totalUzs, open]);
+  }, [method, receivedNum, payTotal, open]);
 
   const handleConfirm = () => {
     if (validationError) return;
-    const receivedUzs =
-      method === 'cash' && isUsdCash ? 0 : method === 'credit' ? 0 : Math.round(receivedNum);
-    const receivedUsd =
-      method === 'cash' && isUsdCash ? receivedNum : undefined;
-
     onConfirm({
       method,
-      receivedUzs,
-      receivedUsd,
-      creditAmountUzs:
-        method === 'credit' ? totalUzs : method === 'mixed' ? effectiveCredit : 0,
+      receivedUzs: dialogCurrency === 'UZS' ? Math.round(receivedNum) : 0,
+      receivedUsd: dialogCurrency === 'USD' ? receivedNum : undefined,
+      dialogCurrency,
     });
   };
 
@@ -135,14 +134,31 @@ export function PaymentDialog({
             Jami to&apos;lov
           </Typography>
           <Typography variant="h5" fontWeight={700}>
-            {currency === 'UZS' ? formatUzs(totalUzs) : formatUsd(totalUsd)}
+            {isUsd ? formatUsd(totalUsd) : formatUzs(totalUzs)}
           </Typography>
-          {currency === 'USD' && (
+          {!isUsd && (
+            <Typography variant="caption" color="text.secondary">
+              ({formatUsd(totalUsd)} ekvivalent)
+            </Typography>
+          )}
+          {isUsd && (
             <Typography variant="caption" color="text.secondary">
               ({formatUzs(totalUzs)} ekvivalent)
             </Typography>
           )}
         </Box>
+
+        <FormControl sx={{ mb: 2, display: 'block' }}>
+          <FormLabel>To&apos;lov Valyutasi</FormLabel>
+          <RadioGroup
+            row
+            value={dialogCurrency}
+            onChange={(e) => setDialogCurrency(e.target.value as 'UZS' | 'USD')}
+          >
+            <FormControlLabel value="UZS" control={<Radio />} label="UZS" />
+            <FormControlLabel value="USD" control={<Radio />} label="USD" />
+          </RadioGroup>
+        </FormControl>
 
         <FormControl sx={{ mb: 2 }}>
           <FormLabel>To&apos;lov turi</FormLabel>
@@ -167,12 +183,6 @@ export function PaymentDialog({
           </RadioGroup>
         </FormControl>
 
-        {currency === 'USD' && method === 'mixed' && (
-          <Alert severity="info" sx={{ mb: 2 }}>
-            Aralash to&apos;lov UZS da hisoblanadi (naqd + nasiya = {formatUzs(totalUzs)}).
-          </Alert>
-        )}
-
         {!hasCustomer && (method === 'credit' || method === 'mixed') && (
           <Alert severity="warning" sx={{ mb: 2 }}>
             Nasiyaga sotish uchun mijoz tanlang.
@@ -189,15 +199,15 @@ export function PaymentDialog({
           <>
             <TextField
               fullWidth
-              label={isUsdCash ? 'Qabul qilingan summa (USD)' : 'Qabul qilingan summa (UZS)'}
+              label={isUsd ? 'Qabul qilingan summa (USD)' : 'Qabul qilingan summa (UZS)'}
               value={received}
               onChange={(e) => setReceived(e.target.value)}
               sx={{ mb: 1 }}
-              inputProps={isUsdCash ? { step: '0.01', min: 0 } : { step: 1, min: 0 }}
+              inputProps={isUsd ? { step: '0.01', min: 0 } : { step: 1, min: 0 }}
             />
             {change > 0 && (
               <Typography variant="body2" color="success.main">
-                Qaytim: {isUsdCash ? formatUsd(change) : formatUzs(change)}
+                Qaytim: {isUsd ? formatUsd(change) : formatUzs(change)}
               </Typography>
             )}
           </>
@@ -205,7 +215,7 @@ export function PaymentDialog({
 
         {method === 'credit' && hasCustomer && (
           <Alert severity="info">
-            Butun summa ({isUsdCredit ? formatUsd(totalUsd) : formatUzs(totalUzs)}) mijoz qarziga yoziladi.
+            Butun summa ({isUsd ? formatUsd(totalUsd) : formatUzs(totalUzs)}) mijoz qarziga yoziladi.
           </Alert>
         )}
 
@@ -213,17 +223,17 @@ export function PaymentDialog({
           <>
             <TextField
               fullWidth
-              label="Naqd qism (UZS)"
+              label={`Naqd qism (${dialogCurrency})`}
               value={received}
               onChange={(e) => setReceived(e.target.value)}
               sx={{ mb: 2 }}
             />
             <TextField
               fullWidth
-              label="Nasiya qismi (UZS)"
+              label={`Nasiya qismi (${dialogCurrency})`}
               value={credit}
               onChange={(e) => setCredit(e.target.value)}
-              helperText={`Qolgan: ${formatUzs(mixedCreditAuto)}`}
+              helperText={`Qolgan: ${isUsd ? formatUsd(mixedCreditAuto) : formatUzs(mixedCreditAuto)}`}
             />
           </>
         )}
@@ -233,6 +243,7 @@ export function PaymentDialog({
           Bekor qilish
         </Button>
         <Button
+          id="complete-sale-btn"
           variant="contained"
           onClick={handleConfirm}
           disabled={loading || Boolean(validationError)}

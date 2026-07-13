@@ -11,11 +11,17 @@ import {
   TextField,
   Typography,
   InputAdornment,
-  ToggleButton,
-  ToggleButtonGroup,
+  FormControl,
+  Select,
+  MenuItem,
+  InputLabel,
+  Dialog,
+  DialogTitle,
+  DialogContent,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import RemoveIcon from '@mui/icons-material/Remove';
+import CloseIcon from '@mui/icons-material/Close';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import SearchIcon from '@mui/icons-material/Search';
 import PaymentIcon from '@mui/icons-material/Payment';
@@ -34,24 +40,58 @@ import { refreshAfterSaleMutation } from '@/utils/domainRefresh';
 import { useCurrencyStore } from '@/stores/currencyStore';
 import { useNotification } from '@/components/feedback/NotificationProvider';
 import { productsApi, salesApi } from '@/api/services';
+import { apiClient, API_BASE_URL } from '@/api/client';
 import { formatUzs, formatUsd } from '@/utils/format';
 import { productUsdFromUzs, lineTotalUsd } from '@/utils/currency';
-import { cartLineBaseQuantity } from '@/constants/productUnits';
+import { cartLineBaseQuantity, productUnitLabel } from '@/constants/productUnits';
 import type { Product } from '@/types/entities';
 import type { PaymentDialogData, SaleDetail } from '@/types/sales';
 import { useDisclosure } from '@/hooks/useListState';
 import { useSalesStore } from '@/stores/salesStore';
+
+function playBeep(type: 'success' | 'error') {
+  try {
+    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContextClass) return;
+    const audioCtx = new AudioContextClass();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    
+    if (type === 'success') {
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(1000, audioCtx.currentTime);
+      gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.12);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.12);
+    } else {
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(120, audioCtx.currentTime);
+      gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.25);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.25);
+    }
+  } catch (err) {
+    console.error('Failed to play scanner beep:', err);
+  }
+}
 
 const PosProductCard = memo(function PosProductCard({
   product,
   currency,
   exchangeRate,
   onAdd,
+  onPreviewImage,
 }: {
   product: Product;
   currency: 'UZS' | 'USD';
   exchangeRate: number;
   onAdd: (p: Product) => void;
+  onPreviewImage: (src: string, title: string) => void;
 }) {
   return (
     <Card
@@ -60,27 +100,58 @@ const PosProductCard = memo(function PosProductCard({
         p: 1.5,
         cursor: 'pointer',
         height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'space-between',
+        position: 'relative',
         '&:hover': { borderColor: 'primary.main', bgcolor: 'action.hover' },
       }}
       onClick={() => onAdd(product)}
     >
-      <Typography variant="caption" color="text.secondary">
-        {product.sku}
-      </Typography>
-      <Typography variant="body2" fontWeight={600} sx={{ mb: 0.5, lineHeight: 1.3 }}>
-        {product.name}
-      </Typography>
-      <Typography variant="body2" color="primary.main" fontWeight={700}>
-        {currency === 'UZS'
-          ? formatUzs(product.priceUzs)
-          : formatUsd(productUsdFromUzs(product.priceUzs, exchangeRate))}
-      </Typography>
-      <Chip
-        size="small"
-        label={`Qoldiq: ${product.stock}`}
-        color={product.stock <= product.minStockLevel ? 'warning' : 'default'}
-        sx={{ mt: 0.5, height: 20, fontSize: '0.65rem' }}
-      />
+      <Box>
+        {product.imageUrl ? (
+          <Box
+            sx={{ display: 'flex', justifyContent: 'center', mb: 1, bgcolor: 'grey.100', borderRadius: 1, p: 0.5, cursor: 'zoom-in' }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onPreviewImage(
+                `${API_BASE_URL}/products/image/served/medium/${product.imageUrl}`,
+                product.name,
+              );
+            }}
+          >
+            <img
+              src={`${API_BASE_URL}/products/image/served/thumb/${product.imageUrl}`}
+              alt={product.name}
+              style={{ height: 64, objectFit: 'contain' }}
+              loading="lazy"
+            />
+          </Box>
+        ) : (
+          <Box sx={{ display: 'flex', justifyContent: 'center', mb: 1, bgcolor: 'grey.100', borderRadius: 1, p: 0.5, height: 64, alignItems: 'center' }}>
+            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>Rasm yo&apos;q</Typography>
+          </Box>
+        )}
+        <Typography variant="caption" color="text.secondary">
+          {product.sku}
+        </Typography>
+        <Typography variant="body2" fontWeight={600} sx={{ mb: 0.5, lineHeight: 1.3 }}>
+          {product.name}
+        </Typography>
+      </Box>
+      <Box>
+        <Typography variant="body2" color="primary.main" fontWeight={700}>
+          {currency === 'UZS'
+            ? formatUzs(product.priceUzs)
+            : formatUsd(productUsdFromUzs(product.priceUzs, exchangeRate))}
+        </Typography>
+        <Chip
+          size="small"
+          label={`Qoldiq: ${product.stock}`}
+          color={product.stock <= product.minStockLevel ? 'warning' : 'default'}
+          sx={{ mt: 0.5, height: 20, fontSize: '0.65rem' }}
+        />
+      </Box>
     </Card>
   );
 });
@@ -117,7 +188,7 @@ export function SalesPosPage() {
   const belowCostLines = useMemo(
     () =>
       items.filter(
-        (i) => i.product.purchasePriceUzs > 0 && i.unitPriceUzs < i.product.purchasePriceUzs,
+        (i) => i.product.purchasePriceUzs > 0 && i.unitPriceUzs <= i.product.purchasePriceUzs,
       ),
     [items],
   );
@@ -132,6 +203,9 @@ export function SalesPosPage() {
   const [completedSale, setCompletedSale] = useState<SaleDetail | null>(null);
   const [belowCostOpen, setBelowCostOpen] = useState(false);
   const [pendingPayment, setPendingPayment] = useState<PaymentDialogData | null>(null);
+  const [previewImage, setPreviewImage] = useState<{ src: string; title: string } | null>(null);
+
+
 
   useEffect(() => {
     const t = setTimeout(() => setSearchDebounced(search.trim()), 300);
@@ -158,11 +232,14 @@ export function SalesPosPage() {
     (product: Product, qty = 1, saleUnit: 'piece' | 'box' = 'piece') => {
       const ok = addProduct(product, qty, saleUnit);
       if (!ok) {
+        playBeep('error');
         const existing = items.find((i) => i.product.id === product.id);
         const requested =
           (existing ? lineStockQty(existing) : 0) +
           cartLineBaseQuantity(qty, saleUnit, product.unitsPerBox);
         setStockError({ product, requested });
+      } else {
+        playBeep('success');
       }
     },
     [addProduct, items],
@@ -175,6 +252,7 @@ export function SalesPosPage() {
       try {
         const product = await productsApi.getByBarcode(trimmed);
         if (product.status !== 'active' || product.stock <= 0) {
+          playBeep('error');
           notifyError('Mahsulot mavjud emas yoki zaxirasi tugagan');
           return;
         }
@@ -190,6 +268,7 @@ export function SalesPosPage() {
           tryAddProduct(local);
           success(`${local.name} savatga qo'shildi`);
         } else {
+          playBeep('error');
           notifyError('Mahsulot topilmadi');
         }
       }
@@ -203,21 +282,12 @@ export function SalesPosPage() {
       const paymentType =
         data.method === 'cash' ? 'CASH' : data.method === 'credit' ? 'CREDIT' : 'MIXED';
 
-      const amountPaidUzs =
-        data.method === 'credit'
-          ? 0
-          : currency === 'USD' && data.method === 'cash'
-            ? 0
-            : Math.round(data.receivedUzs);
-
-      const amountPaidUsd =
-        currency === 'USD' && data.method === 'cash' && data.receivedUsd != null
-          ? data.receivedUsd
-          : undefined;
+      const amountPaidUzs = data.dialogCurrency === 'UZS' ? Math.round(data.receivedUzs) : 0;
+      const amountPaidUsd = data.dialogCurrency === 'USD' ? data.receivedUsd : undefined;
 
       const sale = await salesApi.create({
         customerId: customer?.id,
-        originalCurrency: currency,
+        originalCurrency: data.dialogCurrency,
         paymentType,
         amountPaidUzs,
         amountPaidUsd,
@@ -268,23 +338,53 @@ export function SalesPosPage() {
   const handleBelowCostCancel = () => {
     setBelowCostOpen(false);
     setPendingPayment(null);
-    paymentDialog.onOpen();
   };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'F2') {
         e.preventDefault();
-        document.querySelector<HTMLInputElement>('[aria-label="Shtrix-kod"]')?.focus();
+        document.querySelector<HTMLInputElement>('[aria-label="Shtrix-kod"], [aria-label="Qidiruv"]')?.focus();
       }
-      if ((e.key === 'F8' || e.key === 'F9') && items.length > 0) {
+      if (e.key === 'F4' && items.length > 0) {
         e.preventDefault();
         paymentDialog.onOpen();
       }
+      if (e.key === 'F6') {
+        e.preventDefault();
+        document.querySelector<HTMLInputElement>('[aria-label="Mijoz tanlash"], [label="Mijoz"]')?.focus();
+      }
+      if (e.ctrlKey && e.key === 'Enter' && items.length > 0) {
+        e.preventDefault();
+        if (belowCostOpen) {
+          document.querySelector<HTMLButtonElement>('button.MuiButton-containedColorWarning')?.click();
+        } else if (paymentDialog.open) {
+          document.querySelector<HTMLButtonElement>('[type="submit"], #complete-sale-btn')?.click();
+        } else {
+          paymentDialog.onOpen();
+        }
+      }
+      if (e.key === 'Escape') {
+        if (belowCostOpen) {
+          e.preventDefault();
+          handleBelowCostCancel();
+        } else if (stockError) {
+          e.preventDefault();
+          setStockError(null);
+        } else if (paymentDialog.open) {
+          e.preventDefault();
+          paymentDialog.onClose();
+        } else if (items.length > 0) {
+          e.preventDefault();
+          if (window.confirm("Savatni tozalashni xohlaysizmi?")) {
+            clearCart();
+          }
+        }
+      }
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [items.length, paymentDialog.onOpen]);
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [items.length, paymentDialog.open, paymentDialog.onOpen, paymentDialog.onClose, clearCart, belowCostOpen, stockError]);
 
   const productGrid = useMemo(
     () =>
@@ -295,6 +395,7 @@ export function SalesPosPage() {
             currency={currency}
             exchangeRate={exchangeRate}
             onAdd={(p) => tryAddProduct(p)}
+            onPreviewImage={(src, title) => setPreviewImage({ src, title })}
           />
         </Grid>
       )),
@@ -385,65 +486,91 @@ export function SalesPosPage() {
             ) : (
               <Box sx={{ maxHeight: 360, overflow: 'auto', mb: 2 }}>
                 {items.map((item) => (
-                  <Box key={item.product.id} sx={{ mb: 2, pb: 1.5, borderBottom: 1, borderColor: 'divider' }}>
-                    <Typography variant="body2" fontWeight={600} noWrap>
-                      {item.product.name}
-                      {item.product.purchasePriceUzs > 0 &&
-                        item.unitPriceUzs < item.product.purchasePriceUzs && (
-                          <Typography
-                            component="span"
-                            variant="caption"
-                            color="warning.main"
-                            sx={{ ml: 1 }}
-                          >
-                            (olish narxidan arzon)
-                          </Typography>
-                        )}
-                    </Typography>
-                    <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mt: 1 }}>
-                      <TextField
-                        size="small"
-                        type="number"
-                        label="Narx (dona)"
-                        value={item.unitPriceUzs}
-                        onChange={(e) =>
-                          setUnitPrice(item.product.id, Number(e.target.value) || 0)
-                        }
-                        sx={{ flex: 1 }}
-                      />
-                      {item.product.unitsPerBox > 1 && (
-                        <ToggleButtonGroup
+                  <Box key={item.product.id} sx={{ mb: 2, pb: 1.5, borderBottom: 1, borderColor: 'divider', display: 'flex', gap: 1.5 }}>
+                    {item.product.imageUrl ? (
+                      <Box
+                        sx={{ width: 48, height: 48, bgcolor: 'grey.100', borderRadius: 1, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, cursor: 'zoom-in' }}
+                        onClick={() => setPreviewImage({
+                          src: `${API_BASE_URL}/products/image/served/medium/${item.product.imageUrl}`,
+                          title: item.product.name,
+                        })}
+                      >
+                        <img
+                          src={`${API_BASE_URL}/products/image/served/thumb/${item.product.imageUrl}`}
+                          alt={item.product.name}
+                          style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                          loading="lazy"
+                        />
+                      </Box>
+                    ) : (
+                      <Box sx={{ width: 48, height: 48, bgcolor: 'grey.100', borderRadius: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.6rem' }}>Rasm yo&apos;q</Typography>
+                      </Box>
+                    )}
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Typography variant="body2" fontWeight={600} noWrap>
+                        {item.product.name}
+                        {item.product.purchasePriceUzs > 0 &&
+                          item.unitPriceUzs <= item.product.purchasePriceUzs && (
+                            <Typography
+                              component="span"
+                              variant="caption"
+                              color="warning.main"
+                              sx={{ ml: 1 }}
+                            >
+                              (olish narxidan arzon)
+                            </Typography>
+                          )}
+                      </Typography>
+                      <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mt: 1 }}>
+                        <TextField
                           size="small"
-                          exclusive
-                          value={item.saleUnit}
-                          onChange={(_, v) => v && setSaleUnit(item.product.id, v)}
-                        >
-                          <ToggleButton value="piece">Dona</ToggleButton>
-                          <ToggleButton value="box">Karobka</ToggleButton>
-                        </ToggleButtonGroup>
-                      )}
-                    </Box>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 1 }}>
-                      <IconButton size="small" onClick={() => setQuantity(item.product.id, item.quantity - 1)}>
-                        <RemoveIcon fontSize="small" />
-                      </IconButton>
-                      <Typography variant="body2" sx={{ minWidth: 48, textAlign: 'center' }}>
-                        {item.quantity} {item.saleUnit === 'box' ? 'kar.' : 'dona'}
-                        {item.saleUnit === 'box' && (
-                          <Typography component="span" variant="caption" display="block" color="text.secondary">
-                            = {lineStockQty(item)} dona
-                          </Typography>
+                          type="number"
+                          label={currency === 'USD' ? 'Narx (USD)' : 'Narx (dona)'}
+                          value={currency === 'USD' ? Number((item.unitPriceUzs / exchangeRate).toFixed(2)) : item.unitPriceUzs}
+                          onChange={(e) => {
+                            const val = Number(e.target.value) || 0;
+                            const uzsVal = currency === 'USD' ? Math.round(val * exchangeRate) : val;
+                            setUnitPrice(item.product.id, uzsVal);
+                          }}
+                          sx={{ flex: 1 }}
+                        />
+                        {item.product.unitsPerBox > 1 && (
+                          <FormControl size="small" sx={{ minWidth: 100 }}>
+                            <Select
+                              value={item.saleUnit}
+                              onChange={(e) => setSaleUnit(item.product.id, e.target.value as 'piece' | 'box')}
+                            >
+                              <MenuItem value="piece">{productUnitLabel(item.product.unitOfMeasure)}</MenuItem>
+                              <MenuItem value="box">Karobka</MenuItem>
+                            </Select>
+                          </FormControl>
                         )}
-                      </Typography>
-                      <IconButton size="small" onClick={() => tryAddProduct(item.product, 1, item.saleUnit)}>
-                        <AddIcon fontSize="small" />
-                      </IconButton>
-                      <IconButton size="small" color="error" onClick={() => removeLine(item.product.id)}>
-                        <DeleteOutlineIcon fontSize="small" />
-                      </IconButton>
-                      <Typography variant="body2" fontWeight={600} sx={{ ml: 'auto' }}>
-                        {formatUzs(lineStockQty(item) * item.unitPriceUzs)}
-                      </Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 1 }}>
+                        <IconButton size="small" onClick={() => setQuantity(item.product.id, item.quantity - 1)}>
+                          <RemoveIcon fontSize="small" />
+                        </IconButton>
+                        <Typography variant="body2" sx={{ minWidth: 48, textAlign: 'center' }}>
+                          {item.quantity} {item.saleUnit === 'box' ? 'kar.' : productUnitLabel(item.product.unitOfMeasure).toLowerCase()}
+                          {item.saleUnit === 'box' && (
+                            <Typography component="span" variant="caption" display="block" color="text.secondary">
+                              = {lineStockQty(item)} {productUnitLabel(item.product.unitOfMeasure).toLowerCase()}
+                            </Typography>
+                          )}
+                        </Typography>
+                        <IconButton size="small" onClick={() => tryAddProduct(item.product, 1, item.saleUnit)}>
+                          <AddIcon fontSize="small" />
+                        </IconButton>
+                        <IconButton size="small" color="error" onClick={() => removeLine(item.product.id)}>
+                          <DeleteOutlineIcon fontSize="small" />
+                        </IconButton>
+                        <Typography variant="body2" fontWeight={600} sx={{ ml: 'auto' }}>
+                          {currency === 'UZS'
+                            ? formatUzs(lineStockQty(item) * item.unitPriceUzs)
+                            : formatUsd(lineStockQty(item) * (item.unitPriceUzs / exchangeRate))}
+                        </Typography>
+                      </Box>
                     </Box>
                   </Box>
                 ))}
@@ -525,6 +652,24 @@ export function SalesPosPage() {
         }}
         onClose={() => setCompletedSale(null)}
       />
+
+      <Dialog open={!!previewImage} onClose={() => setPreviewImage(null)} maxWidth="md">
+        <DialogTitle sx={{ m: 0, p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Typography variant="h6">{previewImage?.title}</Typography>
+          <IconButton onClick={() => setPreviewImage(null)} size="small" aria-label="yopish">
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ p: 1, display: 'flex', justifyContent: 'center', bgcolor: 'grey.100' }}>
+          {previewImage && (
+            <img
+              src={previewImage.src}
+              alt={previewImage.title}
+              style={{ maxWidth: '100%', maxHeight: '70vh', objectFit: 'contain', borderRadius: 4 }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

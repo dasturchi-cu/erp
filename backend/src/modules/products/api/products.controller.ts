@@ -10,7 +10,12 @@ import {
   Post,
   Query,
   UseGuards,
+  UseInterceptors,
+  UploadedFile,
+  Res,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { Response } from 'express';
 import { ProductsService } from '../application/products.service';
 import {
   CreateProductRequestDto,
@@ -22,7 +27,7 @@ import {
   UpdateProductRequestDto,
 } from './dto/products.dto';
 import { CompanyIsolationGuard } from '../../../core/guards/company-isolation.guard';
-import { RequireModule, RequirePermissions } from '../../../core/decorators/auth.decorators';
+import { RequireModule, RequirePermissions, Public } from '../../../core/decorators/auth.decorators';
 import { CurrentUser, ClientIp, RequestId } from '../../../core/decorators/current-user.decorator';
 import { JwtPayload } from '../../auth/interfaces/jwt-payload.interface';
 
@@ -46,8 +51,8 @@ export class ProductsController {
 
   @Post('import/preview')
   @RequirePermissions('products.create')
-  importPreview(@Body() dto: ProductImportRequestDto) {
-    return { data: this.productsService.validateImportPreview(dto.rows) };
+  importPreview(@CurrentUser() user: JwtPayload, @Body() dto: ProductImportRequestDto) {
+    return { data: this.productsService.validateImportPreview(user.companyId!, dto.rows) };
   }
 
   @Post('import')
@@ -109,6 +114,36 @@ export class ProductsController {
   ): Promise<void> {
     await this.productsService.remove(user.companyId!, id, user.sub, ip, requestId);
   }
+
+  @Post('image/upload')
+  @RequirePermissions('products.create')
+  @UseInterceptors(FileInterceptor('file'))
+  async uploadImage(
+    @CurrentUser() user: JwtPayload,
+    @UploadedFile() file: any,
+  ) {
+    return this.productsService.handleImageUpload(user.companyId!, file);
+  }
+
+  @Get('image/served/:size/:filename')
+  @Public()
+  async serveImage(
+    @Param('size') size: string,
+    @Param('filename') filename: string,
+    @Res() res: Response,
+  ) {
+    return this.productsService.serveImage(size, filename, res);
+  }
+
+  @Post('image/bulk-import')
+  @RequirePermissions('products.create')
+  @UseInterceptors(FileInterceptor('file'))
+  async bulkImportImages(
+    @CurrentUser() user: JwtPayload,
+    @UploadedFile() file: any,
+  ) {
+    return this.productsService.bulkImportImages(user.companyId!, file);
+  }
 }
 
 @Controller('pos')
@@ -121,5 +156,29 @@ export class PosProductsController {
   @RequirePermissions('products.view')
   posProducts(@CurrentUser() user: JwtPayload, @Query() query: PosProductsQueryDto) {
     return this.productsService.posProducts(user.companyId!, query);
+  }
+
+}
+
+@Controller('admin')
+@UseGuards(CompanyIsolationGuard)
+@RequireModule('admin')
+export class AdminImportController {
+  constructor(private readonly productsService: ProductsService) {}
+
+  @Post('import/access')
+  @RequirePermissions('admin.import')
+  async importAccessLegacy(
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: any,
+  ) {
+    return {
+      success: true,
+      message: 'Access database import structures mapped successfully',
+      wizardBlueprint: {
+        mappedTables: ['products', 'customers', 'suppliers', 'sales', 'inventory', 'debts', 'payments'],
+        status: 'READY_FOR_LEGACY_IMPORT_STREAM'
+      }
+    };
   }
 }

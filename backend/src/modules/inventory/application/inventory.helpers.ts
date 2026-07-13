@@ -23,6 +23,16 @@ export async function deductFifo(
     quantity: Decimal;
   },
 ): Promise<FifoDeductionResult[]> {
+  // Lock inventory batch rows for this product/warehouse to ensure concurrent requests are queued
+  await tx.$executeRaw`
+    SELECT id FROM inventory_batches
+    WHERE company_id = ${params.companyId}::uuid
+      AND product_id = ${params.productId}::uuid
+      AND warehouse_id = ${params.warehouseId}::uuid
+      AND remaining_qty > 0
+    FOR UPDATE
+  `;
+
   const batches = await tx.inventoryBatch.findMany({
     where: {
       companyId: params.companyId,
@@ -158,6 +168,8 @@ export async function createReceiptBatch(
     sourceType?: InventoryBatchSourceType;
     sourceId?: string | null;
     receivedAt?: Date;
+    batchNumber?: string;
+    expiresAt?: Date;
   },
 ) {
   const now = params.receivedAt ?? new Date();
@@ -173,6 +185,8 @@ export async function createReceiptBatch(
       receivedAt: now,
       sourceType: params.sourceType ?? InventoryBatchSourceType.RECEIPT,
       sourceId: params.sourceId ?? null,
+      batchNumber: params.batchNumber ?? null,
+      expiryDate: params.expiresAt ?? null,
     },
   });
 }

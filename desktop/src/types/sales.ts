@@ -63,5 +63,5 @@ export interface PaymentDialogData {
   method: PaymentMethod;
   receivedUzs: number;
   receivedUsd?: number;
-  creditAmountUzs: number;
+  dialogCurrency: 'UZS' | 'USD';
 }

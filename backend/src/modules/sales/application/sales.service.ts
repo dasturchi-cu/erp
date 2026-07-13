@@ -1207,12 +1207,88 @@ export class SalesService {
     saleItems: Array<{ productId: string; quantity: Decimal }>,
     returnedByProduct: Map<string, Decimal>,
   ): SaleStatus {
+    let totalReturned = new Decimal(0);
+    let allFullyReturned = true;
     for (const item of saleItems) {
       const returned = returnedByProduct.get(item.productId) ?? new Decimal(0);
+      totalReturned = totalReturned.add(returned);
       if (returned.lt(item.quantity)) {
-        return SaleStatus.PARTIALLY_RETURNED;
+        allFullyReturned = false;
       }
     }
-    return SaleStatus.RETURNED;
+    if (totalReturned.isZero()) {
+      return SaleStatus.COMPLETED;
+    }
+    return allFullyReturned ? SaleStatus.RETURNED : SaleStatus.PARTIALLY_RETURNED;
+  }
+
+  async getReceiptTemplates(companyId: string) {
+    const templates = await this.prisma.receiptTemplate.findMany({
+      where: { companyId },
+    });
+    if (templates.length === 0) {
+      const defaultTemplate = {
+        name: 'Standart Chek',
+        isDefault: true,
+        logoUrl: null,
+        phone: '+998 90 123-45-67',
+        address: 'Tashkent, Uzbekistan',
+        telegram: '@erp_market',
+        instagram: '@erp_market',
+        website: 'www.erp-market.uz',
+        footerText: 'Xaridingiz uchun rahmat!',
+        showQrCode: true,
+        showBarcode: true,
+      };
+      return [defaultTemplate];
+    }
+    return templates;
+  }
+
+  async saveReceiptTemplate(companyId: string, dto: any) {
+    const name = dto.name || 'Standart Chek';
+    if (dto.isDefault) {
+      await this.prisma.receiptTemplate.updateMany({
+        where: { companyId, isDefault: true },
+        data: { isDefault: false },
+      });
+    }
+
+    const template = await this.prisma.receiptTemplate.upsert({
+      where: {
+        companyId_name: {
+          companyId,
+          name,
+        },
+      },
+      create: {
+        companyId,
+        name,
+        isDefault: dto.isDefault ?? true,
+        logoUrl: dto.logoUrl || null,
+        phone: dto.phone || null,
+        address: dto.address || null,
+        telegram: dto.telegram || null,
+        instagram: dto.instagram || null,
+        website: dto.website || null,
+        footerText: dto.footerText || null,
+        showQrCode: dto.showQrCode ?? true,
+        showBarcode: dto.showBarcode ?? true,
+      },
+      update: {
+        isDefault: dto.isDefault ?? undefined,
+        logoUrl: dto.logoUrl !== undefined ? dto.logoUrl : undefined,
+        phone: dto.phone !== undefined ? dto.phone : undefined,
+        address: dto.address !== undefined ? dto.address : undefined,
+        telegram: dto.telegram !== undefined ? dto.telegram : undefined,
+        instagram: dto.instagram !== undefined ? dto.instagram : undefined,
+        website: dto.website !== undefined ? dto.website : undefined,
+        footerText: dto.footerText !== undefined ? dto.footerText : undefined,
+        showQrCode: dto.showQrCode !== undefined ? dto.showQrCode : undefined,
+        showBarcode: dto.showBarcode !== undefined ? dto.showBarcode : undefined,
+      },
+    });
+
+    return template;
   }
 }

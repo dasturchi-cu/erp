@@ -9,7 +9,8 @@ export interface CreateCustomerInput {
 }
 
 export interface RecordPaymentInput {
-  amountUzs: number;
+  amount: number;
+  currency: 'UZS' | 'USD';
   method: Payment['method'];
   note?: string;
   recordedBy: string;
@@ -58,20 +59,29 @@ export const useCustomerStore = create<CustomerState>()((set, get) => ({
       set({ customers, isLoading: false });
     } catch (err: unknown) {
       set({
+        error: err instanceof Error ? err.message : 'Unknown error',
         isLoading: false,
-        error: (err as { message?: string }).message ?? 'Mijozlar yuklanmadi',
       });
     }
   },
 
   fetchPayments: async () => {
-    const payments = await debtApi.listPayments();
-    set({ payments });
+    try {
+      const res = await debtApi.listPayments();
+      set({ payments: res });
+    } catch {}
   },
 
   fetchDebtHistory: async (customerId: string) => {
-    const history = await customersApi.getDebtHistory(customerId);
-    set((s) => ({ debtHistory: { ...s.debtHistory, [customerId]: history } }));
+    try {
+      const res = await customersApi.getDebtHistory(customerId);
+      set({
+        debtHistory: {
+          ...get().debtHistory,
+          [customerId]: res,
+        },
+      });
+    } catch {}
   },
 
   listCustomers: (includeArchived = false) => {
@@ -102,8 +112,8 @@ export const useCustomerStore = create<CustomerState>()((set, get) => ({
     const payment = await debtApi.recordPayment(
       {
         customerId,
-        amount: input.amountUzs,
-        currency: 'UZS',
+        amount: input.amount,
+        currency: input.currency,
         paymentMethod: methodToApi(input.method),
         paymentType: 'PARTIAL',
         notes: input.note,

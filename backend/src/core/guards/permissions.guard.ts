@@ -1,6 +1,6 @@
 import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { PERMISSIONS_KEY } from '../decorators/auth.decorators';
+import { PERMISSIONS_KEY, IS_PUBLIC_KEY } from '../decorators/auth.decorators';
 import { JwtPayload } from '../../modules/auth/interfaces/jwt-payload.interface';
 import { AppException } from '../exceptions/app.exception';
 import { AccessControlService } from '../access/access-control.service';
@@ -21,6 +21,14 @@ export class PermissionsGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
+    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (isPublic) {
+      return true;
+    }
+
     const required = this.reflector.getAllAndOverride<string[]>(PERMISSIONS_KEY, [
       context.getHandler(),
       context.getClass(),

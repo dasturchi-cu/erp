@@ -5,6 +5,7 @@ import { useInventoryStore } from '@/stores/inventoryStore';
 import { useCustomerStore } from '@/stores/customerStore';
 import { useSupplierStore } from '@/stores/supplierStore';
 import { useSalesStore } from '@/stores/salesStore';
+import { useOfflineStore } from '@/stores/offlineStore';
 
 /** Loads domain data from API when company context is active. */
 export function DataBootstrap({ children }: { children: React.ReactNode }) {
@@ -29,6 +30,24 @@ export function DataBootstrap({ children }: { children: React.ReactNode }) {
     void useSalesStore.getState().fetchSales();
     void useSalesStore.getState().fetchReturns();
   }, [isAuthenticated, activeCompanyId]);
+
+  // Offline queue auto-sync trigger
+  useEffect(() => {
+    const handleOnline = () => {
+      void useOfflineStore.getState().processSync();
+    };
+    window.addEventListener('online', handleOnline);
+
+    void useOfflineStore.getState().processSync();
+    const interval = setInterval(() => {
+      void useOfflineStore.getState().processSync();
+    }, 30000);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      clearInterval(interval);
+    };
+  }, []);
 
   return <>{children}</>;
 }

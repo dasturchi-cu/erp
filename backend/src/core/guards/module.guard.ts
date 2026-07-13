@@ -1,6 +1,6 @@
 import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { MODULE_KEY } from '../decorators/auth.decorators';
+import { MODULE_KEY, IS_PUBLIC_KEY } from '../decorators/auth.decorators';
 import { JwtPayload } from '../../modules/auth/interfaces/jwt-payload.interface';
 import { AppException } from '../exceptions/app.exception';
 import { AccessControlService } from '../access/access-control.service';
@@ -14,6 +14,14 @@ export class ModuleGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
+    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (isPublic) {
+      return true;
+    }
+
     const moduleCode = this.reflector.getAllAndOverride<string>(MODULE_KEY, [
       context.getHandler(),
       context.getClass(),

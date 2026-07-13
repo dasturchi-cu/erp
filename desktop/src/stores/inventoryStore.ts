@@ -66,6 +66,10 @@ interface InventoryState {
     supplierId: string;
     paymentType: 'CASH' | 'CREDIT';
     note?: string;
+    originalCurrency?: 'UZS' | 'USD';
+    exchangeRateUsed?: number;
+    batchNumber?: string;
+    expiresAt?: string;
   }) => Promise<void>;
   adjustStock: (
     productId: string,
@@ -267,6 +271,10 @@ export const useInventoryStore = create<InventoryState>()((set, get) => ({
       supplierId: input.supplierId,
       paymentType: input.paymentType,
       note: input.note,
+      originalCurrency: input.originalCurrency,
+      exchangeRateUsed: input.exchangeRateUsed,
+      batchNumber: input.batchNumber,
+      expiresAt: input.expiresAt,
     });
     await get().fetchAll();
   },

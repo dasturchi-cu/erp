@@ -94,6 +94,21 @@ export class SalesController {
     return this.salesService.rejectReturn(user.companyId!, user.sub, id, dto, ip, requestId);
   }
 
+  @Get('receipt-templates')
+  @RequirePermissions('sales.view')
+  getReceiptTemplates(@CurrentUser() user: JwtPayload) {
+    return this.salesService.getReceiptTemplates(user.companyId!);
+  }
+
+  @Post('receipt-templates')
+  @RequirePermissions('sales.create')
+  saveReceiptTemplate(
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: any,
+  ) {
+    return this.salesService.saveReceiptTemplate(user.companyId!, dto);
+  }
+
   @Get(':id')
   @RequirePermissions('sales.view')
   getById(@CurrentUser() user: JwtPayload, @Param('id', ParseUUIDPipe) id: string) {

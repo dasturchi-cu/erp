@@ -1,10 +1,13 @@
 export const PRODUCT_UNITS = [
-  { value: 'pcs', label: 'dona' },
-  { value: 'kg', label: 'kg' },
-  { value: 'm', label: 'metr' },
-  { value: 'bag', label: 'qop' },
-  { value: 'box', label: 'karobka' },
-  { value: 'l', label: 'litr' },
+  { value: 'pcs', label: 'Dona' },
+  { value: 'box', label: 'Karobka' },
+  { value: 'kg', label: 'Kg' },
+  { value: 'm', label: 'Metr' },
+  { value: 'l', label: 'Litr' },
+  { value: 'bag', label: 'Qop' },
+  { value: 'pack', label: 'Pachka' },
+  { value: 'roll', label: 'Rulon' },
+  { value: 'set', label: 'Komplekt' },
 ] as const;
 
 export type ProductUnitCode = (typeof PRODUCT_UNITS)[number]['value'];

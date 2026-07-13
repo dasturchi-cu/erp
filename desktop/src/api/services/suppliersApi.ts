@@ -112,10 +112,11 @@ export const suppliersApi = {
 
   recordPayment: async (
     supplierId: string,
-    input: { amountUzs: number; paymentMethod: 'CASH' | 'CARD' | 'BANK_TRANSFER'; notes?: string },
+    input: { amount: number; currency: 'UZS' | 'USD'; paymentMethod: 'CASH' | 'CARD' | 'BANK_TRANSFER'; notes?: string },
   ) => {
     const { data } = await apiClient.post(`${API_ENDPOINTS.suppliers}/${supplierId}/payments`, {
-      amountUzs: toMoneyString(input.amountUzs),
+      amount: toMoneyString(input.amount),
+      currency: input.currency,
       paymentMethod: input.paymentMethod,
       notes: input.notes,
     });

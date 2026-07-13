@@ -9,8 +9,9 @@ import { DataTable, StatusChip, type Column } from '@/components/common/DataTabl
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { StatCard } from '@/components/organisms/StatCard';
 import { useSupplierStore } from '@/stores/supplierStore';
+import { useCurrencyStore } from '@/stores/currencyStore';
 import { useNotification } from '@/components/feedback/NotificationProvider';
-import { formatUzs } from '@/utils/format';
+import { formatUzs, formatUsd } from '@/utils/format';
 import type { SupplierDebtHistoryEntry, SupplierPayment, SupplierReceipt } from '@/types/entities';
 
 const statusLabels = { active: 'Faol', archived: 'Arxiv' } as const;
@@ -54,6 +55,7 @@ export function SupplierProfilePage() {
     [allPayments, id],
   );
   const archiveSupplier = useSupplierStore((s) => s.archiveSupplier);
+  const activeRate = useCurrencyStore((s) => s.rates.find((r) => r.status === 'active')?.rate ?? 12_620);
   const [tab, setTab] = useState(0);
   const [period, setPeriod] = useState<string>('all');
   const [confirmArchive, setConfirmArchive] = useState(false);
@@ -108,6 +110,13 @@ export function SupplierProfilePage() {
     navigate('/suppliers');
   };
 
+  const handleRestore = async () => {
+    if (!supplier) return;
+    await useSupplierStore.getState().restoreSupplier(supplier.id);
+    success('Firma faollashtirildi');
+    void fetchSuppliers();
+  };
+
   if (isLoading && !supplier) {
     return (
       <Box sx={{ textAlign: 'center', py: 8 }}>
@@ -119,7 +128,7 @@ export function SupplierProfilePage() {
   if (!supplier) {
     return (
       <Box sx={{ textAlign: 'center', py: 8 }}>
-        <Typography variant="h6" gutterBottom>Firma topilmadi</Typography>
+        <Typography variant="h6">Firma topilmadi</Typography>
         <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/suppliers')}>Orqaga</Button>
       </Box>
     );
@@ -133,11 +142,13 @@ export function SupplierProfilePage() {
         secondaryActions={
           <>
             <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/suppliers')}>Orqaga</Button>
-            {supplier.status !== 'archived' && (
+            {supplier.status !== 'archived' ? (
               <>
                 <Button startIcon={<EditIcon />} onClick={() => navigate(`/suppliers/${supplier.id}/edit`)}>Tahrirlash</Button>
-                <Button startIcon={<ArchiveIcon />} color="warning" onClick={() => setConfirmArchive(true)}>Arxivlash</Button>
+                <Button startIcon={<ArchiveIcon />} color="warning" onClick={() => setConfirmArchive(true)}>Hamkorlikni tugatish</Button>
               </>
+            ) : (
+              <Button startIcon={<ArchiveIcon />} color="success" onClick={handleRestore}>Qayta tiklash</Button>
             )}
           </>
         }
@@ -149,9 +160,28 @@ export function SupplierProfilePage() {
       />
 
       <Grid container spacing={2} sx={{ mb: 3 }}>
-        <Grid size={{ xs: 12, sm: 4 }}><StatCard label="Jami qarz" value={formatUzs(supplier.totalDebtUzs)} /></Grid>
-        <Grid size={{ xs: 12, sm: 4 }}><StatCard label="To'langan summa" value={formatUzs(supplier.totalPaidUzs)} /></Grid>
-        <Grid size={{ xs: 12, sm: 4 }}><StatCard label="Qoldiq qarz" value={formatUzs(supplier.remainingDebtUzs)} currencyColor="uzs" /></Grid>
+        <Grid size={{ xs: 12, sm: 4 }}>
+          <StatCard
+            label="Jami qarz (UZS)"
+            value={formatUzs(supplier.totalDebtUzs)}
+            secondaryValue={supplier.totalDebtUzs > 0 ? formatUsd(supplier.totalDebtUzs / activeRate) : undefined}
+          />
+        </Grid>
+        <Grid size={{ xs: 12, sm: 4 }}>
+          <StatCard
+            label="To'langan summa (UZS)"
+            value={formatUzs(supplier.totalPaidUzs)}
+            secondaryValue={supplier.totalPaidUzs > 0 ? formatUsd(supplier.totalPaidUzs / activeRate) : undefined}
+          />
+        </Grid>
+        <Grid size={{ xs: 12, sm: 4 }}>
+          <StatCard
+            label="Qoldiq qarz (UZS)"
+            value={formatUzs(supplier.remainingDebtUzs)}
+            secondaryValue={supplier.remainingDebtUzs > 0 ? formatUsd(supplier.remainingDebtUzs / activeRate) : undefined}
+            currencyColor="uzs"
+          />
+        </Grid>
       </Grid>
 
       <Card sx={{ p: 2, mb: 2 }}>
@@ -185,9 +215,10 @@ export function SupplierProfilePage() {
 
       <ConfirmDialog
         open={confirmArchive}
-        title="Arxivlash"
-        message={`${supplier.name} arxivlansinmi?`}
-        confirmLabel="Arxivlash"
+        title="Hamkorlikni tugatish"
+        message="Haqiqatan ham ushbu firma bilan hamkorlikni tugatmoqchimisiz?"
+        confirmLabel="Ha"
+        cancelLabel="Yo'q"
         onConfirm={handleArchive}
         onCancel={() => setConfirmArchive(false)}
       />

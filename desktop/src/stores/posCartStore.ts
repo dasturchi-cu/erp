@@ -127,7 +127,7 @@ export const usePosCartStore = create<PosCartState>((set, get) => ({
 
   getBelowCostLines: () =>
     get().items.filter(
-      (i) => i.product.purchasePriceUzs > 0 && i.unitPriceUzs < i.product.purchasePriceUzs,
+      (i) => i.product.purchasePriceUzs > 0 && i.unitPriceUzs <= i.product.purchasePriceUzs,
     ),
 }));
 

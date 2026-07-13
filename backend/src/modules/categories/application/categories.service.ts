@@ -186,13 +186,22 @@ export class CategoriesService {
   }
 
   async findOrCreateByName(companyId: string, name: string, userId: string): Promise<string> {
+    return this.findOrCreateByNameInternal(this.prisma, companyId, name, userId);
+  }
+
+  async findOrCreateByNameInternal(
+    tx: Prisma.TransactionClient,
+    companyId: string,
+    name: string,
+    userId: string,
+  ): Promise<string> {
     const trimmed = name.trim();
-    const existing = await this.prisma.productCategory.findFirst({
+    const existing = await tx.productCategory.findFirst({
       where: { companyId, deletedAt: null, name: { equals: trimmed, mode: 'insensitive' } },
     });
     if (existing) return existing.id;
 
-    const created = await this.prisma.productCategory.create({
+    const created = await tx.productCategory.create({
       data: { companyId, name: trimmed, sortOrder: 0 },
     });
     await this.audit.log({

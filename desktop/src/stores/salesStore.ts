@@ -46,8 +46,7 @@ export const useSalesStore = create<SalesState>()((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const list = await salesApi.list();
-      const details = await Promise.all(list.map((s) => salesApi.getById(s.id)));
-      set({ sales: details, isLoading: false });
+      set({ sales: list as any, isLoading: false });
     } catch (err: unknown) {
       set({
         isLoading: false,

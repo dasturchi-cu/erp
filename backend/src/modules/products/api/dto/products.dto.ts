@@ -106,6 +106,66 @@ export class CreateProductRequestDto {
   salePriceUsd?: string;
 
   @IsOptional()
+  @IsString()
+  @Matches(MONEY_PATTERN)
+  wholesalePriceUzs?: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(MONEY_PATTERN)
+  wholesalePriceUsd?: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(MONEY_PATTERN)
+  recommendedPriceUzs?: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(MONEY_PATTERN)
+  recommendedPriceUsd?: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(MONEY_PATTERN)
+  minPriceUzs?: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(MONEY_PATTERN)
+  minPriceUsd?: string;
+
+  @IsOptional()
+  @IsString()
+  imageUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  pdfCatalogUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  techPassportUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  userManualUrl?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  barcodes?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  aliases?: string[];
+
+  @IsOptional()
+  @IsArray()
+  unitConversions?: Array<{ fromUnit: string; toUnit: string; conversionFactor: string }>;
+
+  @IsOptional()
   @IsEnum(ProductStatus)
   status?: ProductStatus;
 
@@ -171,6 +231,66 @@ export class UpdateProductRequestDto {
   salePriceUsd?: string;
 
   @IsOptional()
+  @IsString()
+  @Matches(MONEY_PATTERN)
+  wholesalePriceUzs?: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(MONEY_PATTERN)
+  wholesalePriceUsd?: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(MONEY_PATTERN)
+  recommendedPriceUzs?: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(MONEY_PATTERN)
+  recommendedPriceUsd?: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(MONEY_PATTERN)
+  minPriceUzs?: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(MONEY_PATTERN)
+  minPriceUsd?: string;
+
+  @IsOptional()
+  @IsString()
+  imageUrl?: string | null;
+
+  @IsOptional()
+  @IsString()
+  pdfCatalogUrl?: string | null;
+
+  @IsOptional()
+  @IsString()
+  techPassportUrl?: string | null;
+
+  @IsOptional()
+  @IsString()
+  userManualUrl?: string | null;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  barcodes?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  aliases?: string[];
+
+  @IsOptional()
+  @IsArray()
+  unitConversions?: Array<{ fromUnit: string; toUnit: string; conversionFactor: string }>;
+
+  @IsOptional()
   @IsEnum(ProductStatus)
   status?: ProductStatus;
 }
@@ -212,6 +332,31 @@ export class ProductImportRowDto {
   @IsOptional()
   @IsString()
   @Matches(MONEY_PATTERN)
+  purchasePriceUzs?: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(MONEY_PATTERN)
+  sellingPriceUzs?: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(MONEY_PATTERN)
+  purchasePriceUsd?: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(MONEY_PATTERN)
+  sellingPriceUsd?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  legacyId?: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(MONEY_PATTERN)
   stock?: string;
 }
 
@@ -239,6 +384,19 @@ export class ProductResponseDto {
   salePriceUzs!: string;
   salePriceUsd!: string;
   stock!: string;
+  wholesalePriceUzs?: string;
+  wholesalePriceUsd?: string;
+  recommendedPriceUzs?: string;
+  recommendedPriceUsd?: string;
+  minPriceUzs?: string;
+  minPriceUsd?: string;
+  imageUrl?: string | null;
+  pdfCatalogUrl?: string | null;
+  techPassportUrl?: string | null;
+  userManualUrl?: string | null;
+  barcodes?: string[];
+  aliases?: string[];
+  unitConversions?: Array<{ fromUnit: string; toUnit: string; conversionFactor: string }>;
   unitOfMeasure!: string;
   unitsPerBox!: string;
   minStockLevel!: string;

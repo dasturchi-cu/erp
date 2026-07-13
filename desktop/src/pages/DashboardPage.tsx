@@ -98,7 +98,7 @@ export function DashboardPage() {
     );
   }
 
-  const { kpis, suppliers } = data;
+  const { suppliers } = data;
 
   const periodSuffix =
     dashboardPeriod === 'daily'
@@ -190,130 +190,10 @@ export function DashboardPage() {
         </Box>
       </Box>
 
-      {/* KPI Row A — Revenue */}
-      <Box
-        sx={{
-          display: 'grid',
-          gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', lg: 'repeat(4, 1fr)' },
-          gap: 2,
-          mb: 2,
-        }}
-      >
-        <StatCard
-          label={`${t('dashboard.totalSales')} ${periodSuffix}`}
-          value={showUzs ? kpis.totalSales.uzs : kpis.totalSales.usd}
-          secondaryValue={currencyMode === 'both' ? kpis.totalSales.usd : undefined}
-          trend={kpis.totalSales.trend}
-          meta={kpis.totalSales.meta}
-          currencyColor={showUzs ? 'uzs' : 'usd'}
-          loading={loading}
-        />
-        <StatCard
-          label={t('dashboard.saleCount')}
-          value={kpis.saleCount.value}
-          trend={kpis.saleCount.trend}
-          meta={kpis.saleCount.meta}
-          loading={loading}
-        />
-        <StatCard
-          label={t('dashboard.avgSale')}
-          value={showUzs ? kpis.avgSale.uzs : kpis.avgSale.usd}
-          secondaryValue={currencyMode === 'both' ? kpis.avgSale.usd : undefined}
-          trend={kpis.avgSale.trend}
-          currencyColor={showUzs ? 'uzs' : 'usd'}
-          loading={loading}
-        />
-        <StatCard
-          label={t('dashboard.cashSales')}
-          value={showUzs ? kpis.cashSales.uzs : kpis.cashSales.usd}
-          secondaryValue={currencyMode === 'both' ? kpis.cashSales.usd : undefined}
-          trend={kpis.cashSales.trend}
-          meta={kpis.cashSales.meta}
-          currencyColor={showUzs ? 'uzs' : 'usd'}
-          loading={loading}
-        />
-      </Box>
-
-      {/* KPI Row B — Profit */}
-      <Box
-        sx={{
-          display: 'grid',
-          gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' },
-          gap: 2,
-          mb: 2,
-        }}
-      >
-        <StatCard
-          label={t('dashboard.grossProfit')}
-          value={showUzs ? kpis.grossProfit.uzs : kpis.grossProfit.usd}
-          secondaryValue={currencyMode === 'both' ? kpis.grossProfit.usd : undefined}
-          trend={kpis.grossProfit.trend}
-          currencyColor={showUzs ? 'uzs' : 'usd'}
-          loading={loading}
-        />
-        <StatCard
-          label={t('dashboard.grossMargin')}
-          value={kpis.grossMargin.value}
-          trend={kpis.grossMargin.trend}
-          loading={loading}
-        />
-        <StatCard
-          label={t('dashboard.cogs')}
-          value={showUzs ? kpis.cogs.uzs : kpis.cogs.usd}
-          secondaryValue={currencyMode === 'both' ? kpis.cogs.usd : undefined}
-          trend={kpis.cogs.trend}
-          currencyColor={showUzs ? 'uzs' : 'usd'}
-          loading={loading}
-        />
-      </Box>
-
-      {/* KPI Row C — Debt */}
-      <Box
-        sx={{
-          display: 'grid',
-          gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', lg: 'repeat(4, 1fr)' },
-          gap: 2,
-          mb: 2,
-        }}
-      >
-        <StatCard
-          label={t('dashboard.outstandingDebt')}
-          value={showUzs ? kpis.outstandingDebt.uzs : kpis.outstandingDebt.usd}
-          secondaryValue={currencyMode === 'both' ? kpis.outstandingDebt.usd : undefined}
-          trend={kpis.outstandingDebt.trend}
-          meta={kpis.outstandingDebt.meta}
-          currencyColor={showUzs ? 'uzs' : 'usd'}
-          loading={loading}
-        />
-        <StatCard
-          label={`${t('dashboard.payments')} ${periodSuffix}`}
-          value={showUzs ? kpis.payments.uzs : kpis.payments.usd}
-          secondaryValue={currencyMode === 'both' ? kpis.payments.usd : undefined}
-          trend={kpis.payments.trend}
-          meta={kpis.payments.meta}
-          currencyColor={showUzs ? 'uzs' : 'usd'}
-          loading={loading}
-        />
-        <StatCard
-          label={t('dashboard.newDebt')}
-          value={showUzs ? kpis.newDebt.uzs : kpis.newDebt.usd}
-          secondaryValue={currencyMode === 'both' ? kpis.newDebt.usd : undefined}
-          trend={kpis.newDebt.trend}
-          currencyColor={showUzs ? 'uzs' : 'usd'}
-          loading={loading}
-        />
-        <StatCard
-          label={t('dashboard.overdueDebt')}
-          value={showUzs ? kpis.overdueDebt.uzs : kpis.overdueDebt.usd}
-          secondaryValue={currencyMode === 'both' ? kpis.overdueDebt.usd : undefined}
-          trend={kpis.overdueDebt.trend}
-          meta={kpis.overdueDebt.meta}
-          currencyColor={showUzs ? 'uzs' : 'usd'}
-          loading={loading}
-        />
-      </Box>
-
-      {/* KPI Row D — Inventory + Exchange */}
+      {/* 1. Savdo davrlari (Sales Periods) */}
+      <Typography variant="h6" fontWeight={600} sx={{ mb: 2 }}>
+        Savdolar hisoboti
+      </Typography>
       <Box
         sx={{
           display: 'grid',
@@ -323,24 +203,43 @@ export function DashboardPage() {
         }}
       >
         <StatCard
-          label={t('dashboard.inventoryValue')}
-          value={showUzs ? kpis.inventoryValue.uzs : kpis.inventoryValue.usd}
-          secondaryValue={currencyMode === 'both' ? kpis.inventoryValue.usd : undefined}
-          trend={kpis.inventoryValue.trend}
-          meta={kpis.inventoryValue.meta}
+          label="Bugungi savdo"
+          value={showUzs ? data.todaySales.uzs : data.todaySales.usd}
+          secondaryValue={currencyMode === 'both' ? data.todaySales.usd : undefined}
+          trend={data.todaySales.trend}
           currencyColor={showUzs ? 'uzs' : 'usd'}
           loading={loading}
         />
         <StatCard
-          label={t('dashboard.exchangeRate')}
-          value={formatRate(activeRate)}
-          trend={kpis.exchangeRate.trend}
-          meta={t('dashboard.exchangeMeta', { rate: activeRate.toLocaleString('uz-UZ') })}
+          label="Haftalik savdo"
+          value={showUzs ? data.weeklySales.uzs : data.weeklySales.usd}
+          secondaryValue={currencyMode === 'both' ? data.weeklySales.usd : undefined}
+          trend={data.weeklySales.trend}
+          currencyColor={showUzs ? 'uzs' : 'usd'}
+          loading={loading}
+        />
+        <StatCard
+          label="Oylik savdo"
+          value={showUzs ? data.monthlySales.uzs : data.monthlySales.usd}
+          secondaryValue={currencyMode === 'both' ? data.monthlySales.usd : undefined}
+          trend={data.monthlySales.trend}
+          currencyColor={showUzs ? 'uzs' : 'usd'}
+          loading={loading}
+        />
+        <StatCard
+          label="Yillik savdo"
+          value={showUzs ? data.yearlySales.uzs : data.yearlySales.usd}
+          secondaryValue={currencyMode === 'both' ? data.yearlySales.usd : undefined}
+          trend={data.yearlySales.trend}
+          currencyColor={showUzs ? 'uzs' : 'usd'}
           loading={loading}
         />
       </Box>
 
-      {/* Supplier widgets */}
+      {/* 2. Zaxira va Qarzdorliklar */}
+      <Typography variant="h6" fontWeight={600} sx={{ mb: 2 }}>
+        Ombor va Moliyaviy Holat
+      </Typography>
       <Box
         sx={{
           display: 'grid',
@@ -350,26 +249,58 @@ export function DashboardPage() {
         }}
       >
         <StatCard
-          label="Firmalar soni"
-          value={suppliers.count.value}
-          trend={suppliers.count.trend}
-          meta={suppliers.count.meta}
+          label="Ombordagi mahsulotlar soni"
+          value={String(data.totalStockQuantity)}
+          meta="Jami dona qoldiq"
           loading={loading}
         />
         <StatCard
-          label="Jami firma qarzi"
-          value={showUzs ? suppliers.totalDebt.uzs : suppliers.totalDebt.usd}
-          secondaryValue={currencyMode === 'both' ? suppliers.totalDebt.usd : undefined}
-          trend={suppliers.totalDebt.trend}
-          meta={suppliers.totalDebt.meta}
+          label="FIFO bo'yicha Ombor qiymati"
+          value={showUzs ? data.warehouseValueAtCost.uzs : data.warehouseValueAtCost.usd}
+          secondaryValue={currencyMode === 'both' ? data.warehouseValueAtCost.usd : undefined}
           currencyColor={showUzs ? 'uzs' : 'usd'}
           loading={loading}
         />
         <StatCard
-          label="Eng katta qarzdor"
-          value={suppliers.topSupplier.value}
-          trend={suppliers.topSupplier.trend}
-          meta={suppliers.topSupplier.meta}
+          label="Supplier qarzi"
+          value={showUzs ? data.totalSupplierDebt.uzs : data.totalSupplierDebt.usd}
+          secondaryValue={currencyMode === 'both' ? data.totalSupplierDebt.usd : undefined}
+          currencyColor={showUzs ? 'uzs' : 'usd'}
+          loading={loading}
+        />
+        <StatCard
+          label="Customer qarzi"
+          value={showUzs ? data.totalCustomerDebt.uzs : data.totalCustomerDebt.usd}
+          secondaryValue={currencyMode === 'both' ? data.totalCustomerDebt.usd : undefined}
+          currencyColor={showUzs ? 'uzs' : 'usd'}
+          loading={loading}
+        />
+      </Box>
+
+      {/* 3. Foyda va Eng ko'p sotilgan mahsulot */}
+      <Typography variant="h6" fontWeight={600} sx={{ mb: 2 }}>
+        Sof Foyda va Tahlillar
+      </Typography>
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', lg: 'repeat(3, 1fr)' },
+          gap: 2,
+          mb: 4,
+        }}
+      >
+        <StatCard
+          label="Sof foyda"
+          value={showUzs ? data.netProfit.uzs : data.netProfit.usd}
+          secondaryValue={currencyMode === 'both' ? data.netProfit.usd : undefined}
+          trend={data.netProfit.trend}
+          currencyColor={showUzs ? 'uzs' : 'usd'}
+          loading={loading}
+        />
+        <StatCard
+          label="Eng ko'p sotilgan mahsulot"
+          value={data.bestSellerProduct.name}
+          meta={`Sotilgan miqdor: ${data.bestSellerProduct.quantity} dona`}
           loading={loading}
         />
         <Card sx={{ p: 2, minHeight: 120 }}>
@@ -380,7 +311,7 @@ export function DashboardPage() {
             <Typography variant="body2" color="text.secondary">To&apos;lovlar yo&apos;q</Typography>
           ) : (
             <List dense disablePadding>
-              {suppliers.recentPayments.slice(0, 3).map((p) => (
+              {suppliers.recentPayments.slice(0, 3).map((p: any) => (
                 <ListItem key={p.id} disablePadding sx={{ py: 0.25 }}>
                   <ListItemText primary={p.text} secondary={p.time} primaryTypographyProps={{ variant: 'body2' }} />
                 </ListItem>
@@ -401,7 +332,7 @@ export function DashboardPage() {
       >
         <Card sx={{ p: 2, minHeight: 320 }}>
           <Typography variant="h6" fontWeight={600} gutterBottom>
-            {t('dashboard.salesTrend')}
+            Grafik: Savdo va Foyda Tahlili (Oxirgi 30 kun)
           </Typography>
           <ResponsiveContainer width="100%" height={260}>
             <AreaChart data={data.salesTrend}>
@@ -420,20 +351,40 @@ export function DashboardPage() {
                 <Area
                   type="monotone"
                   dataKey="uzs"
-                  name="UZS"
+                  name="Savdo (UZS)"
                   stroke={chartColors.uzs}
                   fill={chartColors.uzs}
-                  fillOpacity={0.15}
+                  fillOpacity={0.08}
+                />
+              )}
+              {showUzs && (
+                <Area
+                  type="monotone"
+                  dataKey="profitUzs"
+                  name="Foyda (UZS)"
+                  stroke="#10B981"
+                  fill="#10B981"
+                  fillOpacity={0.12}
                 />
               )}
               {showUsd && (
                 <Area
                   type="monotone"
                   dataKey="usd"
-                  name="USD"
+                  name="Savdo (USD)"
                   stroke={chartColors.usd}
                   fill={chartColors.usd}
-                  fillOpacity={0.15}
+                  fillOpacity={0.08}
+                />
+              )}
+              {showUsd && (
+                <Area
+                  type="monotone"
+                  dataKey="profitUsd"
+                  name="Foyda (USD)"
+                  stroke="#3B82F6"
+                  fill="#3B82F6"
+                  fillOpacity={0.12}
                 />
               )}
             </AreaChart>
@@ -470,26 +421,46 @@ export function DashboardPage() {
       <Box
         sx={{
           display: 'grid',
-          gridTemplateColumns: { xs: '1fr', lg: '5fr 7fr' },
+          gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' },
           gap: 2,
         }}
       >
-        <Card sx={{ p: 2, minHeight: 360 }}>
+        <Card sx={{ p: 2 }}>
           <Typography variant="h6" fontWeight={600} gutterBottom>
-            {t('dashboard.recentSales')}
+            Top Mijozlar
           </Typography>
-          <List dense disablePadding>
-            {data.recentActivity.map((item) => (
-              <ListItem key={item.id} disableGutters sx={{ py: 1, borderBottom: 1, borderColor: 'divider' }}>
-                <ListItemText
-                  primary={item.text}
-                  secondary={item.time}
-                  primaryTypographyProps={{ fontSize: '0.875rem' }}
-                  secondaryTypographyProps={{ fontSize: '0.75rem' }}
-                />
-              </ListItem>
-            ))}
-          </List>
+          <TableContainer>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Mijoz</TableCell>
+                  {(currencyMode === 'UZS' || currencyMode === 'both') && (
+                    <TableCell align="right">Hajm (UZS)</TableCell>
+                  )}
+                  {(currencyMode === 'USD' || currencyMode === 'both') && (
+                    <TableCell align="right">Hajm (USD)</TableCell>
+                  )}
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {data.topCustomers.map((customer) => (
+                  <TableRow key={customer.name} hover>
+                    <TableCell>{customer.name}</TableCell>
+                    {(currencyMode === 'UZS' || currencyMode === 'both') && (
+                      <TableCell align="right" sx={{ color: chartColors.uzs, fontFamily: 'monospace', fontSize: '0.8125rem' }}>
+                        {customer.revenueUzs}
+                      </TableCell>
+                    )}
+                    {(currencyMode === 'USD' || currencyMode === 'both') && (
+                      <TableCell align="right" sx={{ color: chartColors.usd, fontFamily: 'monospace', fontSize: '0.8125rem' }}>
+                        {customer.revenueUsd}
+                      </TableCell>
+                    )}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
         </Card>
 
         <Card sx={{ p: 2 }}>

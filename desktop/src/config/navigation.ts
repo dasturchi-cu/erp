@@ -70,6 +70,14 @@ export const mainNavigation: NavGroup[] = [
     ],
   },
   {
+    id: 'finance',
+    label: 'Moliya',
+    module: 'sales',
+    items: [
+      { id: 'expenses', label: 'Xarajatlar', path: '/expenses', icon: 'Payments', permission: 'sales.view' },
+    ],
+  },
+  {
     id: 'analytics',
     label: 'Hisobotlar',
     module: 'reports',
@@ -129,6 +137,7 @@ export const routeLabels: Record<string, string> = {
   logs: 'Log ko\'ruvchi',
   'exchange-rates': 'Valyuta kursi',
   edit: 'Tahrirlash',
+  expenses: 'Xarajatlar',
   'forgot-password': 'Parolni tiklash',
   'device-blocked': 'Qurilma bloklangan',
   'session-expired': 'Sessiya tugadi',
@@ -139,6 +148,7 @@ export const routePermissions: Record<string, string> = {
   '/dashboard': 'dashboard.view',
   '/sales/new': 'sales.create',
   '/sales/history': 'sales.view',
+  '/expenses': 'sales.view',
   '/sales/returns/new': 'sales.return',
   '/sales/returns': 'sales.return',
   '/products': 'products.view',
