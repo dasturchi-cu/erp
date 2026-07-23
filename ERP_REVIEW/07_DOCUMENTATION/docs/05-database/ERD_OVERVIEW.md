@@ -1,0 +1,104 @@
+# ERD Overview
+
+## Document Control
+
+| Field | Value |
+|-------|-------|
+| Version | 1.0.0 |
+| Last Updated | 2026-06-17 |
+
+---
+
+## Entity Relationship Diagram
+
+```
+┌─────────────┐     ┌──────────────┐     ┌─────────────┐
+│   Company   │────<│ UserCompany  │>────│    User     │
+└──────┬──────┘     └──────────────┘     └──────┬──────┘
+       │                                         │
+       │         ┌──────────────┐                  │
+       ├────────<│   Branch     │                │
+       │         └──────────────┘                  │
+       │                                         │
+       │         ┌──────────────┐     ┌──────────┴──────┐
+       ├────────<│   Product    │     │     Device      │
+       │         └──────┬───────┘     └────────┬────────┘
+       │                │                      │
+       │         ┌──────┴───────┐     ┌────────┴────────┐
+       │         │ ProductPrice │     │    Session      │
+       │         └──────────────┘     └─────────────────┘
+       │
+       │         ┌──────────────┐
+       ├────────<│ ProductCategory│
+       │         └──────────────┘
+       │
+       │         ┌──────────────┐
+       ├────────<│ InventoryBatch│
+       │         └──────┬───────┘
+       │                │
+       │         ┌──────┴────────┐
+       │         │InventoryMovement│
+       │         └───────────────┘
+       │
+       │         ┌──────────────┐
+       ├────────<│  Customer    │
+       │         └──────┬───────┘
+       │                │
+       │    ┌───────────┼───────────┐
+       │    │           │           │
+       │  ┌─┴───┐  ┌───┴───┐  ┌───┴────────┐
+       │  │Sale │  │DebtPay│  │ExchangeRate│
+       │  └──┬──┘  └───────┘  └────────────┘
+       │     │
+       │  ┌──┴──────┐
+       │  │ SaleItem │
+       │  └────┬─────┘
+       │       │
+       │  ┌────┴─────────────┐
+       │  │SaleFifoAllocation│
+       │  └──────────────────┘
+       │
+       │         ┌──────────────┐
+       ├────────<│  AuditLog    │
+       │         └──────────────┘
+       │
+       │         ┌──────────────┐
+       └────────<│ Notification │
+                 └──────────────┘
+
+┌─────────┐     ┌────────────┐     ┌────────────┐
+│  Role   │────<│RolePermission│>───│ Permission │
+└─────────┘     └────────────┘     └────────────┘
+
+┌─────────┐     ┌──────────────┐
+│ Module  │────<│CompanyModule │
+└─────────┘     └──────────────┘
+```
+
+---
+
+## Cardinality Summary
+
+| Relationship | Cardinality |
+|-------------|-------------|
+| Company → Branch | 1:N |
+| Company → Product | 1:N |
+| Company → Customer | 1:N |
+| User → Company | N:M (via UserCompany) |
+| User → Device | 1:N |
+| User → Session | 1:N |
+| Product → InventoryBatch | 1:N |
+| Product → SaleItem | 1:N |
+| Customer → Sale | 1:N |
+| Customer → DebtPayment | 1:N |
+| Sale → SaleItem | 1:N |
+| SaleItem → SaleFifoAllocation | 1:N |
+| SaleItem → InventoryBatch | N:M (via allocation) |
+| Role → Permission | N:M |
+
+---
+
+## Related Documents
+
+- [SCHEMA_DESIGN.md](./SCHEMA_DESIGN.md)
+- [../02-business/DOMAIN_MODEL.md](../02-business/DOMAIN_MODEL.md)

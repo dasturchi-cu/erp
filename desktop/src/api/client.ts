@@ -6,7 +6,10 @@ import { getDeviceId } from '@/utils/deviceId';
 import { getPilotScreen, logPilotError, setPilotAction } from '@/lib/pilotErrorLogger';
 import type { ApiError, ApiErrorEnvelope } from '@/types/api';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000/api/v1';
+const isElectron = typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().includes('electron');
+const API_BASE_URL = isElectron 
+  ? 'http://127.0.0.1:3000/api/v1' 
+  : (import.meta.env.VITE_API_URL ?? '/api/v1');
 const USE_MOCK_API = import.meta.env.VITE_USE_MOCK === 'true';
 
 export const apiClient = axios.create({

@@ -484,7 +484,9 @@ export class SalesService {
         cogsUsd: Decimal;
       }> = [];
 
-      for (const line of dto.lineItems) {
+      const sortedLineItems = [...dto.lineItems].sort((a, b) => a.productId.localeCompare(b.productId));
+
+      for (const line of sortedLineItems) {
         const quantity = parseMoney(line.quantity);
         if (!isPositiveMoney(quantity)) {
           throw AppException.validation('Validation failed', [
@@ -691,7 +693,7 @@ export class SalesService {
       `;
       const sale = await tx.sale.findFirst({
         where: { id: saleId, companyId },
-        include: { fifoAllocations: true },
+        include: { fifoAllocations: { include: { batch: true } } },
       });
       if (!sale) {
         throw AppException.notFound('Sale', saleId);
@@ -708,10 +710,10 @@ export class SalesService {
         companyId,
         saleId: sale.id,
         warehouseId: warehouse.id,
-        allocations: sale.fifoAllocations.map((a) => ({
+        allocations: sale.fifoAllocations.map((a: any) => ({
           batchId: a.batchId,
           productId: a.productId,
-          warehouseId: warehouse.id,
+          warehouseId: a.batch?.warehouseId ?? warehouse.id,
           quantity: a.quantity,
           unitCostUzs: a.unitCostUzs,
           unitCostUsd: a.unitCostUsd,

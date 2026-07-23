@@ -722,6 +722,7 @@ export class InventoryService {
         name: b.name,
         address: b.address,
         isDefault: b.isDefault,
+        status: b.status,
       })),
     };
   }

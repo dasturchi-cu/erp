@@ -1,4 +1,4 @@
-import { createBrowserRouter, Navigate } from 'react-router-dom';
+import { createBrowserRouter, Navigate, Outlet } from 'react-router-dom';
 import { AppShell } from '@/layouts/AppShell';
 import { LoginPage } from '@/pages/LoginPage';
 import { CompanySelectPage } from '@/pages/CompanySelectPage';
@@ -9,6 +9,29 @@ import { SessionExpiredPage } from '@/pages/SessionExpiredPage';
 import { PermissionDeniedPage } from '@/pages/PermissionDeniedPage';
 import { AuthGuard, GuestGuard, RoutePermissionGuard } from '@/routes/guards';
 import { DefaultHomeRedirect } from '@/routes/DefaultHomeRedirect';
+import { lazy, Suspense, useEffect } from 'react';
+import { useSaaSStore } from '@/stores/saasStore';
+
+const SaaSAppShell = lazy(() => import('@/layouts/SaaSAppShell'));
+const SaaSLoginPage = lazy(() => import('@/features/super-admin/SaaSLoginPage'));
+const SaaSDashboardPage = lazy(() => import('@/features/super-admin/SaaSDashboardPage'));
+const SaaSCompaniesPage = lazy(() => import('@/features/super-admin/SaaSCompaniesPage'));
+const SaaSCompanyProfilePage = lazy(() => import('@/features/super-admin/SaaSCompanyProfilePage'));
+const SaaSSettingsPage = lazy(() => import('@/features/super-admin/SaaSSettingsPage'));
+
+export function SaaSAuthGuard() {
+  const { isAuthenticated, initialize } = useSaaSStore();
+  
+  useEffect(() => {
+    initialize();
+  }, [initialize]);
+
+  if (!isAuthenticated && !localStorage.getItem('saas_access_token')) {
+    return <Navigate to="/super-admin/login" replace />;
+  }
+
+  return <Outlet />;
+}
 import { ProductsPage } from '@/features/products/ProductsPage';
 import { CategoriesPage } from '@/features/products/CategoriesPage';
 import { ProductDetailPage } from '@/features/products/ProductDetailPage';
@@ -114,6 +137,60 @@ const shellRoutes = [
 
 export const router = createBrowserRouter([
   { path: '/', element: <DefaultHomeRedirect /> },
+  {
+    path: '/super-admin/login',
+    element: (
+      <Suspense fallback={<div>Yuklanmoqda...</div>}>
+        <SaaSLoginPage />
+      </Suspense>
+    ),
+  },
+  {
+    element: <SaaSAuthGuard />,
+    children: [
+      {
+        element: (
+          <Suspense fallback={<div>Yuklanmoqda...</div>}>
+            <SaaSAppShell />
+          </Suspense>
+        ),
+        children: [
+          {
+            path: '/super-admin/dashboard',
+            element: (
+              <Suspense fallback={<div>Yuklanmoqda...</div>}>
+                <SaaSDashboardPage />
+              </Suspense>
+            ),
+          },
+          {
+            path: '/super-admin/companies',
+            element: (
+              <Suspense fallback={<div>Yuklanmoqda...</div>}>
+                <SaaSCompaniesPage />
+              </Suspense>
+            ),
+          },
+          {
+            path: '/super-admin/company/:id',
+            element: (
+              <Suspense fallback={<div>Yuklanmoqda...</div>}>
+                <SaaSCompanyProfilePage />
+              </Suspense>
+            ),
+          },
+          {
+            path: '/super-admin/settings',
+            element: (
+              <Suspense fallback={<div>Yuklanmoqda...</div>}>
+                <SaaSSettingsPage />
+              </Suspense>
+            ),
+          },
+        ],
+      },
+    ],
+  },
   {
     element: <GuestGuard />,
     children: [

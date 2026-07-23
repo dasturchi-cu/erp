@@ -211,7 +211,17 @@ export async function restoreFifoAllocations(
     note?: string | null;
   },
 ): Promise<void> {
-  for (const alloc of params.allocations) {
+  const sortedAllocations = [...params.allocations].sort((a, b) => a.batchId.localeCompare(b.batchId));
+
+  for (const alloc of sortedAllocations) {
+    // Acquire row-level lock to prevent deadlock and lost updates concurrently
+    await tx.$executeRaw`
+      SELECT id FROM inventory_batches
+      WHERE id = ${alloc.batchId}::uuid
+        AND company_id = ${params.companyId}::uuid
+      FOR UPDATE
+    `;
+
     const batch = await tx.inventoryBatch.findFirst({
       where: { id: alloc.batchId, companyId: params.companyId },
     });
@@ -237,6 +247,15 @@ export async function restoreFifoAllocations(
       });
       continue;
     }
+  }
+
+  // Fallback case: if some allocation items have no matching batches, we can handle them
+  // Note: in practice, all should have batches. If not, this is handled.
+  for (const alloc of params.allocations) {
+    const batch = await tx.inventoryBatch.findFirst({
+      where: { id: alloc.batchId, companyId: params.companyId },
+    });
+    if (batch) continue;
 
     const fallbackBatch = await createReceiptBatch(tx, {
       companyId: params.companyId,

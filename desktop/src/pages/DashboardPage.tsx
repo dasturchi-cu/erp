@@ -1,4 +1,5 @@
-import { useMemo } from 'react';
+import { useMemo, useEffect } from 'react';
+import { useInventoryStore } from '@/stores/inventoryStore';
 import {
   Box,
   Card,
@@ -74,6 +75,12 @@ export function DashboardPage() {
   const { resolvedMode } = useAppTheme();
   const activeRate = useCurrencyStore((s) => s.rates.find((r) => r.status === 'active')?.rate ?? 12_620);
   const { data, loading, reload } = useDashboardData(dashboardPeriod, activeRate);
+
+  const { branches, fetchBranches } = useInventoryStore();
+
+  useEffect(() => {
+    void fetchBranches();
+  }, [fetchBranches]);
 
   const chartColors = useMemo(
     () => ({
@@ -157,8 +164,11 @@ export function DashboardPage() {
               onChange={(e) => setSelectedBranch(e.target.value)}
             >
               <MenuItem value="all">{t('dashboard.allBranches')}</MenuItem>
-              <MenuItem value="main">{t('dashboard.mainBranch')}</MenuItem>
-              <MenuItem value="north">{t('dashboard.northBranch')}</MenuItem>
+              {branches.map((b) => (
+                <MenuItem key={b.id} value={b.id}>
+                  {b.name}
+                </MenuItem>
+              ))}
             </Select>
           </FormControl>
 

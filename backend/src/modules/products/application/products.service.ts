@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Prisma, ProductStatus } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import { writeFileSync, existsSync, mkdirSync, unlinkSync } from 'fs';
-import { join, extname } from 'path';
+import { join, extname, resolve, basename } from 'path';
 import { randomUUID } from 'crypto';
 import AdmZip from 'adm-zip';
 import { Response } from 'express';
@@ -80,36 +80,26 @@ export class ProductsService {
       [{ field: 'name', direction: 'asc' }],
     );
 
-    let productIdsFilter: string[] | undefined;
     if (query.stockLevel) {
-      const stockRows = await this.prisma.$queryRawUnsafe<Array<{ product_id: string; stock_qty: Prisma.Decimal }>>(
-        `SELECT product_id, SUM(remaining_qty) AS stock_qty
-         FROM inventory_batches
-         WHERE company_id = $1::uuid AND remaining_qty > 0
-         GROUP BY product_id`,
-        companyId,
-      );
-      const stockMap = new Map(stockRows.map((r) => [r.product_id, r.stock_qty]));
-
-      const allProducts = await this.prisma.product.findMany({
-        where,
-        select: { id: true },
-      });
-
-      productIdsFilter = allProducts
-        .filter((p) => {
-          const stock = stockMap.get(p.id) ?? new Decimal(0);
-          if (query.stockLevel === 'out') return stock.lte(0);
-          if (query.stockLevel === 'low') return stock.gt(0) && stock.lte(10);
-          return stock.gt(0);
-        })
-        .map((p) => p.id);
-
-      if (productIdsFilter.length === 0) {
-        return { data: [], meta: buildPaginationMeta(page, limit, 0) };
+      if (query.stockLevel === 'in_stock') {
+        where.inventoryBatches = { some: { remainingQty: { gt: 0 } } };
+      } else if (query.stockLevel === 'out') {
+        where.inventoryBatches = { none: { remainingQty: { gt: 0 } } };
+      } else if (query.stockLevel === 'low') {
+        const lowStockRows = await this.prisma.$queryRawUnsafe<Array<{ product_id: string }>>(
+          `SELECT product_id
+           FROM inventory_batches
+           WHERE company_id = $1::uuid AND remaining_qty > 0
+           GROUP BY product_id
+           HAVING SUM(remaining_qty) > 0 AND SUM(remaining_qty) <= 10`,
+          companyId,
+        );
+        const lowStockIds = lowStockRows.map((r) => r.product_id);
+        if (lowStockIds.length === 0) {
+          return { data: [], meta: buildPaginationMeta(page, limit, 0) };
+        }
+        where.id = { in: lowStockIds };
       }
-
-      where.id = { in: productIdsFilter };
     }
 
     const orderBy = this.buildProductOrderBy(sort);
@@ -125,7 +115,10 @@ export class ProductsService {
       }),
     ]);
 
-    const data = await Promise.all(rows.map((row) => this.toProductResponse(companyId, row)));
+    const stockMap = await this.getStockMap(companyId, rows.map((r) => r.id));
+    const data = await Promise.all(
+      rows.map((row) => this.toProductResponse(companyId, row, stockMap.get(row.id))),
+    );
 
     return { data, meta: buildPaginationMeta(page, limit, total) };
   }
@@ -164,7 +157,10 @@ export class ProductsService {
       orderBy: { name: 'asc' },
     });
 
-    const data = await Promise.all(rows.map((row) => this.toProductResponse(companyId, row)));
+    const stockMap = await this.getStockMap(companyId, rows.map((r) => r.id));
+    const data = await Promise.all(
+      rows.map((row) => this.toProductResponse(companyId, row, stockMap.get(row.id))),
+    );
     return { data };
   }
 
@@ -207,7 +203,10 @@ export class ProductsService {
       orderBy: { name: 'asc' },
     });
 
-    const data = await Promise.all(rows.map((row) => this.toProductResponse(companyId, row)));
+    const stockMap = await this.getStockMap(companyId, rows.map((r) => r.id));
+    const data = await Promise.all(
+      rows.map((row) => this.toProductResponse(companyId, row, stockMap.get(row.id))),
+    );
     return { data };
   }
 
@@ -933,11 +932,33 @@ export class ProductsService {
     return orderBy.length ? orderBy : [{ name: 'asc' }];
   }
 
+  private async getStockMap(companyId: string, productIds: string[]): Promise<Map<string, Decimal>> {
+    const stockSums = await this.prisma.inventoryBatch.groupBy({
+      by: ['productId'],
+      where: {
+        companyId,
+        productId: { in: productIds },
+      },
+      _sum: {
+        remainingQty: true,
+      },
+    });
+
+    const map = new Map<string, Decimal>();
+    for (const sum of stockSums) {
+      if (sum.productId) {
+        map.set(sum.productId, sum._sum?.remainingQty ?? new Decimal(0));
+      }
+    }
+    return map;
+  }
+
   private async toProductResponse(
     companyId: string,
     product: ProductWithRelations,
+    precalculatedStock?: Decimal,
   ): Promise<ProductResponseDto> {
-    const stock = await getProductStockTotal(this.prisma, companyId, product.id);
+    const stock = precalculatedStock ?? await getProductStockTotal(this.prisma, companyId, product.id);
 
     return {
       id: product.id,
@@ -992,11 +1013,48 @@ export class ProductsService {
     }
   }
 
+  private isValidImageHeader(buffer: Buffer): boolean {
+    if (!buffer || buffer.length < 12) return false;
+    // JPEG: FF D8 FF
+    if (buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+      return true;
+    }
+    // PNG: 89 50 4E 47
+    if (buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47) {
+      return true;
+    }
+    // WEBP: RIFF....WEBP
+    const isRiff = buffer[0] === 0x52 && buffer[1] === 0x49 && buffer[2] === 0x46 && buffer[3] === 0x46; // RIFF
+    const isWebp = buffer[8] === 0x57 && buffer[9] === 0x45 && buffer[10] === 0x42 && buffer[11] === 0x50; // WEBP
+    if (isRiff && isWebp) {
+      return true;
+    }
+    return false;
+  }
+
   async handleImageUpload(companyId: string, file: any) {
     if (!file) throw AppException.validation('File is required', []);
+    
+    // File size check: 5MB limit
+    if (file.size > 5 * 1024 * 1024) {
+      throw AppException.validation('Image size must be less than 5MB', []);
+    }
+
+    // Extension validation
+    const fileExt = extname(file.originalname).toLowerCase();
+    if (!['.jpg', '.jpeg', '.png', '.webp'].includes(fileExt)) {
+      throw AppException.validation('Only JPG, PNG and WEBP image extensions are allowed', []);
+    }
+
+    // MIME type validation
     const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp'];
     if (!allowedMimeTypes.includes(file.mimetype)) {
       throw AppException.validation('Only JPG, PNG and WEBP images are allowed', []);
+    }
+
+    // Magic bytes validation
+    if (!this.isValidImageHeader(file.buffer)) {
+      throw AppException.validation('File signature does not match a valid JPG, PNG, or WEBP image', []);
     }
 
     const baseDir = join(process.cwd(), 'storage/products');
@@ -1008,7 +1066,6 @@ export class ProductsService {
       }
     }
 
-    const fileExt = extname(file.originalname).toLowerCase();
     const filename = `${randomUUID()}${fileExt}`;
 
     const originalPath = join(baseDir, 'original', filename);
@@ -1024,8 +1081,11 @@ export class ProductsService {
       const thumbImg = jimpImage.clone().resize(100, Jimp.AUTO);
       await thumbImg.writeAsync(thumbPath);
     } catch (err) {
-      writeFileSync(join(baseDir, 'medium', filename), file.buffer);
-      writeFileSync(join(baseDir, 'thumb', filename), file.buffer);
+      // Clean up original file on error
+      if (existsSync(originalPath)) {
+        try { unlinkSync(originalPath); } catch {}
+      }
+      throw AppException.validation('Failed to process image file. File may be corrupted or invalid.', []);
     }
 
     return {
@@ -1042,12 +1102,32 @@ export class ProductsService {
       res.status(400).send('Invalid size');
       return;
     }
+
+    // Path traversal sanitization
+    const safeFilename = basename(filename);
+    
+    // Whitelist check: ensure filename matches an allowed extension
+    const fileExt = extname(safeFilename).toLowerCase();
+    if (!['.jpg', '.jpeg', '.png', '.webp'].includes(fileExt)) {
+      res.status(400).send('Invalid file extension');
+      return;
+    }
+
     const baseDir = join(process.cwd(), 'storage/products');
-    const filePath = join(baseDir, size, filename);
+    const sizeDir = join(baseDir, size);
+    const filePath = resolve(sizeDir, safeFilename);
+
+    // Strict traversal protection: make sure resolved path starts with the size directory
+    if (!filePath.startsWith(sizeDir)) {
+      res.status(400).send('Invalid path traversal attempt');
+      return;
+    }
+
     if (!existsSync(filePath)) {
       res.status(404).send('Not Found');
       return;
     }
+
     res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
     res.sendFile(filePath);
   }

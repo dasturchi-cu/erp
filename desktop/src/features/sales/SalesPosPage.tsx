@@ -229,14 +229,15 @@ export function SalesPosPage() {
   }, [searchDebounced]);
 
   const tryAddProduct = useCallback(
-    (product: Product, qty = 1, saleUnit: 'piece' | 'box' = 'piece') => {
-      const ok = addProduct(product, qty, saleUnit);
+    (product: Product, qty = 1, saleUnit?: 'piece' | 'box') => {
+      const defaultUnit = saleUnit ?? (product.unitOfMeasure === 'box' ? 'box' : 'piece');
+      const ok = addProduct(product, qty, defaultUnit);
       if (!ok) {
         playBeep('error');
         const existing = items.find((i) => i.product.id === product.id);
         const requested =
           (existing ? lineStockQty(existing) : 0) +
-          cartLineBaseQuantity(qty, saleUnit, product.unitsPerBox);
+          cartLineBaseQuantity(qty, defaultUnit, product.unitsPerBox, product.unitOfMeasure);
         setStockError({ product, requested });
       } else {
         playBeep('success');
@@ -526,12 +527,34 @@ export function SalesPosPage() {
                         <TextField
                           size="small"
                           type="number"
-                          label={currency === 'USD' ? 'Narx (USD)' : 'Narx (dona)'}
-                          value={currency === 'USD' ? Number((item.unitPriceUzs / exchangeRate).toFixed(2)) : item.unitPriceUzs}
+                          label={
+                            currency === 'USD'
+                              ? item.saleUnit === 'box' ? 'Karobka narxi (USD)' : 'Dona narxi (USD)'
+                              : item.saleUnit === 'box' ? 'Karobka narxi (UZS)' : 'Dona narxi (UZS)'
+                          }
+                          value={
+                            currency === 'USD'
+                              ? Number(
+                                  (
+                                    (item.saleUnit === 'box'
+                                      ? item.unitPriceUzs * item.product.unitsPerBox
+                                      : item.unitPriceUzs) / exchangeRate
+                                  ).toFixed(2),
+                                )
+                              : Math.round(
+                                  item.saleUnit === 'box'
+                                    ? item.unitPriceUzs * item.product.unitsPerBox
+                                    : item.unitPriceUzs,
+                                )
+                          }
                           onChange={(e) => {
                             const val = Number(e.target.value) || 0;
                             const uzsVal = currency === 'USD' ? Math.round(val * exchangeRate) : val;
-                            setUnitPrice(item.product.id, uzsVal);
+                            const unitPrice =
+                              item.saleUnit === 'box'
+                                ? uzsVal / item.product.unitsPerBox
+                                : uzsVal;
+                            setUnitPrice(item.product.id, unitPrice);
                           }}
                           sx={{ flex: 1 }}
                         />
@@ -541,7 +564,7 @@ export function SalesPosPage() {
                               value={item.saleUnit}
                               onChange={(e) => setSaleUnit(item.product.id, e.target.value as 'piece' | 'box')}
                             >
-                              <MenuItem value="piece">{productUnitLabel(item.product.unitOfMeasure)}</MenuItem>
+                              <MenuItem value="piece">Dona</MenuItem>
                               <MenuItem value="box">Karobka</MenuItem>
                             </Select>
                           </FormControl>
@@ -552,10 +575,10 @@ export function SalesPosPage() {
                           <RemoveIcon fontSize="small" />
                         </IconButton>
                         <Typography variant="body2" sx={{ minWidth: 48, textAlign: 'center' }}>
-                          {item.quantity} {item.saleUnit === 'box' ? 'kar.' : productUnitLabel(item.product.unitOfMeasure).toLowerCase()}
+                          {item.quantity} {item.saleUnit === 'box' ? 'karobka' : 'dona'}
                           {item.saleUnit === 'box' && (
                             <Typography component="span" variant="caption" display="block" color="text.secondary">
-                              = {lineStockQty(item)} {productUnitLabel(item.product.unitOfMeasure).toLowerCase()}
+                              = {item.quantity * item.product.unitsPerBox} dona
                             </Typography>
                           )}
                         </Typography>
@@ -567,8 +590,8 @@ export function SalesPosPage() {
                         </IconButton>
                         <Typography variant="body2" fontWeight={600} sx={{ ml: 'auto' }}>
                           {currency === 'UZS'
-                            ? formatUzs(lineStockQty(item) * item.unitPriceUzs)
-                            : formatUsd(lineStockQty(item) * (item.unitPriceUzs / exchangeRate))}
+                            ? formatUzs(Math.round(item.quantity * (item.saleUnit === 'box' ? item.unitPriceUzs * item.product.unitsPerBox : item.unitPriceUzs)))
+                            : formatUsd((item.quantity * (item.saleUnit === 'box' ? item.unitPriceUzs * item.product.unitsPerBox : item.unitPriceUzs)) / exchangeRate)}
                         </Typography>
                       </Box>
                     </Box>

@@ -12,7 +12,7 @@ export function useListState<T>(items: T[], searchFields: (item: T) => string[])
     if (search.trim()) {
       const q = search.toLowerCase();
       result = result.filter((item) =>
-        searchFields(item).some((f) => f.toLowerCase().includes(q)),
+        searchFields(item).some((f) => f != null && String(f).toLowerCase().includes(q)),
       );
     }
     if (sortBy) {

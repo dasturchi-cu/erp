@@ -54,6 +54,21 @@
       "dist/**/*",
       "dist-electron/**/*"
     ],
+    "extraResources": [
+      {
+        "from": "../backend",
+        "to": "backend",
+        "filter": [
+          "dist/**/*",
+          "node_modules/**/*",
+          "!**/.env*"
+        ]
+      },
+      {
+        "from": "../.tools/node-v22.12.0",
+        "to": "node"
+      }
+    ],
     "win": {
       "target": "nsis"
     }

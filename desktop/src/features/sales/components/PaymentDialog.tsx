@@ -58,6 +58,7 @@ export function PaymentDialog({
   const change = method === 'cash' ? calcChange(receivedNum, payTotal) : 0;
 
   const mixedCreditAuto = Math.max(0, payTotal - receivedNum);
+  const remainingUnpaid = Math.max(0, payTotal - receivedNum - creditNum);
   const effectiveCredit = method === 'mixed' ? (creditNum > 0 ? creditNum : mixedCreditAuto) : 0;
 
   const validationError = useMemo(() => {
@@ -233,7 +234,7 @@ export function PaymentDialog({
               label={`Nasiya qismi (${dialogCurrency})`}
               value={credit}
               onChange={(e) => setCredit(e.target.value)}
-              helperText={`Qolgan: ${isUsd ? formatUsd(mixedCreditAuto) : formatUzs(mixedCreditAuto)}`}
+              helperText={`Qolgan: ${isUsd ? formatUsd(remainingUnpaid) : formatUzs(remainingUnpaid)}`}
             />
           </>
         )}

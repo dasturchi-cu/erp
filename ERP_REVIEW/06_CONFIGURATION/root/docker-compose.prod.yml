@@ -1,0 +1,66 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: erp-prod-postgres
+    environment:
+      POSTGRES_USER: erp
+      POSTGRES_PASSWORD: erp_secret_prod_change_me
+      POSTGRES_DB: erp
+    volumes:
+      - erp_prod_pg_data:/var/lib/postgresql/data
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U erp -d erp"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: erp-prod-redis
+    volumes:
+      - erp_prod_redis_data:/data
+    restart: always
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: erp-prod-backend
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://erp:erp_secret_prod_change_me@postgres:5432/erp?schema=public
+      REDIS_URL: redis://redis:6379
+      JWT_ACCESS_SECRET: prod-access-secret-minimum-32-chars-long-change-me
+      JWT_REFRESH_SECRET: prod-refresh-secret-minimum-32-chars-long-change-me
+      JWT_ACCESS_EXPIRES_IN: 900
+      JWT_REFRESH_EXPIRES_IN: 604800
+      THROTTLE_TTL: 900000
+      THROTTLE_LIMIT: 100
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: always
+
+  frontend:
+    build:
+      context: ./desktop
+      dockerfile: Dockerfile
+    container_name: erp-prod-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: always
+
+volumes:
+  erp_prod_pg_data:
+  erp_prod_redis_data:

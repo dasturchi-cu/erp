@@ -88,7 +88,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
   const enabledModules = useAuthStore((s) => s.enabledModules);
 
   const visibleNav = mainNavigation
-    .filter((group) => enabledModules.includes(group.module))
+    .filter((group) => group.module === 'settings' || enabledModules.includes(group.module))
     .map((group) => ({
       ...group,
       items: group.items.filter(

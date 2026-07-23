@@ -26,7 +26,12 @@ interface PosCartState {
 }
 
 function lineStockQty(line: CartLine): number {
-  return cartLineBaseQuantity(line.quantity, line.saleUnit, line.product.unitsPerBox);
+  return cartLineBaseQuantity(
+    line.quantity,
+    line.saleUnit,
+    line.product.unitsPerBox,
+    line.product.unitOfMeasure
+  );
 }
 
 function currentBaseQty(items: CartLine[], productId: string): number {
@@ -40,11 +45,14 @@ export const usePosCartStore = create<PosCartState>((set, get) => ({
   currency: 'UZS',
   isProcessing: false,
 
-  addProduct: (product, qty = 1, saleUnit = 'piece') => {
+  addProduct: (product, qty = 1, saleUnit) => {
     const { items } = get();
+    const defaultUnit = saleUnit ?? (product.unitOfMeasure === 'box' ? 'box' : 'piece');
     const existing = items.find((i) => i.product.id === product.id);
     const existingBase = existing ? lineStockQty(existing) : 0;
-    const addBase = cartLineBaseQuantity(qty, saleUnit, product.unitsPerBox);
+    const addBase = cartLineBaseQuantity(qty, defaultUnit, product.unitsPerBox, product.unitOfMeasure);
+
+    // Stock check against product.stock (which is in base units: boxes or pieces)
     if (existingBase + addBase > product.stock) return false;
 
     if (existing) {
@@ -53,8 +61,8 @@ export const usePosCartStore = create<PosCartState>((set, get) => ({
           i.product.id === product.id
             ? {
                 ...i,
-                saleUnit,
-                quantity: existing.saleUnit === saleUnit ? i.quantity + qty : qty,
+                saleUnit: defaultUnit,
+                quantity: existing.saleUnit === defaultUnit ? i.quantity + qty : qty,
               }
             : i,
         ),
@@ -63,7 +71,14 @@ export const usePosCartStore = create<PosCartState>((set, get) => ({
       set({
         items: [
           ...items,
-          { product, quantity: qty, saleUnit, unitPriceUzs: product.priceUzs },
+          {
+            product,
+            quantity: qty,
+            saleUnit: defaultUnit,
+            unitPriceUzs: product.unitOfMeasure === 'box'
+              ? product.priceUzs / Math.max(1, product.unitsPerBox)
+              : product.priceUzs
+          },
         ],
       });
     }
@@ -78,9 +93,22 @@ export const usePosCartStore = create<PosCartState>((set, get) => ({
     set({
       items: get().items.map((i) => {
         if (i.product.id !== productId) return i;
-        const mult =
-          i.saleUnit === 'box' ? Math.max(1, i.product.unitsPerBox) : 1;
-        const maxQty = Math.floor(i.product.stock / mult);
+
+        let maxQty: number;
+        if (i.product.unitOfMeasure === 'box') {
+          if (i.saleUnit === 'box') {
+            maxQty = i.product.stock;
+          } else {
+            maxQty = i.product.stock * i.product.unitsPerBox;
+          }
+        } else {
+          if (i.saleUnit === 'box') {
+            maxQty = Math.floor(i.product.stock / Math.max(1, i.product.unitsPerBox));
+          } else {
+            maxQty = i.product.stock;
+          }
+        }
+
         return { ...i, quantity: Math.min(quantity, Math.max(1, maxQty)) };
       }),
     });
@@ -115,13 +143,16 @@ export const usePosCartStore = create<PosCartState>((set, get) => ({
     const { items } = get();
     const rate = useCurrencyStore.getState().getActiveRate();
     const totalUzs = items.reduce(
-      (s, i) => s + lineStockQty(i) * i.unitPriceUzs,
+      (s, i) =>
+        s +
+        i.quantity *
+          (i.saleUnit === 'box' ? i.unitPriceUzs * i.product.unitsPerBox : i.unitPriceUzs),
       0,
     );
     return {
       totalUzs,
       totalUsd: lineTotalUsd(totalUzs, rate),
-      itemCount: items.reduce((s, i) => s + lineStockQty(i), 0),
+      itemCount: items.reduce((s, i) => s + i.quantity, 0),
     };
   },
 

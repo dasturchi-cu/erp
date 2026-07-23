@@ -297,4 +297,5 @@ export class BranchResponseDto {
   name!: string;
   address!: string | null;
   isDefault!: boolean;
+  status!: string;
 }

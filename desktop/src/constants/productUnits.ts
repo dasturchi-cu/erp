@@ -21,7 +21,12 @@ export function cartLineBaseQuantity(
   quantity: number,
   saleUnit: 'piece' | 'box',
   unitsPerBox: number,
+  unitOfMeasure?: string,
 ): number {
+  if (unitOfMeasure === 'box') {
+    const divisor = Math.max(1, unitsPerBox);
+    return saleUnit === 'box' ? quantity : quantity / divisor;
+  }
   const mult = saleUnit === 'box' ? Math.max(1, unitsPerBox) : 1;
   return quantity * mult;
 }

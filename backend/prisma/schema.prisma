@@ -239,6 +239,8 @@ model Company {
   priceHistories      ProductPriceHistory[]
   tenantSubscriptions TenantSubscription[]
   saasUsageStats      SaasUsageStat[]
+  companyHeartbeats   CompanyHeartbeat[]
+  saasAlerts          SaaSAlert[]
 
   @@map("companies")
 }
@@ -1311,4 +1313,55 @@ model RemoteUpdateHistory {
   releasedAt  DateTime @map("released_at") @db.Timestamptz(6)
 
   @@map("remote_update_histories")
+}
+
+model CompanyHeartbeat {
+  id               String   @id @default(uuid()) @db.Uuid
+  companyId        String   @map("company_id") @db.Uuid
+  company          Company  @relation(fields: [companyId], references: [id])
+  deviceId         String   @map("device_id") @db.VarChar(255)
+  cpuUsage         Decimal  @map("cpu_usage") @db.Decimal(5, 2)
+  ramUsage         Decimal  @map("ram_usage") @db.Decimal(5, 2)
+  diskFreeBytes    BigInt   @map("disk_free_bytes")
+  os               String   @db.VarChar(255)
+  uptime           Int
+  desktopVersion   String   @map("desktop_version") @db.VarChar(50)
+  backendVersion   String   @map("backend_version") @db.VarChar(50)
+  databaseVersion  String   @map("database_version") @db.VarChar(100)
+  printerOnline    Boolean  @map("printer_online")
+  scannerConnected Boolean  @map("scanner_connected")
+  upsOnline        Boolean  @map("ups_online")
+  offlineQueueSize Int      @map("offline_queue_size")
+  errorsCount      Int      @map("errors_count")
+  responseTimeMs   Int      @map("response_time_ms")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("company_heartbeats")
+}
+
+model SaaSAlert {
+  id         String   @id @default(uuid()) @db.Uuid
+  companyId  String   @map("company_id") @db.Uuid
+  company    Company  @relation(fields: [companyId], references: [id])
+  type       String   @db.VarChar(50)
+  message    String   @db.Text
+  severity   String   @db.VarChar(20)
+  resolved   Boolean  @default(false)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  resolvedAt DateTime? @map("resolved_at") @db.Timestamptz(6)
+
+  @@map("saas_alerts")
+}
+
+model SaaSAdmin {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique @db.VarChar(255)
+  passwordHash String   @map("password_hash") @db.VarChar(255)
+  twoFactorSecret String? @map("two_factor_secret") @db.VarChar(255)
+  twoFactorEnabled Boolean @default(false) @map("two_factor_enabled")
+  telegramChatId String?  @map("telegram_chat_id") @db.VarChar(50)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("saas_admins")
 }
