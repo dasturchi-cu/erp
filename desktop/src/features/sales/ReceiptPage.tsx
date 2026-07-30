@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { Box, Button, Divider, Paper, Typography } from '@mui/material';
+import { Box, Button, Divider, Paper, Typography, CircularProgress } from '@mui/material';
 import PrintIcon from '@mui/icons-material/Print';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { useSalesStore } from '@/stores/salesStore';
@@ -7,13 +7,16 @@ import { formatUzs, formatUsd } from '@/utils/format';
 import { useNotification } from '@/components/feedback/NotificationProvider';
 import { useEffect, useState } from 'react';
 import { salesApi } from '@/api/services/salesApi';
+import type { SaleDetail } from '@/types/sales';
 
 export function ReceiptPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { success } = useNotification();
-  const sale = useSalesStore((s) => s.getSaleById(id ?? ''));
+  const { success, error: notifyError } = useNotification();
+  const storeSale = useSalesStore((s) => s.getSaleById(id ?? ''));
 
+  const [sale, setSale] = useState<SaleDetail | null>(storeSale || null);
+  const [loading, setLoading] = useState(!storeSale);
   const [template, setTemplate] = useState<any>({
     name: 'Standart Chek',
     isDefault: true,
@@ -40,6 +43,32 @@ export function ReceiptPage() {
         console.error('Chek shablonini yuklashda xatolik:', err);
       });
   }, []);
+
+  useEffect(() => {
+    if (!id) return;
+    if (!sale) {
+      setLoading(true);
+      salesApi.getById(id)
+        .then((data) => {
+          setSale(data);
+        })
+        .catch((err) => {
+          console.error('Chek yuklashda xatolik:', err);
+          notifyError('Chek ma\'lumotlarini yuklab bo\'lmadi');
+        })
+        .finally(() => {
+          setLoading(false);
+        });
+    }
+  }, [id, sale, notifyError]);
+
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '50vh' }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
 
   if (!sale) {
     return (

@@ -6,7 +6,7 @@ import { join, extname, resolve, basename } from 'path';
 import { randomUUID } from 'crypto';
 import AdmZip from 'adm-zip';
 import { Response } from 'express';
-const Jimp = require('jimp');
+const { Jimp } = require('jimp');
 import { PrismaService } from '../../../core/database/prisma.service';
 import { AuditService } from '../../../core/audit/audit.service';
 import { AppException } from '../../../core/exceptions/app.exception';
@@ -277,6 +277,40 @@ export class ProductsService {
     userId: string,
     dto: CreateProductRequestDto & { legacyId?: string },
   ) {
+    // Proactive duplicate SKU check
+    const existingSku = await tx.product.findFirst({
+      where: { companyId, sku: dto.sku.trim(), deletedAt: null },
+    });
+    if (existingSku) {
+      throw AppException.duplicateSku(dto.sku.trim());
+    }
+
+    // Proactive duplicate barcode check
+    const barcodeToCheck = dto.barcode?.trim();
+    if (barcodeToCheck) {
+      const existingBarcode = await tx.product.findFirst({
+        where: { companyId, barcode: barcodeToCheck, deletedAt: null },
+      });
+      if (existingBarcode) {
+        throw AppException.duplicateBarcode(barcodeToCheck);
+      }
+    }
+
+    // Also check extra barcodes
+    if (dto.barcodes && dto.barcodes.length) {
+      for (const b of dto.barcodes) {
+        const cleanBarcode = b.trim();
+        if (cleanBarcode) {
+          const existingBarcode = await tx.product.findFirst({
+            where: { companyId, barcode: cleanBarcode, deletedAt: null },
+          });
+          if (existingBarcode) {
+            throw AppException.duplicateBarcode(cleanBarcode);
+          }
+        }
+      }
+    }
+
     await this.categoriesService.ensureCategory(companyId, dto.categoryId);
 
     const purchasePriceUzs = parseMoney(dto.purchasePriceUzs);
@@ -428,6 +462,41 @@ export class ProductsService {
 
     try {
       const updated = await this.prisma.$transaction(async (tx) => {
+        // Proactive duplicate barcode check on update
+        const barcodeToCheck = dto.barcode === undefined ? undefined : dto.barcode?.trim() || null;
+        if (barcodeToCheck) {
+          const existingBarcode = await tx.product.findFirst({
+            where: {
+              companyId,
+              barcode: barcodeToCheck,
+              id: { not: id },
+              deletedAt: null,
+            },
+          });
+          if (existingBarcode) {
+            throw AppException.duplicateBarcode(barcodeToCheck);
+          }
+        }
+
+        if (dto.barcodes && dto.barcodes.length) {
+          for (const b of dto.barcodes) {
+            const cleanBarcode = b.trim();
+            if (cleanBarcode) {
+              const existingBarcode = await tx.product.findFirst({
+                where: {
+                  companyId,
+                  barcode: cleanBarcode,
+                  id: { not: id },
+                  deletedAt: null,
+                },
+              });
+              if (existingBarcode) {
+                throw AppException.duplicateBarcode(cleanBarcode);
+              }
+            }
+          }
+        }
+
         // If image is changing
         if (dto.imageUrl !== undefined) {
           const oldImages = await tx.productImage.findMany({
@@ -1074,12 +1143,12 @@ export class ProductsService {
     try {
       const jimpImage = await Jimp.read(file.buffer);
       const mediumPath = join(baseDir, 'medium', filename);
-      const mediumImg = jimpImage.clone().resize(600, Jimp.AUTO);
-      await mediumImg.writeAsync(mediumPath);
+      const mediumImg = jimpImage.clone().resize({ w: 600 });
+      await mediumImg.write(mediumPath);
 
       const thumbPath = join(baseDir, 'thumb', filename);
-      const thumbImg = jimpImage.clone().resize(100, Jimp.AUTO);
-      await thumbImg.writeAsync(thumbPath);
+      const thumbImg = jimpImage.clone().resize({ w: 100 });
+      await thumbImg.write(thumbPath);
     } catch (err) {
       // Clean up original file on error
       if (existsSync(originalPath)) {
@@ -1182,10 +1251,10 @@ export class ProductsService {
 
       try {
         const jimpImage = await Jimp.read(fileBuffer);
-        const mediumImg = jimpImage.clone().resize(600, Jimp.AUTO);
-        await mediumImg.writeAsync(join(baseDir, 'medium', filename));
-        const thumbImg = jimpImage.clone().resize(100, Jimp.AUTO);
-        await thumbImg.writeAsync(join(baseDir, 'thumb', filename));
+        const mediumImg = jimpImage.clone().resize({ w: 600 });
+        await mediumImg.write(join(baseDir, 'medium', filename));
+        const thumbImg = jimpImage.clone().resize({ w: 100 });
+        await thumbImg.write(join(baseDir, 'thumb', filename));
       } catch {
         writeFileSync(join(baseDir, 'medium', filename), fileBuffer);
         writeFileSync(join(baseDir, 'thumb', filename), fileBuffer);

@@ -175,21 +175,26 @@ export function SalesPosPage() {
   const exchangeRate = useCurrencyStore((s) => s.rates.find((r) => r.status === 'active')?.rate ?? 12_620);
   const { totalUzs, totalUsd, itemCount } = useMemo(() => {
     const totalUzs = items.reduce(
-      (s, i) => s + lineStockQty(i) * i.unitPriceUzs,
+      (s, i) =>
+        s +
+        i.quantity *
+          (i.saleUnit === 'box' ? i.unitPriceUzs * i.product.unitsPerBox : i.unitPriceUzs),
       0,
     );
+    const itemCount = items.reduce((s, i) => s + i.quantity, 0);
     return {
       totalUzs,
       totalUsd: lineTotalUsd(totalUzs, exchangeRate),
-      itemCount: items.reduce((s, i) => s + lineStockQty(i), 0),
+      itemCount,
     };
   }, [items, exchangeRate]);
 
   const belowCostLines = useMemo(
     () =>
-      items.filter(
-        (i) => i.product.purchasePriceUzs > 0 && i.unitPriceUzs <= i.product.purchasePriceUzs,
-      ),
+      items.filter((i) => {
+        const purchasePricePerPiece = i.product.purchasePriceUzs / (i.product.unitsPerBox || 1);
+        return purchasePricePerPiece > 0 && i.unitPriceUzs < purchasePricePerPiece;
+      }),
     [items],
   );
 
@@ -295,7 +300,10 @@ export function SalesPosPage() {
         lineItems: items.map((item) => ({
           productId: item.product.id,
           quantity: lineStockQty(item),
-          unitPriceUzs: item.unitPriceUzs,
+          unitPriceUzs:
+            item.product.unitOfMeasure === 'box'
+              ? item.unitPriceUzs * item.product.unitsPerBox
+              : item.unitPriceUzs,
         })),
       });
       paymentDialog.onClose();
@@ -512,7 +520,7 @@ export function SalesPosPage() {
                       <Typography variant="body2" fontWeight={600} noWrap>
                         {item.product.name}
                         {item.product.purchasePriceUzs > 0 &&
-                          item.unitPriceUzs <= item.product.purchasePriceUzs && (
+                          item.unitPriceUzs < item.product.purchasePriceUzs / (item.product.unitsPerBox || 1) && (
                             <Typography
                               component="span"
                               variant="caption"

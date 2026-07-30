@@ -28,6 +28,20 @@ export function SaaSCompanyProfilePage() {
   const [selectedMembership, setSelectedMembership] = useState<any>(null);
   const [selectedUserBranchId, setSelectedUserBranchId] = useState('');
 
+  // User Create State
+  const [userCreateOpen, setUserCreateOpen] = useState(false);
+  const [userEmail, setUserEmail] = useState('');
+  const [userPassword, setUserPassword] = useState('');
+  const [userFirstName, setUserFirstName] = useState('');
+  const [userLastName, setUserLastName] = useState('');
+  const [userRoleName, setUserRoleName] = useState('Admin');
+
+  // User Password Change State
+  const [userPasswordOpen, setUserPasswordOpen] = useState(false);
+  const [passwordUserId, setPasswordUserId] = useState('');
+  const [passwordUserEmail, setPasswordUserEmail] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+
   const fetchProfileAndBranches = async () => {
     if (!id) return;
     setLoading(true);
@@ -103,6 +117,46 @@ export function SaaSCompanyProfilePage() {
       fetchProfileAndBranches();
     } catch (err: any) {
       alert(err.response?.data?.message ?? 'Filial qo\'shishda xatolik yuz berdi');
+    }
+  };
+
+  const handleCreateUser = async () => {
+    if (!id || !userEmail || !userFirstName || !userLastName) return;
+    try {
+      await saasApi.createCompanyUser(id, {
+        email: userEmail,
+        password: userPassword || undefined,
+        firstName: userFirstName,
+        lastName: userLastName,
+        roleName: userRoleName,
+      });
+      setUserCreateOpen(false);
+      setUserEmail('');
+      setUserPassword('');
+      setUserFirstName('');
+      setUserLastName('');
+      setUserRoleName('Admin');
+      fetchProfileAndBranches();
+    } catch (err: any) {
+      alert(err.response?.data?.message ?? 'Xodim qo\'shishda xatolik yuz berdi');
+    }
+  };
+
+  const handleEditUserPassword = (membership: any) => {
+    setPasswordUserId(membership.userId);
+    setPasswordUserEmail(membership.user.email);
+    setNewPassword('');
+    setUserPasswordOpen(true);
+  };
+
+  const handleUpdatePassword = async () => {
+    if (!id || !passwordUserId || !newPassword) return;
+    try {
+      await saasApi.changeUserPassword(id, passwordUserId, newPassword);
+      setUserPasswordOpen(false);
+      alert('Parol muvaffaqiyatli o\'zgartirildi');
+    } catch (err: any) {
+      alert(err.response?.data?.message ?? 'Parolni o\'zgartirishda xatolik');
     }
   };
 
@@ -365,10 +419,18 @@ export function SaaSCompanyProfilePage() {
       </Paper>
 
       {/* Users Section */}
-      <Box sx={{ mt: 5, mb: 3 }}>
+      <Box sx={{ mt: 5, mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Typography variant="h6" fontWeight={600}>
           Foydalanuvchilar va Filiallar (Users & Branch Assignments)
         </Typography>
+        <Button
+          variant="contained"
+          startIcon={<PeopleIcon />}
+          onClick={() => setUserCreateOpen(true)}
+          sx={{ borderRadius: 2 }}
+        >
+          + Xodim qo'shish
+        </Button>
       </Box>
       <Paper sx={{ p: 2, borderRadius: 3, overflow: 'hidden', mb: 3 }}>
         <TableContainer>
@@ -402,8 +464,17 @@ export function SaaSCompanyProfilePage() {
                       size="small"
                       startIcon={<EditIcon />}
                       onClick={() => handleEditUserBranch(u)}
+                      sx={{ mr: 1 }}
                     >
                       Filialni o&apos;zgartirish
+                    </Button>
+                    <Button
+                      size="small"
+                      color="warning"
+                      startIcon={<KeyIcon />}
+                      onClick={() => handleEditUserPassword(u)}
+                    >
+                      Parolni o&apos;zgartirish
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -456,6 +527,77 @@ export function SaaSCompanyProfilePage() {
         <DialogActions>
           <Button onClick={() => setBranchOpen(false)}>Bekor qilish</Button>
           <Button onClick={handleAddBranch} variant="contained">Qo&apos;shish</Button>
+        </DialogActions>
+      </Dialog>
+      {/* Add User Dialog */}
+      <Dialog open={userCreateOpen} onClose={() => setUserCreateOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>Yangi Xodim Qo&apos;shish</DialogTitle>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+          <TextField
+            label="Ism"
+            fullWidth
+            value={userFirstName}
+            onChange={(e) => setUserFirstName(e.target.value)}
+            autoFocus
+          />
+          <TextField
+            label="Familiya"
+            fullWidth
+            value={userLastName}
+            onChange={(e) => setUserLastName(e.target.value)}
+          />
+          <TextField
+            label="Email"
+            fullWidth
+            type="email"
+            value={userEmail}
+            onChange={(e) => setUserEmail(e.target.value)}
+          />
+          <TextField
+            label="Parol (standart: User123!)"
+            fullWidth
+            type="password"
+            value={userPassword}
+            onChange={(e) => setUserPassword(e.target.value)}
+          />
+          <TextField
+            select
+            label="Roli"
+            fullWidth
+            value={userRoleName}
+            onChange={(e) => setUserRoleName(e.target.value)}
+          >
+            <MenuItem value="Admin">Admin</MenuItem>
+            <MenuItem value="Manager">Menejer</MenuItem>
+            <MenuItem value="Cashier">Kassir</MenuItem>
+            <MenuItem value="Warehouse">Omborchi</MenuItem>
+          </TextField>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setUserCreateOpen(false)}>Bekor qilish</Button>
+          <Button onClick={handleCreateUser} variant="contained">Qo&apos;shish</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Change Password Dialog */}
+      <Dialog open={userPasswordOpen} onClose={() => setUserPasswordOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>Xodim Parolini O&apos;zgartirish</DialogTitle>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+          <Typography variant="body2" color="text.secondary">
+            Foydalanuvchi: <strong>{passwordUserEmail}</strong>
+          </Typography>
+          <TextField
+            label="Yangi parol"
+            fullWidth
+            type="password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            autoFocus
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setUserPasswordOpen(false)}>Bekor qilish</Button>
+          <Button onClick={handleUpdatePassword} variant="contained" color="warning">Saqlash</Button>
         </DialogActions>
       </Dialog>
     </Box>

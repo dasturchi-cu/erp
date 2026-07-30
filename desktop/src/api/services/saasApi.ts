@@ -1,6 +1,9 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1';
+const isElectron = typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().includes('electron');
+const API_BASE_URL = isElectron 
+  ? 'http://127.0.0.1:3000/api/v1' 
+  : (import.meta.env.VITE_API_URL ?? '/api/v1');
 
 export const saasClient = axios.create({
   baseURL: API_BASE_URL,
@@ -99,8 +102,18 @@ export const saasApi = {
     return data;
   },
 
+  createCompanyUser: async (id: string, userData: { email: string; password?: string; firstName: string; lastName: string; roleName: string }) => {
+    const { data } = await saasClient.post(`/saas-admin/company/${id}/users`, userData);
+    return data;
+  },
+
   updateUserBranch: async (id: string, userId: string, branchId: string | null) => {
     const { data } = await saasClient.patch(`/saas-admin/company/${id}/users/${userId}/branch`, { branchId });
+    return data;
+  },
+
+  changeUserPassword: async (companyId: string, userId: string, password: string) => {
+    const { data } = await saasClient.patch(`/saas-admin/company/${companyId}/users/${userId}/password`, { password });
     return data;
   },
 
@@ -126,6 +139,50 @@ export const saasApi = {
 
   deleteAdmin: async (id: string) => {
     const { data } = await saasClient.delete(`/saas-admin/admins/${id}`);
+    return data;
+  },
+
+  getReleases: async () => {
+    const { data } = await saasClient.get('/saas-admin/releases');
+    return data;
+  },
+
+  uploadRelease: async (formData: FormData) => {
+    const { data } = await saasClient.post('/saas-admin/releases/upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return data;
+  },
+
+  updateReleaseStatus: async (id: string, status: string) => {
+    const { data } = await saasClient.patch(`/saas-admin/releases/${id}/status`, { status });
+    return data;
+  },
+
+  emergencyStop: async (id: string) => {
+    const { data } = await saasClient.post(`/saas-admin/releases/${id}/emergency-stop`);
+    return data;
+  },
+
+  deleteRelease: async (id: string) => {
+    const { data } = await saasClient.delete(`/saas-admin/releases/${id}`);
+    return data;
+  },
+
+  getReleaseProgress: async (id: string) => {
+    const { data } = await saasClient.get(`/saas-admin/releases/${id}/progress`);
+    return data;
+  },
+
+  getReleaseHistory: async (id: string) => {
+    const { data } = await saasClient.get(`/saas-admin/releases/${id}/history`);
+    return data;
+  },
+
+  getHealthScores: async () => {
+    const { data } = await saasClient.get('/saas-admin/health-scores');
     return data;
   },
 };

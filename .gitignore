@@ -37,3 +37,8 @@ Thumbs.db
 *.njsproj
 *.sln
 *.sw?
+
+# Uploads, storage and zip files
+mingit.zip
+storage/
+uploads/

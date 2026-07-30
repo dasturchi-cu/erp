@@ -1305,12 +1305,17 @@ model SaasUsageStat {
 }
 
 model RemoteUpdateHistory {
-  id          String   @id @default(uuid()) @db.Uuid
-  version     String   @db.VarChar(50)
-  changelog   String   @db.Text
-  downloadUrl String   @map("download_url") @db.VarChar(255)
-  checksum    String   @db.VarChar(255)
-  releasedAt  DateTime @map("released_at") @db.Timestamptz(6)
+  id            String   @id @default(uuid()) @db.Uuid
+  version       String   @db.VarChar(50)
+  changelog     String   @db.Text
+  downloadUrl   String   @map("download_url") @db.VarChar(255)
+  checksum      String   @db.VarChar(255)
+  status        String   @default("DRAFT") @db.VarChar(20)
+  rolloutTarget String   @map("rollout_target") @default("GLOBAL") @db.VarChar(20)
+  uploadedBy    String   @map("uploaded_by") @default("Super Admin") @db.VarChar(100)
+  zipSize       BigInt   @map("zip_size") @default(0)
+  downloadCount Int      @map("download_count") @default(0)
+  releasedAt    DateTime @map("released_at") @db.Timestamptz(6)
 
   @@map("remote_update_histories")
 }
@@ -1364,4 +1369,20 @@ model SaaSAdmin {
   updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@map("saas_admins")
+}
+
+model CompanyUpdateHistory {
+  id              String    @id @default(uuid()) @db.Uuid
+  companyId       String    @map("company_id") @db.Uuid
+  releaseId       String    @map("release_id") @db.Uuid
+  previousVersion String    @map("previous_version") @db.VarChar(50)
+  currentVersion  String    @map("current_version") @db.VarChar(50)
+  status          String    @db.VarChar(20) // PENDING, UPDATING, SUCCESS, FAILED, ROLLED_BACK
+  startedAt       DateTime  @map("started_at") @db.Timestamptz(6)
+  finishedAt      DateTime? @map("finished_at") @db.Timestamptz(6)
+  durationMs      Int?      @map("duration_ms")
+  failureReason   String?   @map("failure_reason") @db.Text
+  rollbackAt      DateTime? @map("rollback_at") @db.Timestamptz(6)
+
+  @@map("company_update_histories")
 }

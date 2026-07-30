@@ -1,7 +1,7 @@
 import React from 'react';
 import { Box, Drawer, List, ListItem, ListItemButton, ListItemIcon, ListItemText, Typography, AppBar, Toolbar, IconButton, Button, useTheme } from '@mui/material';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { Dashboard as DashboardIcon, Business as BusinessIcon, Settings as SettingsIcon, Logout as LogoutIcon, Brightness4 as DarkIcon, Brightness7 as LightIcon, Security as SecurityIcon } from '@mui/icons-material';
+import { Dashboard as DashboardIcon, Business as BusinessIcon, Settings as SettingsIcon, Logout as LogoutIcon, Brightness4 as DarkIcon, Brightness7 as LightIcon, Security as SecurityIcon, SystemUpdate as UpdateIcon } from '@mui/icons-material';
 import { useSaaSStore } from '@/stores/saasStore';
 import { useAppTheme } from '@/theme/ThemeProvider';
 
@@ -22,6 +22,7 @@ export function SaaSAppShell() {
   const menuItems = [
     { text: 'Boshqaruv paneli', icon: <DashboardIcon />, path: '/super-admin/dashboard' },
     { text: 'Kompaniyalar', icon: <BusinessIcon />, path: '/super-admin/companies' },
+    { text: 'Versiya boshqaruvi', icon: <UpdateIcon />, path: '/super-admin/versions' },
     { text: 'Super Adminlar', icon: <SecurityIcon />, path: '/super-admin/settings' },
   ];
 

@@ -61,7 +61,7 @@
         "filter": [
           "dist/**/*",
           "node_modules/**/*",
-          "!**/.env*"
+          ".env"
         ]
       },
       {

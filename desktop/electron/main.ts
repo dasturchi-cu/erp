@@ -31,7 +31,14 @@ function startBackend(): void {
       env: { 
         ...process.env, 
         NODE_ENV: 'production',
-        PORT: '3000'
+        PORT: '3000',
+        DATABASE_URL: 'postgresql://erp:erp_secret@127.0.0.1:5432/erp?schema=public',
+        JWT_ACCESS_SECRET: 'change-me-access-secret-min-32-chars-long',
+        JWT_REFRESH_SECRET: 'change-me-refresh-secret-min-32-chars-long',
+        JWT_ACCESS_EXPIRES_IN: '900',
+        JWT_REFRESH_EXPIRES_IN: '604800',
+        THROTTLE_TTL: '900000',
+        THROTTLE_LIMIT: '1000'
       }
     });
     

@@ -18,6 +18,7 @@ const SaaSDashboardPage = lazy(() => import('@/features/super-admin/SaaSDashboar
 const SaaSCompaniesPage = lazy(() => import('@/features/super-admin/SaaSCompaniesPage'));
 const SaaSCompanyProfilePage = lazy(() => import('@/features/super-admin/SaaSCompanyProfilePage'));
 const SaaSSettingsPage = lazy(() => import('@/features/super-admin/SaaSSettingsPage'));
+const SaaSReleasesPage = lazy(() => import('@/features/super-admin/SaaSReleasesPage'));
 
 export function SaaSAuthGuard() {
   const { isAuthenticated, initialize } = useSaaSStore();
@@ -184,6 +185,14 @@ export const router = createBrowserRouter([
             element: (
               <Suspense fallback={<div>Yuklanmoqda...</div>}>
                 <SaaSSettingsPage />
+              </Suspense>
+            ),
+          },
+          {
+            path: '/super-admin/versions',
+            element: (
+              <Suspense fallback={<div>Yuklanmoqda...</div>}>
+                <SaaSReleasesPage />
               </Suspense>
             ),
           },

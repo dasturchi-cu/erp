@@ -38,7 +38,7 @@ export function BelowCostConfirmDialog({
             <ListItem key={`${line.product.id}-${line.saleUnit}`} disablePadding>
               <ListItemText
                 primary={line.product.name}
-                secondary={`Sotuv: ${formatUzs(line.unitPriceUzs)} · Olish narxi: ${formatUzs(line.product.purchasePriceUzs)}`}
+                secondary={`Sotuv: ${formatUzs(line.unitPriceUzs)} · Olish narxi: ${formatUzs(line.product.purchasePriceUzs / (line.product.unitsPerBox || 1))}`}
               />
             </ListItem>
           ))}

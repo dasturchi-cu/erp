@@ -264,23 +264,25 @@ export class DebtPaymentsService {
         throw AppException.notFound('Customer', dto.customerId);
       }
 
-      if (dto.currency === OriginalCurrency.UZS && customer.totalDebtUzs.lt(amount)) {
-        throw AppException.businessRule('Payment exceeds UZS debt balance', {
-          debtUzs: formatMoney(customer.totalDebtUzs),
-          amount: formatMoney(amount),
-        });
-      }
-      if (dto.currency === OriginalCurrency.USD && customer.totalDebtUsd.lt(amount)) {
-        throw AppException.businessRule('Payment exceeds USD debt balance', {
-          debtUsd: formatMoney(customer.totalDebtUsd),
-          amount: formatMoney(amount),
-        });
-      }
-
       const amountUzs =
         dto.currency === OriginalCurrency.UZS ? amount : usdToUzs(amount, exchangeRate);
       const amountUsd =
         dto.currency === OriginalCurrency.USD ? amount : uzsToUsd(amount, exchangeRate);
+
+      if (customer.totalDebtUzs.lt(amountUzs)) {
+        if (dto.currency === OriginalCurrency.UZS) {
+          throw AppException.businessRule('Payment exceeds UZS debt balance', {
+            debtUzs: formatMoney(customer.totalDebtUzs),
+            amount: formatMoney(amount),
+          });
+        } else {
+          const debtUsdVal = uzsToUsd(customer.totalDebtUzs, exchangeRate);
+          throw AppException.businessRule('Payment exceeds USD debt balance', {
+            debtUsd: formatMoney(debtUsdVal),
+            amount: formatMoney(amount),
+          });
+        }
+      }
 
       const created = await tx.debtPayment.create({
         data: {

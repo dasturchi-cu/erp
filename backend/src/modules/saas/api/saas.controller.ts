@@ -1,8 +1,8 @@
-import { Controller, Get, Post, Body, Query, UseGuards, Req, Ip } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query, UseGuards, Req, Ip, Res, Param } from '@nestjs/common';
 import { SaasService } from '../application/saas.service';
 import { JwtAuthGuard } from '../../../core/guards/jwt-auth.guard';
 import { CurrentUser } from '../../../core/decorators/current-user.decorator';
-import { Request } from 'express';
+import { Request, Response } from 'express';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 
 @ApiTags('SaaS Platform')
@@ -61,8 +61,71 @@ export class SaasController {
 
   @Get('updates/check')
   @ApiOperation({ summary: 'Check remote app bundle updates' })
-  checkRemoteUpdate(@Query('currentVersion') currentVersion: string) {
-    return this.saasService.checkRemoteUpdate(currentVersion);
+  checkRemoteUpdate(
+    @Query('currentVersion') currentVersion: string,
+    @Query('companyId') companyId: string,
+  ) {
+    return this.saasService.checkRemoteUpdateForCompany(currentVersion, companyId);
+  }
+
+  @Get('updates/download/:filename')
+  @ApiOperation({ summary: 'Stream update zip package with Range support' })
+  downloadUpdatePackage(@Param('filename') filename: string, @Res() res: Response) {
+    return this.saasService.downloadUpdatePackage(filename, res);
+  }
+
+  @Get('updates/public-key')
+  @ApiOperation({ summary: 'Get RSA public key for signature verification' })
+  getPublicKey() {
+    return this.saasService.getPublicKey();
+  }
+
+  @Post('updates/report')
+  @ApiOperation({ summary: 'Report update progress from client device' })
+  reportUpdateProgress(
+    @Body() dto: {
+      companyId: string;
+      releaseId: string;
+      previousVersion: string;
+      currentVersion: string;
+      status: string;
+      failureReason?: string;
+      durationMs?: number;
+    }
+  ) {
+    return this.saasService.reportUpdateProgress(dto);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @Post('local-update/trigger')
+  @ApiOperation({ summary: 'Trigger client update agent lifecycle' })
+  triggerLocalUpdate(@CurrentUser() user: any) {
+    return this.saasService.triggerLocalUpdate(user.companyId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @Get('local-update/status')
+  @ApiOperation({ summary: 'Get current update agent progress status' })
+  getLocalUpdateStatus() {
+    return this.saasService.getLocalUpdateStatus();
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @Post('local-update/pause')
+  @ApiOperation({ summary: 'Pause progressive update download' })
+  pauseLocalDownload() {
+    return this.saasService.pauseLocalDownload();
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @Post('local-update/resume')
+  @ApiOperation({ summary: 'Resume paused progressive update download' })
+  resumeLocalDownload(@CurrentUser() user: any) {
+    return this.saasService.resumeLocalDownload(user.companyId);
   }
 
   @Get('monitoring/health')
