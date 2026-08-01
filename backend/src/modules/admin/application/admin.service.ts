@@ -5,7 +5,7 @@ import {
   UserCompanyStatus,
   UserStatus,
 } from '@prisma/client';
-import * as bcrypt from 'bcrypt';
+import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { AuditService } from '../../../core/audit/audit.service';
 import { AppException } from '../../../core/exceptions/app.exception';

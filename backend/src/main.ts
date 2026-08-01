@@ -19,12 +19,34 @@ async function bootstrap() {
     .map((o) => o.trim())
     .filter(Boolean);
 
+  app.use((req: any, res: any, next: any) => {
+    const origin = req.headers.origin;
+    if (origin) {
+      res.header('Access-Control-Allow-Origin', origin);
+    } else {
+      res.header('Access-Control-Allow-Origin', '*');
+    }
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD');
+    const reqHeaders = req.headers['access-control-request-headers'];
+    if (reqHeaders) {
+      res.header('Access-Control-Allow-Headers', reqHeaders);
+    } else {
+      res.header('Access-Control-Allow-Headers', '*');
+    }
+    if (req.method === 'OPTIONS') {
+      return res.sendStatus(204);
+    }
+    next();
+  });
+
   app.setGlobalPrefix('api/v1', {
     exclude: [{ path: '', method: RequestMethod.GET }],
   });
   app.enableCors({
-    origin: corsOrigins,
+    origin: true,
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'],
     allowedHeaders: [
       'Content-Type',
       'Authorization',
@@ -33,6 +55,9 @@ async function bootstrap() {
       'X-Pilot-Screen',
       'X-Pilot-Action',
       'Idempotency-Key',
+      'Accept',
+      'Origin',
+      'X-Requested-With',
     ],
   });
   app.useGlobalPipes(

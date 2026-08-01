@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { customersApi, debtApi } from '@/api/services';
 import type { Customer, DebtHistoryEntry, Payment } from '@/types/entities';
+import { getRandomUUID } from '../utils/uuid';
 
 export interface CreateCustomerInput {
   name: string;
@@ -118,7 +119,7 @@ export const useCustomerStore = create<CustomerState>()((set, get) => ({
         paymentType: 'PARTIAL',
         notes: input.note,
       },
-      crypto.randomUUID(),
+      getRandomUUID(),
     );
     await Promise.all([get().fetchPayments(), get().fetchCustomers(), get().fetchDebtHistory(customerId)]);
     return payment;

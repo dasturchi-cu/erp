@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 import { Snackbar, Alert, type AlertColor } from '@mui/material';
+import { getRandomUUID } from '../../utils/uuid';
 
 interface Notification {
   id: string;
@@ -22,7 +23,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const current = queue[0] ?? null;
 
   const notify = useCallback((message: string, severity: AlertColor = 'info') => {
-    setQueue((prev) => [...prev, { id: crypto.randomUUID(), message, severity }]);
+    setQueue((prev) => [...prev, { id: getRandomUUID(), message, severity }]);
   }, []);
 
   const value = useMemo(

@@ -1,3 +1,5 @@
+import { getRandomUUID } from './uuid';
+
 export function newIdempotencyKey(): string {
-  return crypto.randomUUID();
+  return getRandomUUID();
 }

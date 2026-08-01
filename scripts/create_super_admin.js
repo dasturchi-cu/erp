@@ -1,5 +1,5 @@
 const { PrismaClient } = require('d:/erp1/backend/node_modules/@prisma/client');
-const bcrypt = require('d:/erp1/backend/node_modules/bcrypt');
+const bcrypt = require('bcryptjs');
 const prisma = new PrismaClient();
 
 async function main() {

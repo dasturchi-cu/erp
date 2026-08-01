@@ -1,9 +1,11 @@
+import { getRandomUUID } from './uuid';
+
 const STORAGE_KEY = 'erp-device-uuid';
 
 export function getDeviceId(): string {
   let id = localStorage.getItem(STORAGE_KEY);
   if (!id) {
-    id = crypto.randomUUID();
+    id = getRandomUUID();
     localStorage.setItem(STORAGE_KEY, id);
   }
   return id;
