@@ -1,9 +1,6 @@
 import axios from 'axios';
 
-const isElectron = typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().includes('electron');
-const API_BASE_URL = isElectron 
-  ? 'http://127.0.0.1:3000/api/v1' 
-  : (import.meta.env.VITE_API_URL ?? '/api/v1');
+const API_BASE_URL = 'https://erp-backend-r067.onrender.com/api/v1';
 
 export const saasClient = axios.create({
   baseURL: API_BASE_URL,

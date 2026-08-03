@@ -220,6 +220,15 @@ async function main() {
     update: { passwordHash },
   });
 
+  await prisma.saaSAdmin.upsert({
+    where: { email: 'admin@erp.uz' },
+    create: {
+      email: 'admin@erp.uz',
+      passwordHash,
+    },
+    update: { passwordHash },
+  });
+
   await prisma.userCompany.upsert({
     where: {
       userId_companyId: { userId: admin.id, companyId: company.id },
