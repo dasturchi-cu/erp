@@ -1,0 +1,23 @@
+name: Keep Render Server Alive
+
+on:
+  schedule:
+    # Har 5 daqiqada ishlaydi (UTC vaqtida)
+    - cron: '*/5 * * * *'
+  workflow_dispatch: # Qo'lda ham ishlatish mumkin
+
+jobs:
+  ping:
+    name: Ping Render Server
+    runs-on: ubuntu-latest
+    steps:
+      - name: Health Check Ping
+        run: |
+          echo "Pinging Render server at $(date)..."
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 https://erp-backend-r067.onrender.com/api/v1/health)
+          echo "Response status: $STATUS"
+          if [ "$STATUS" -eq 200 ]; then
+            echo "✅ Server is alive!"
+          else
+            echo "⚠️  Server returned status $STATUS"
+          fi
