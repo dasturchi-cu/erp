@@ -21,15 +21,7 @@ class ApiService {
     _token = prefs.getString('auth_token');
     _companyId = prefs.getString('company_id');
 
-    final customHost = prefs.getString('api_host');
-    if (customHost != null && customHost.isNotEmpty) {
-      if (customHost.startsWith('http://') || customHost.startsWith('https://')) {
-        dio.options.baseUrl = customHost.endsWith('/api/v1') ? customHost : '$customHost/api/v1';
-      } else {
-        final hostWithPort = customHost.contains(':') ? customHost : '$customHost:3000';
-        dio.options.baseUrl = 'http://$hostWithPort/api/v1';
-      }
-    }
+    dio.options.baseUrl = 'https://erp-backend-r067.onrender.com/api/v1';
 
     dio.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) {
