@@ -52,10 +52,29 @@ class ApiService {
   }
 
   Future<void> updateHost(String host) async {
-    final hostWithPort = host.contains(':') ? host : '$host:3000';
-    dio.options.baseUrl = 'http://$hostWithPort/api/v1';
+    String input = host.trim();
+    if (input.isEmpty) {
+      dio.options.baseUrl = 'https://erp-backend-r067.onrender.com/api/v1';
+      return;
+    }
+
+    String formattedUrl = input;
+    if (!formattedUrl.startsWith('http://') && !formattedUrl.startsWith('https://')) {
+      if (formattedUrl.contains('onrender.com') || formattedUrl.contains('koyeb.app') || formattedUrl.contains('vercel.app')) {
+        formattedUrl = 'https://$formattedUrl';
+      } else {
+        final hostWithPort = formattedUrl.contains(':') ? formattedUrl : '$formattedUrl:3000';
+        formattedUrl = 'http://$hostWithPort';
+      }
+    }
+
+    if (!formattedUrl.endsWith('/api/v1')) {
+      formattedUrl = '$formattedUrl/api/v1';
+    }
+
+    dio.options.baseUrl = formattedUrl;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('api_host', host);
+    await prefs.setString('api_host', formattedUrl);
   }
 
   String get host {

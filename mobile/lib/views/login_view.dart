@@ -21,7 +21,7 @@ class _LoginViewState extends State<LoginView> {
   @override
   void initState() {
     super.initState();
-    _hostController.text = _apiService.host;
+    _hostController.text = 'https://erp-backend-r067.onrender.com/api/v1';
   }
 
   Future<void> _handleLogin() async {
@@ -29,8 +29,6 @@ class _LoginViewState extends State<LoginView> {
       _loading = true;
       _errorMessage = null;
     });
-
-    await _apiService.updateHost(_hostController.text.trim());
 
     final success = await _apiService.login(
       _emailController.text.trim(),
@@ -120,16 +118,6 @@ class _LoginViewState extends State<LoginView> {
                     border: OutlineInputBorder(),
                   ),
                   obscureText: true,
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: _hostController,
-                  decoration: const InputDecoration(
-                    labelText: 'Server IP (Host)',
-                    prefixIcon: Icon(Icons.dns_outlined),
-                    border: OutlineInputBorder(),
-                    helperText: 'Masalan: 192.168.1.100 yoki 10.0.2.2',
-                  ),
                 ),
                 const SizedBox(height: 24),
                 ElevatedButton(
