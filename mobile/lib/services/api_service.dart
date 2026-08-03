@@ -9,8 +9,9 @@ class ApiService {
 
   final Dio dio = Dio(BaseOptions(
     baseUrl: 'https://erp-backend-r067.onrender.com/api/v1',
-    connectTimeout: const Duration(seconds: 15),
-    receiveTimeout: const Duration(seconds: 15),
+    connectTimeout: const Duration(seconds: 45),
+    receiveTimeout: const Duration(seconds: 45),
+    sendTimeout: const Duration(seconds: 45),
   ));
 
   String? _token;
@@ -77,7 +78,7 @@ class ApiService {
   bool get isAuthenticated => _token != null;
   String? get companyId => _companyId;
 
-  Future<bool> login(String email, String password) async {
+  Future<String?> login(String email, String password) async {
     try {
       final res = await dio.post('/auth/login', data: {
         'email': email,
@@ -102,13 +103,15 @@ class ApiService {
           await prefs.setString('company_id', _companyId!);
         }
 
-        // Cache user details offline
         await prefs.setString('user_details', jsonEncode(data['user']));
-        return true;
+        return null; // null means success
       }
-      return false;
+      return 'Server javobi: ${res.statusCode}';
+    } on DioException catch (e) {
+      final serverMsg = e.response?.data?['message'] ?? e.response?.data?['error']?['message'] ?? e.message ?? e.toString();
+      return 'Xatolik: $serverMsg';
     } catch (e) {
-      return false;
+      return 'Xatolik: ${e.toString()}';
     }
   }
 

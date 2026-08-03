@@ -8,7 +8,7 @@ void main() async {
 
   final apiService = ApiService();
   try {
-    await apiService.init().timeout(const Duration(seconds: 3));
+    await apiService.init().timeout(const Duration(seconds: 50));
   } catch (e) {
     // Timeout or initialization fallback so splash screen never hangs
   }

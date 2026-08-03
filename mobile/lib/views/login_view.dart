@@ -16,6 +16,7 @@ class _LoginViewState extends State<LoginView> {
   final _hostController = TextEditingController();
   final _apiService = ApiService();
   bool _loading = false;
+  bool _obscurePassword = true;
   String? _errorMessage;
 
   @override
@@ -30,19 +31,19 @@ class _LoginViewState extends State<LoginView> {
       _errorMessage = null;
     });
 
-    final success = await _apiService.login(
+    final err = await _apiService.login(
       _emailController.text.trim(),
       _passwordController.text.trim(),
     );
 
     if (mounted) {
       setState(() => _loading = false);
-      if (success) {
+      if (err == null) {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => const DashboardView()),
         );
       } else {
-        setState(() => _errorMessage = 'Email yoki parol xato yoki serverga bog\'lanib bo\'lmadi!');
+        setState(() => _errorMessage = err);
       }
     }
   }
@@ -112,12 +113,16 @@ class _LoginViewState extends State<LoginView> {
                 const SizedBox(height: 16),
                 TextField(
                   controller: _passwordController,
-                  decoration: const InputDecoration(
+                  obscureText: _obscurePassword,
+                  decoration: InputDecoration(
                     labelText: 'Parol',
-                    prefixIcon: Icon(Icons.lock_outlined),
-                    border: OutlineInputBorder(),
+                    prefixIcon: const Icon(Icons.lock_outlined),
+                    suffixIcon: IconButton(
+                      icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
+                      onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                    ),
+                    border: const OutlineInputBorder(),
                   ),
-                  obscureText: true,
                 ),
                 const SizedBox(height: 24),
                 ElevatedButton(
@@ -131,10 +136,20 @@ class _LoginViewState extends State<LoginView> {
                     ),
                   ),
                   child: _loading
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
+                      ? Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'Ulanmoqda...',
+                              style: GoogleFonts.outfit(fontSize: 12),
+                            ),
+                          ],
                         )
                       : Text(
                           'Tizimga kirish',
