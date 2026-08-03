@@ -95,6 +95,7 @@ export const mainNavigation: NavGroup[] = [
       { id: 'settings', label: 'Sozlamalar', path: '/settings', icon: 'Settings', permission: 'settings.view' },
       { id: 'currency', label: 'Valyuta kursi', path: '/settings/exchange-rates', icon: 'Currency', permission: 'currency.manage' },
       { id: 'admin', label: 'Boshqaruv', path: '/admin', icon: 'AdminPanelSettings', permission: 'admin.*', module: 'admin' },
+      { id: 'saas-admin', label: 'SaaS Super Admin', path: '/super-admin/login', icon: 'AdminPanelSettings' },
     ],
   },
 ];

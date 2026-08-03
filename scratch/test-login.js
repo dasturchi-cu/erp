@@ -10,9 +10,8 @@ const data = JSON.stringify({
   }
 });
 
-const req = https.request('https://a2e5d3c5cb6c6b.lhr.life/api/v1/auth/login', {
+const req = https.request('https://erp-backend-r067.onrender.com/api/v1/auth/login', {
   method: 'POST',
-  rejectUnauthorized: false,
   headers: {
     'Content-Type': 'application/json',
     'Content-Length': data.length
@@ -20,8 +19,10 @@ const req = https.request('https://a2e5d3c5cb6c6b.lhr.life/api/v1/auth/login', {
 }, (res) => {
   let body = '';
   res.on('data', chunk => body += chunk);
-  res.on('end', () => console.log('STATUS:', res.statusCode, '\nBODY:', body.slice(0, 200)));
+  res.on('end', () => console.log('RENDER BACKEND LOGIN STATUS:', res.statusCode, '\nBODY:', body.slice(0, 300)));
 });
+
+req.on('error', (err) => console.log('ERROR:', err.message));
 
 req.write(data);
 req.end();

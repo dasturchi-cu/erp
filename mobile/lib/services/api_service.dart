@@ -8,9 +8,9 @@ class ApiService {
   ApiService._internal();
 
   final Dio dio = Dio(BaseOptions(
-    baseUrl: 'http://10.0.2.2:3000/api/v1',
-    connectTimeout: const Duration(seconds: 10),
-    receiveTimeout: const Duration(seconds: 10),
+    baseUrl: 'https://erp-backend-r067.onrender.com/api/v1',
+    connectTimeout: const Duration(seconds: 15),
+    receiveTimeout: const Duration(seconds: 15),
   ));
 
   String? _token;
@@ -21,11 +21,14 @@ class ApiService {
     _token = prefs.getString('auth_token');
     _companyId = prefs.getString('company_id');
 
-    // Load custom host if configured (defaults to 10.0.2.2 for Android emulator)
     final customHost = prefs.getString('api_host');
     if (customHost != null && customHost.isNotEmpty) {
-      final hostWithPort = customHost.contains(':') ? customHost : '$customHost:3000';
-      dio.options.baseUrl = 'http://$hostWithPort/api/v1';
+      if (customHost.startsWith('http://') || customHost.startsWith('https://')) {
+        dio.options.baseUrl = customHost.endsWith('/api/v1') ? customHost : '$customHost/api/v1';
+      } else {
+        final hostWithPort = customHost.contains(':') ? customHost : '$customHost:3000';
+        dio.options.baseUrl = 'http://$hostWithPort/api/v1';
+      }
     }
 
     dio.interceptors.add(InterceptorsWrapper(

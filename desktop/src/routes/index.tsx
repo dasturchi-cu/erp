@@ -1,4 +1,4 @@
-import { createBrowserRouter, Navigate, Outlet } from 'react-router-dom';
+import { createHashRouter, Navigate, Outlet } from 'react-router-dom';
 import { AppShell } from '@/layouts/AppShell';
 import { LoginPage } from '@/pages/LoginPage';
 import { CompanySelectPage } from '@/pages/CompanySelectPage';
@@ -136,7 +136,7 @@ const shellRoutes = [
   { path: '/permission-denied', element: <PermissionDeniedPage /> },
 ];
 
-export const router = createBrowserRouter([
+export const router = createHashRouter([
   { path: '/', element: <DefaultHomeRedirect /> },
   {
     path: '/super-admin/login',

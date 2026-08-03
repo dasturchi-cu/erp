@@ -7,7 +7,11 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   final apiService = ApiService();
-  await apiService.init();
+  try {
+    await apiService.init().timeout(const Duration(seconds: 3));
+  } catch (e) {
+    // Timeout or initialization fallback so splash screen never hangs
+  }
 
   runApp(const MyApp());
 }
