@@ -282,7 +282,7 @@ class _DashboardViewState extends State<DashboardView> {
                                       barWidth: 4,
                                       belowBarData: BarAreaData(
                                         show: true,
-                                        color: theme.colorScheme.primary.withValues(alpha: 0.15),
+                                        color: theme.colorScheme.primary.withOpacity(0.15),
                                       ),
                                     ),
                                   ],
@@ -318,7 +318,7 @@ class _DashboardViewState extends State<DashboardView> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             CircleAvatar(
-              backgroundColor: color.withValues(alpha: 0.15),
+              backgroundColor: color.withOpacity(0.15),
               child: Icon(icon, color: color),
             ),
             Column(
