@@ -83,10 +83,10 @@ class ApiService {
         'email': email,
         'password': password,
         'deviceInfo': {
-          'deviceId': 'mobile-client',
+          'deviceId': 'a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d',
           'name': 'Flutter Mobile',
           'platform': 'android',
-          'appVersion': '1.0.0'
+          'osVersion': 'android-14'
         }
       });
 
