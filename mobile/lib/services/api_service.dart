@@ -1,6 +1,17 @@
 import 'dart:convert';
+import 'dart:math';
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+String newIdempotencyKey() {
+  final rand = Random.secure();
+  final bytes = List<int>.generate(16, (_) => rand.nextInt(256));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40; // version 4
+  bytes[8] = (bytes[8] & 0x3f) | 0x80; // variant 10
+  String hex(int start, int end) =>
+      bytes.sublist(start, end).map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+  return '${hex(0, 4)}-${hex(4, 6)}-${hex(6, 8)}-${hex(8, 10)}-${hex(10, 16)}';
+}
 
 class ApiService {
   static final ApiService _instance = ApiService._internal();
@@ -74,6 +85,8 @@ class ApiService {
     final uri = Uri.parse(dio.options.baseUrl);
     return uri.host;
   }
+
+  String get baseUrl => dio.options.baseUrl;
 
   bool get isAuthenticated => _token != null;
   String? get companyId => _companyId;
@@ -149,5 +162,29 @@ class ApiService {
 
   Future<Response> post(String path, dynamic data) async {
     return dio.post(path, data: data);
+  }
+
+  Future<Response> postIdempotent(String path, dynamic data, {String? idempotencyKey}) async {
+    return dio.post(
+      path,
+      data: data,
+      options: Options(headers: {'Idempotency-Key': idempotencyKey ?? newIdempotencyKey()}),
+    );
+  }
+
+  Future<Response> patch(String path, dynamic data) async {
+    return dio.patch(path, data: data);
+  }
+
+  Future<Response> delete(String path) async {
+    return dio.delete(path);
+  }
+
+  Future<Response> uploadImage(String filePath) async {
+    final fileName = filePath.split(RegExp(r'[\\/]')).last;
+    final formData = FormData.fromMap({
+      'file': await MultipartFile.fromFile(filePath, filename: fileName),
+    });
+    return dio.post('/products/image/upload', data: formData);
   }
 }

@@ -12,7 +12,8 @@ class SyncService {
   Future<void> queueOfflineSale(Map<String, dynamic> sale) async {
     final prefs = await SharedPreferences.getInstance();
     final List<String> queue = prefs.getStringList('offline_sales_queue') ?? [];
-    queue.add(jsonEncode(sale));
+    final withKey = {...sale, '_idempotencyKey': sale['_idempotencyKey'] ?? newIdempotencyKey()};
+    queue.add(jsonEncode(withKey));
     await prefs.setStringList('offline_sales_queue', queue);
   }
 
@@ -32,8 +33,9 @@ class SyncService {
 
     for (final saleStr in queue) {
       try {
-        final saleData = jsonDecode(saleStr);
-        final res = await _apiService.post('/sales', saleData);
+        final saleData = Map<String, dynamic>.from(jsonDecode(saleStr));
+        final idempotencyKey = saleData.remove('_idempotencyKey') as String?;
+        final res = await _apiService.postIdempotent('/sales', saleData, idempotencyKey: idempotencyKey);
         if (res.statusCode != 200 && res.statusCode != 201) {
           failedQueue.add(saleStr);
           allSuccess = false;

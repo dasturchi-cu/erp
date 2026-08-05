@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/api_service.dart';
+import 'categories_view.dart';
+import 'product_form_view.dart';
 
 class ProductsView extends StatefulWidget {
   const ProductsView({super.key});
@@ -36,6 +38,15 @@ class _ProductsViewState extends State<ProductsView> {
     }
   }
 
+  Future<void> _openForm({Map<String, dynamic>? product}) async {
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => ProductFormView(product: product)),
+    );
+    if (changed == true) {
+      _fetchProducts();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -45,6 +56,22 @@ class _ProductsViewState extends State<ProductsView> {
           'Mahsulotlar katalogi',
           style: GoogleFonts.outfit(fontWeight: FontWeight.w600),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.category_outlined),
+            tooltip: 'Kategoriyalar',
+            onPressed: () async {
+              await Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const CategoriesView()),
+              );
+              _fetchProducts();
+            },
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _openForm(),
+        child: const Icon(Icons.add),
       ),
       body: Column(
         children: [
@@ -85,6 +112,7 @@ class _ProductsViewState extends State<ProductsView> {
                             return Card(
                               margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                               child: ListTile(
+                                onTap: () => _openForm(product: p),
                                 leading: Icon(Icons.inventory_2, color: theme.colorScheme.primary),
                                 title: Text(p['name'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold)),
                                 subtitle: Text('SKU: ${p['sku']} | Barkod: ${p['barcode'] ?? 'yo\'q'}'),

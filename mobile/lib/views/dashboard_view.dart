@@ -8,6 +8,8 @@ import 'products_view.dart';
 import 'inventory_view.dart';
 import 'customers_view.dart';
 import 'reports_view.dart';
+import 'sales_history_view.dart';
+import 'suppliers_view.dart';
 import 'login_view.dart';
 
 class DashboardView extends StatefulWidget {
@@ -130,6 +132,14 @@ class _DashboardViewState extends State<DashboardView> {
               },
             ),
             ListTile(
+              leading: const Icon(Icons.history),
+              title: Text('Sotuvlar tarixi', style: GoogleFonts.outfit()),
+              onTap: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SalesHistoryView()));
+              },
+            ),
+            ListTile(
               leading: const Icon(Icons.warehouse_outlined),
               title: Text('Ombor (Stock)', style: GoogleFonts.outfit()),
               onTap: () {
@@ -143,6 +153,14 @@ class _DashboardViewState extends State<DashboardView> {
               onTap: () {
                 Navigator.of(context).pop();
                 Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CustomersView()));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.local_shipping_outlined),
+              title: Text('Yetkazib beruvchilar', style: GoogleFonts.outfit()),
+              onTap: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SuppliersView()));
               },
             ),
             ListTile(

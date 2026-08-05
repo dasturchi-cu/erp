@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/api_service.dart';
 import '../services/sync_service.dart';
+import 'receipt_view.dart';
+import 'sales_history_view.dart';
 
 class PosView extends StatefulWidget {
   const PosView({super.key});
@@ -18,13 +20,17 @@ class _PosViewState extends State<PosView> {
   List<dynamic> _searchResults = [];
   final List<Map<String, dynamic>> _cart = [];
 
+  String _paymentType = 'CASH'; // CASH | CREDIT | MIXED
+  Map<String, dynamic>? _selectedCustomer;
+  bool _submitting = false;
+
   Future<void> _searchProducts(String q) async {
     if (q.isEmpty) {
       setState(() => _searchResults = []);
       return;
     }
     try {
-      final res = await _apiService.get('/products/pos-products?q=$q');
+      final res = await _apiService.get('/pos/products?q=$q');
       if (res.statusCode == 200) {
         setState(() => _searchResults = res.data['data'] ?? []);
       }
@@ -52,8 +58,78 @@ class _PosViewState extends State<PosView> {
     return _cart.fold(0.0, (sum, item) => sum + (item['quantity'] * item['salePrice']));
   }
 
+  Future<void> _pickCustomer() async {
+    final controller = TextEditingController();
+    List<dynamic> results = [];
+    final selected = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          Future<void> search(String q) async {
+            if (q.trim().isEmpty) {
+              setDialogState(() => results = []);
+              return;
+            }
+            try {
+              final res = await _apiService.get('/customers?q=$q');
+              setDialogState(() => results = res.data['data'] ?? []);
+            } catch (_) {}
+          }
+
+          return AlertDialog(
+            title: const Text('Mijoz tanlash'),
+            content: SizedBox(
+              width: double.maxFinite,
+              height: 320,
+              child: Column(
+                children: [
+                  TextField(
+                    controller: controller,
+                    autofocus: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Ism yoki telefon bo\'yicha qidirish',
+                      prefixIcon: Icon(Icons.search),
+                    ),
+                    onChanged: search,
+                  ),
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: results.length,
+                      itemBuilder: (context, idx) {
+                        final c = results[idx];
+                        return ListTile(
+                          title: Text(c['name'] ?? ''),
+                          subtitle: Text(c['phone'] ?? ''),
+                          onTap: () => Navigator.of(ctx).pop(c),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Bekor qilish')),
+            ],
+          );
+        },
+      ),
+    );
+    if (selected != null) {
+      setState(() => _selectedCustomer = selected);
+    }
+  }
+
   Future<void> _handleCheckout() async {
-    if (_cart.isEmpty) return;
+    if (_cart.isEmpty || _submitting) return;
+
+    if ((_paymentType == 'CREDIT' || _paymentType == 'MIXED') && _selectedCustomer == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nasiya yoki aralash to\'lov uchun mijoz tanlang')),
+      );
+      return;
+    }
 
     // Check if any items are sold below cost (purchasePrice)
     bool belowCost = false;
@@ -88,38 +164,49 @@ class _PosViewState extends State<PosView> {
       if (proceed != true) return;
     }
 
+    setState(() => _submitting = true);
+
     // Prepare sale payload
     final salePayload = {
+      if (_selectedCustomer != null) 'customerId': _selectedCustomer!['id'],
       'originalCurrency': 'UZS',
-      'paymentType': 'CASH',
-      'amountPaidUzs': _totalAmount.toStringAsFixed(4),
+      'paymentType': _paymentType,
+      'amountPaidUzs': _paymentType == 'CREDIT' ? '0' : _totalAmount.toStringAsFixed(4),
       'lineItems': _cart
           .map((item) => {
                 'productId': item['product']['id'],
                 'quantity': item['quantity'].toStringAsFixed(4),
-                'customPrice': item['salePrice'].toStringAsFixed(4),
+                'unitPriceUzs': item['salePrice'].toStringAsFixed(4),
               })
           .toList(),
     };
 
+    final idempotencyKey = newIdempotencyKey();
+
     try {
-      final res = await _apiService.post('/sales', salePayload);
+      final res = await _apiService.postIdempotent('/sales', salePayload, idempotencyKey: idempotencyKey);
       if (res.statusCode == 200 || res.statusCode == 201) {
-        _successCheckout();
+        _successCheckout(res.data);
       } else {
-        _queueOffline(salePayload);
+        _queueOffline({...salePayload, '_idempotencyKey': idempotencyKey});
       }
     } catch (_) {
-      _queueOffline(salePayload);
+      _queueOffline({...salePayload, '_idempotencyKey': idempotencyKey});
+    } finally {
+      if (mounted) setState(() => _submitting = false);
     }
   }
 
-  void _successCheckout() {
+  void _successCheckout(Map<String, dynamic> sale) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Xarid muvaffaqiyatli yakunlandi!')),
+    setState(() {
+      _cart.clear();
+      _selectedCustomer = null;
+      _paymentType = 'CASH';
+    });
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => ReceiptView(sale: sale)),
     );
-    setState(() => _cart.clear());
   }
 
   void _queueOffline(Map<String, dynamic> salePayload) async {
@@ -128,7 +215,11 @@ class _PosViewState extends State<PosView> {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Internet aloqasi yo\'q. Sotuv offline saqlandi!')),
     );
-    setState(() => _cart.clear());
+    setState(() {
+      _cart.clear();
+      _selectedCustomer = null;
+      _paymentType = 'CASH';
+    });
   }
 
   @override
@@ -140,6 +231,15 @@ class _PosViewState extends State<PosView> {
           'Kassa POS',
           style: GoogleFonts.outfit(fontWeight: FontWeight.w600),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.history),
+            tooltip: 'Sotuv tarixi',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const SalesHistoryView()),
+            ),
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -158,14 +258,6 @@ class _PosViewState extends State<PosView> {
                     ),
                     onChanged: _searchProducts,
                   ),
-                ),
-                const SizedBox(width: 8),
-                IconButton.filled(
-                  icon: const Icon(Icons.qr_code_scanner),
-                  onPressed: () {
-                    // MOCK Scan barcode
-                    _searchProducts('BARCODE-101');
-                  },
                 ),
               ],
             ),
@@ -190,6 +282,42 @@ class _PosViewState extends State<PosView> {
                 },
               ),
             ),
+
+          // Customer + payment type row
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            child: Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _pickCustomer,
+                    icon: const Icon(Icons.person_outline),
+                    label: Text(
+                      _selectedCustomer?['name'] ?? 'Mijoz tanlash (ixtiyoriy)',
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+                if (_selectedCustomer != null)
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => setState(() => _selectedCustomer = null),
+                  ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            child: SegmentedButton<String>(
+              segments: const [
+                ButtonSegment(value: 'CASH', label: Text('Naqd')),
+                ButtonSegment(value: 'CREDIT', label: Text('Nasiya')),
+                ButtonSegment(value: 'MIXED', label: Text('Aralash')),
+              ],
+              selected: {_paymentType},
+              onSelectionChanged: (s) => setState(() => _paymentType = s.first),
+            ),
+          ),
 
           // Shopping Cart
           Expanded(
@@ -237,6 +365,10 @@ class _PosViewState extends State<PosView> {
                                     onPressed: () {
                                       setState(() => item['quantity'] += 1);
                                     },
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.delete_outline, color: Colors.red),
+                                    onPressed: () => setState(() => _cart.removeAt(idx)),
                                   ),
                                 ],
                               ),
@@ -296,13 +428,19 @@ class _PosViewState extends State<PosView> {
                     ],
                   ),
                   ElevatedButton(
-                    onPressed: _handleCheckout,
+                    onPressed: _submitting ? null : _handleCheckout,
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
                       backgroundColor: theme.colorScheme.primary,
                       foregroundColor: theme.colorScheme.onPrimary,
                     ),
-                    child: const Text('To\'lov qilish'),
+                    child: _submitting
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
+                        : const Text('To\'lov qilish'),
                   ),
                 ],
               ),

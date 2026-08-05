@@ -1,55 +1,53 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/api_service.dart';
-import 'customer_detail_view.dart';
-import 'customer_form_view.dart';
+import 'supplier_detail_view.dart';
+import 'supplier_form_view.dart';
 
-class CustomersView extends StatefulWidget {
-  const CustomersView({super.key});
+class SuppliersView extends StatefulWidget {
+  const SuppliersView({super.key});
 
   @override
-  State<CustomersView> createState() => _CustomersViewState();
+  State<SuppliersView> createState() => _SuppliersViewState();
 }
 
-class _CustomersViewState extends State<CustomersView> {
+class _SuppliersViewState extends State<SuppliersView> {
   final _apiService = ApiService();
   bool _loading = true;
-  List<dynamic> _customers = [];
+  List<dynamic> _suppliers = [];
   String _query = '';
 
   @override
   void initState() {
     super.initState();
-    _fetchCustomers();
+    _fetch();
   }
 
-  Future<void> _fetchCustomers() async {
+  Future<void> _fetch() async {
     setState(() => _loading = true);
     try {
-      final res = await _apiService.get('/customers?q=$_query');
-      if (res.statusCode == 200) {
-        setState(() {
-          _customers = res.data['data'] ?? [];
-          _loading = false;
-        });
-      }
+      final res = await _apiService.get('/suppliers?q=$_query');
+      setState(() {
+        _suppliers = res.data['data'] ?? [];
+        _loading = false;
+      });
     } catch (_) {
       setState(() => _loading = false);
     }
   }
 
-  Future<void> _openCustomer(String id) async {
+  Future<void> _openSupplier(String id) async {
     await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => CustomerDetailView(customerId: id)),
+      MaterialPageRoute(builder: (_) => SupplierDetailView(supplierId: id)),
     );
-    _fetchCustomers();
+    _fetch();
   }
 
-  Future<void> _addCustomer() async {
+  Future<void> _addSupplier() async {
     final created = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(builder: (_) => const CustomerFormView()),
+      MaterialPageRoute(builder: (_) => const SupplierFormView()),
     );
-    if (created == true) _fetchCustomers();
+    if (created == true) _fetch();
   }
 
   @override
@@ -57,13 +55,10 @@ class _CustomersViewState extends State<CustomersView> {
     final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          'Mijozlar Ro\'yxati',
-          style: GoogleFonts.outfit(fontWeight: FontWeight.w600),
-        ),
+        title: Text('Yetkazib beruvchilar', style: GoogleFonts.outfit(fontWeight: FontWeight.w600)),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _addCustomer,
+        onPressed: _addSupplier,
         child: const Icon(Icons.add),
       ),
       body: Column(
@@ -72,58 +67,52 @@ class _CustomersViewState extends State<CustomersView> {
             padding: const EdgeInsets.all(12.0),
             child: TextField(
               decoration: const InputDecoration(
-                labelText: 'Ism yoki telefon bo\'yicha qidirish',
+                labelText: 'Nomi yoki telefon bo\'yicha qidirish',
                 prefixIcon: Icon(Icons.search),
                 border: OutlineInputBorder(),
               ),
               onChanged: (v) {
                 _query = v;
-                _fetchCustomers();
+                _fetch();
               },
             ),
           ),
           Expanded(
             child: _loading
                 ? const Center(child: CircularProgressIndicator())
-                : _customers.isEmpty
+                : _suppliers.isEmpty
                     ? Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.people_outline, size: 60, color: theme.colorScheme.outline),
+                            Icon(Icons.local_shipping_outlined, size: 60, color: theme.colorScheme.outline),
                             const SizedBox(height: 12),
-                            const Text('Mijozlar topilmadi'),
+                            const Text('Yetkazib beruvchilar topilmadi'),
                           ],
                         ),
                       )
                     : RefreshIndicator(
-                        onRefresh: _fetchCustomers,
+                        onRefresh: _fetch,
                         child: ListView.builder(
-                          itemCount: _customers.length,
+                          itemCount: _suppliers.length,
                           itemBuilder: (context, idx) {
-                            final c = _customers[idx];
-                            final debt = double.parse(c['debtUzs']?.toString() ?? '0.0');
+                            final s = _suppliers[idx];
+                            final debt = double.parse(s['remainingDebtUzs']?.toString() ?? '0.0');
                             return Card(
                               margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                               child: ListTile(
-                                onTap: () => _openCustomer(c['id']),
+                                onTap: () => _openSupplier(s['id']),
                                 leading: CircleAvatar(
-                                  backgroundColor: theme.colorScheme.primaryContainer,
-                                  child: const Icon(Icons.person),
+                                  backgroundColor: theme.colorScheme.secondaryContainer,
+                                  child: const Icon(Icons.local_shipping_outlined),
                                 ),
-                                title: Text(c['name'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold)),
-                                subtitle: Text(c['phone'] ?? '+998 (--) --- -- --'),
+                                title: Text(s['name'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold)),
+                                subtitle: Text(s['phone'] ?? ''),
                                 trailing: Column(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   crossAxisAlignment: CrossAxisAlignment.end,
                                   children: [
-                                    Text(
-                                      'Qarz:',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: theme.colorScheme.onSurfaceVariant,
-                                      ),
-                                    ),
+                                    const Text('Qarz:', style: TextStyle(fontSize: 12)),
                                     Text(
                                       '$debt UZS',
                                       style: TextStyle(
