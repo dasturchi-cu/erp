@@ -18,13 +18,46 @@ class _PosViewState extends State<PosView> {
   List<dynamic> _searchResults = [];
   final List<Map<String, dynamic>> _cart = [];
 
+  // Checkout Options
+  String _paymentType = 'CASH'; // CASH, CARD, TRANSFER, DEBT
+  Map<String, dynamic>? _selectedCustomer;
+  List<dynamic> _customers = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCustomers();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadCustomers() async {
+    try {
+      final res = await _apiService.get('/customers?limit=100');
+      if (res.statusCode == 200) {
+        final raw = res.data;
+        setState(() {
+          if (raw is Map && raw.containsKey('data')) {
+            _customers = raw['data'] is List ? raw['data'] : [];
+          } else if (raw is List) {
+            _customers = raw;
+          }
+        });
+      }
+    } catch (_) {}
+  }
+
   Future<void> _searchProducts(String q) async {
     if (q.isEmpty) {
       setState(() => _searchResults = []);
       return;
     }
     try {
-      final res = await _apiService.get('/products/pos-products?q=$q');
+      final res = await _apiService.get('/products/pos-products?q=${Uri.encodeComponent(q)}');
       if (res.statusCode == 200) {
         setState(() => _searchResults = res.data['data'] ?? []);
       }
@@ -52,10 +85,29 @@ class _PosViewState extends State<PosView> {
     return _cart.fold(0.0, (sum, item) => sum + (item['quantity'] * item['salePrice']));
   }
 
+  String _formatCurrency(double amount) {
+    final str = amount.abs().toStringAsFixed(0);
+    final buffer = StringBuffer();
+    for (int i = 0; i < str.length; i++) {
+      if (i > 0 && (str.length - i) % 3 == 0) {
+        buffer.write(' ');
+      }
+      buffer.write(str[i]);
+    }
+    return '${buffer.toString()} UZS';
+  }
+
   Future<void> _handleCheckout() async {
     if (_cart.isEmpty) return;
 
-    // Check if any items are sold below cost (purchasePrice)
+    if (_paymentType == 'DEBT' && _selectedCustomer == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nasiya sotuv uchun mijozni tanlash majburiy!')),
+      );
+      return;
+    }
+
+    // Check if any items are sold below cost
     bool belowCost = false;
     for (final item in _cart) {
       final cost = double.parse(item['product']['purchasePriceUzs']?.toString() ?? '0.0');
@@ -70,9 +122,7 @@ class _PosViewState extends State<PosView> {
         context: context,
         builder: (context) => AlertDialog(
           title: const Text('Diqqat!'),
-          content: const Text(
-            'Diqqat! Mahsulot tannarxidan past narxda sotilyapti. Davom etasizmi?'
-          ),
+          content: const Text('Mahsulot tannarxidan past narxda sotilyapti. Davom etasizmi?'),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
@@ -88,11 +138,11 @@ class _PosViewState extends State<PosView> {
       if (proceed != true) return;
     }
 
-    // Prepare sale payload
     final salePayload = {
       'originalCurrency': 'UZS',
-      'paymentType': 'CASH',
+      'paymentType': _paymentType,
       'amountPaidUzs': _totalAmount.toStringAsFixed(4),
+      if (_selectedCustomer != null) 'customerId': _selectedCustomer!['id'],
       'lineItems': _cart
           .map((item) => {
                 'productId': item['product']['id'],
@@ -119,7 +169,11 @@ class _PosViewState extends State<PosView> {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Xarid muvaffaqiyatli yakunlandi!')),
     );
-    setState(() => _cart.clear());
+    setState(() {
+      _cart.clear();
+      _selectedCustomer = null;
+      _paymentType = 'CASH';
+    });
   }
 
   void _queueOffline(Map<String, dynamic> salePayload) async {
@@ -128,7 +182,11 @@ class _PosViewState extends State<PosView> {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Internet aloqasi yo\'q. Sotuv offline saqlandi!')),
     );
-    setState(() => _cart.clear());
+    setState(() {
+      _cart.clear();
+      _selectedCustomer = null;
+      _paymentType = 'CASH';
+    });
   }
 
   @override
@@ -163,7 +221,6 @@ class _PosViewState extends State<PosView> {
                 IconButton.filled(
                   icon: const Icon(Icons.qr_code_scanner),
                   onPressed: () {
-                    // MOCK Scan barcode
                     _searchProducts('BARCODE-101');
                   },
                 ),
@@ -171,7 +228,7 @@ class _PosViewState extends State<PosView> {
             ),
           ),
 
-          // Search results
+          // Search results dropdown
           if (_searchResults.isNotEmpty)
             Container(
               constraints: const BoxConstraints(maxHeight: 200),
@@ -183,15 +240,15 @@ class _PosViewState extends State<PosView> {
                   final p = _searchResults[idx];
                   return ListTile(
                     title: Text(p['name'] ?? ''),
-                    subtitle: Text('${p['salePriceUzs']} UZS | SKU: ${p['sku']}'),
-                    trailing: const Icon(Icons.add),
+                    subtitle: Text('${_formatCurrency(double.tryParse(p['salePriceUzs']?.toString() ?? '0') ?? 0)} | SKU: ${p['sku']}'),
+                    trailing: const Icon(Icons.add_circle, color: Colors.green),
                     onTap: () => _addToCart(p),
                   );
                 },
               ),
             ),
 
-          // Shopping Cart
+          // Cart List
           Expanded(
             child: _cart.isEmpty
                 ? Center(
@@ -231,7 +288,7 @@ class _PosViewState extends State<PosView> {
                                       });
                                     },
                                   ),
-                                  Text('${item['quantity']}', style: const TextStyle(fontSize: 16)),
+                                  Text('${item['quantity']}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                                   IconButton(
                                     icon: const Icon(Icons.add_circle_outline),
                                     onPressed: () {
@@ -242,27 +299,21 @@ class _PosViewState extends State<PosView> {
                               ),
                             ],
                           ),
-                          trailing: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              SizedBox(
-                                width: 100,
-                                child: TextFormField(
-                                  initialValue: '${item['salePrice']}',
-                                  keyboardType: TextInputType.number,
-                                  decoration: const InputDecoration(
-                                    suffixText: 'UZS',
-                                    isDense: true,
-                                  ),
-                                  onChanged: (val) {
-                                    setState(() {
-                                      item['salePrice'] = double.tryParse(val) ?? 0.0;
-                                    });
-                                  },
-                                ),
+                          trailing: SizedBox(
+                            width: 110,
+                            child: TextFormField(
+                              initialValue: '${item['salePrice']}',
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(
+                                suffixText: 'UZS',
+                                isDense: true,
                               ),
-                            ],
+                              onChanged: (val) {
+                                setState(() {
+                                  item['salePrice'] = double.tryParse(val) ?? 0.0;
+                                });
+                              },
+                            ),
                           ),
                         ),
                       );
@@ -270,7 +321,7 @@ class _PosViewState extends State<PosView> {
                   ),
           ),
 
-          // Total Bar
+          // Checkout Panel
           if (_cart.isNotEmpty)
             Container(
               padding: const EdgeInsets.all(16.0),
@@ -278,31 +329,83 @@ class _PosViewState extends State<PosView> {
                 color: theme.colorScheme.surfaceContainerLow,
                 border: Border(top: BorderSide(color: theme.colorScheme.outlineVariant)),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              child: Column(
                 children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  // Payment Options Row
+                  Row(
                     children: [
-                      const Text('Jami summa:'),
-                      Text(
-                        '$_totalAmount UZS',
-                        style: GoogleFonts.outfit(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: theme.colorScheme.primary,
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          value: _paymentType,
+                          decoration: const InputDecoration(
+                            labelText: 'To\'lov turi',
+                            isDense: true,
+                            border: OutlineInputBorder(),
+                          ),
+                          items: const [
+                            DropdownMenuItem(value: 'CASH', child: Text('Naqd')),
+                            DropdownMenuItem(value: 'CARD', child: Text('Karta')),
+                            DropdownMenuItem(value: 'TRANSFER', child: Text('O\'tkazma')),
+                            DropdownMenuItem(value: 'DEBT', child: Text('Nasiya (Qarz)')),
+                          ],
+                          onChanged: (val) {
+                            if (val != null) setState(() => _paymentType = val);
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: DropdownButtonFormField<Map<String, dynamic>>(
+                          value: _selectedCustomer,
+                          isExpanded: true,
+                          decoration: InputDecoration(
+                            labelText: _paymentType == 'DEBT' ? 'Mijoz *' : 'Mijoz (ixtiyoriy)',
+                            isDense: true,
+                            border: const OutlineInputBorder(),
+                          ),
+                          items: [
+                            const DropdownMenuItem(value: null, child: Text('Mijozsiz sotuv')),
+                            ..._customers.map((c) => DropdownMenuItem(
+                                  value: c as Map<String, dynamic>,
+                                  child: Text(c['name'] ?? '', overflow: TextOverflow.ellipsis),
+                                )),
+                          ],
+                          onChanged: (val) {
+                            setState(() => _selectedCustomer = val);
+                          },
                         ),
                       ),
                     ],
                   ),
-                  ElevatedButton(
-                    onPressed: _handleCheckout,
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
-                      backgroundColor: theme.colorScheme.primary,
-                      foregroundColor: theme.colorScheme.onPrimary,
-                    ),
-                    child: const Text('To\'lov qilish'),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Jami summa:', style: TextStyle(fontSize: 12)),
+                          Text(
+                            _formatCurrency(_totalAmount),
+                            style: GoogleFonts.outfit(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: theme.colorScheme.primary,
+                            ),
+                          ),
+                        ],
+                      ),
+                      ElevatedButton.icon(
+                        onPressed: _handleCheckout,
+                        icon: const Icon(Icons.check),
+                        label: const Text('To\'lov qilish'),
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                          backgroundColor: theme.colorScheme.primary,
+                          foregroundColor: theme.colorScheme.onPrimary,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
