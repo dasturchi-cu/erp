@@ -6,11 +6,15 @@ import '../services/sync_service.dart';
 import 'pos_view.dart';
 import 'products_view.dart';
 import 'inventory_view.dart';
+import 'inventory_receive_view.dart';
 import 'customers_view.dart';
 import 'reports_view.dart';
 import 'suppliers_view.dart';
 import 'expenses_view.dart';
 import 'sales_history_view.dart';
+import 'returns_view.dart';
+import 'users_view.dart';
+import 'currency_view.dart';
 import 'settings_view.dart';
 import 'login_view.dart';
 
@@ -49,12 +53,12 @@ class _DashboardViewState extends State<DashboardView> {
       final res = await _apiService.get('/analytics/dashboard/enterprise');
       if (res.statusCode == 200) {
         setState(() {
-          _stats = res.data;
+          _stats = res.data ?? {};
           _loading = false;
         });
       }
     } catch (e) {
-      setState(() => _loading = false);
+      if (mounted) setState(() => _loading = false);
     }
   }
 
@@ -101,14 +105,15 @@ class _DashboardViewState extends State<DashboardView> {
         ],
       ),
       drawer: Drawer(
-        child: Column(
+        child: ListView(
+          padding: EdgeInsets.zero,
           children: [
             UserAccountsDrawerHeader(
               currentAccountPicture: CircleAvatar(
                 backgroundColor: theme.colorScheme.primaryContainer,
                 child: Icon(Icons.person, color: theme.colorScheme.onPrimaryContainer),
               ),
-              accountName: Text('Manager', style: GoogleFonts.outfit(fontWeight: FontWeight.w600)),
+              accountName: Text('ERP Manager', style: GoogleFonts.outfit(fontWeight: FontWeight.w600)),
               accountEmail: const Text('admin@erp.uz'),
             ),
             ListTile(
@@ -117,9 +122,10 @@ class _DashboardViewState extends State<DashboardView> {
               selected: true,
               onTap: () => Navigator.of(context).pop(),
             ),
+
             // --- SOTUV ---
             Padding(
-              padding: const EdgeInsets.only(left: 16, top: 8, bottom: 2),
+              padding: const EdgeInsets.only(left: 16, top: 12, bottom: 2),
               child: Text('SOTUV', style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.grey)),
             ),
             ListTile(
@@ -138,9 +144,18 @@ class _DashboardViewState extends State<DashboardView> {
                 Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SalesHistoryView()));
               },
             ),
+            ListTile(
+              leading: const Icon(Icons.assignment_return_outlined),
+              title: Text('Vozvratlar (Qaytarish)', style: GoogleFonts.outfit()),
+              onTap: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ReturnsView()));
+              },
+            ),
+
             // --- OMBOR ---
             Padding(
-              padding: const EdgeInsets.only(left: 16, top: 8, bottom: 2),
+              padding: const EdgeInsets.only(left: 16, top: 12, bottom: 2),
               child: Text('OMBOR', style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.grey)),
             ),
             ListTile(
@@ -152,6 +167,14 @@ class _DashboardViewState extends State<DashboardView> {
               },
             ),
             ListTile(
+              leading: const Icon(Icons.add_shopping_cart),
+              title: Text('Mahsulot Kirim Qilish', style: GoogleFonts.outfit()),
+              onTap: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const InventoryReceiveView()));
+              },
+            ),
+            ListTile(
               leading: const Icon(Icons.warehouse_outlined),
               title: Text('Ombor (Stock)', style: GoogleFonts.outfit()),
               onTap: () {
@@ -159,9 +182,10 @@ class _DashboardViewState extends State<DashboardView> {
                 Navigator.of(context).push(MaterialPageRoute(builder: (_) => const InventoryView()));
               },
             ),
+
             // --- MOLIYA ---
             Padding(
-              padding: const EdgeInsets.only(left: 16, top: 8, bottom: 2),
+              padding: const EdgeInsets.only(left: 16, top: 12, bottom: 2),
               child: Text('MOLIYA', style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.grey)),
             ),
             ListTile(
@@ -172,9 +196,18 @@ class _DashboardViewState extends State<DashboardView> {
                 Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ExpensesView()));
               },
             ),
+            ListTile(
+              leading: const Icon(Icons.currency_exchange),
+              title: Text('Valyuta Kurslari', style: GoogleFonts.outfit()),
+              onTap: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CurrencyView()));
+              },
+            ),
+
             // --- HAMKORLAR ---
             Padding(
-              padding: const EdgeInsets.only(left: 16, top: 8, bottom: 2),
+              padding: const EdgeInsets.only(left: 16, top: 12, bottom: 2),
               child: Text('HAMKORLAR', style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.grey)),
             ),
             ListTile(
@@ -193,10 +226,11 @@ class _DashboardViewState extends State<DashboardView> {
                 Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SuppliersView()));
               },
             ),
-            // --- HISOBOT ---
+
+            // --- TIZIM ---
             Padding(
-              padding: const EdgeInsets.only(left: 16, top: 8, bottom: 2),
-              child: Text('HISOBOT', style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.grey)),
+              padding: const EdgeInsets.only(left: 16, top: 12, bottom: 2),
+              child: Text('TIZIM VA HISOBOT', style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.grey)),
             ),
             ListTile(
               leading: const Icon(Icons.description_outlined),
@@ -206,7 +240,23 @@ class _DashboardViewState extends State<DashboardView> {
                 Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ReportsView()));
               },
             ),
-            const Spacer(),
+            ListTile(
+              leading: const Icon(Icons.badge_outlined),
+              title: Text('Xodimlar va Boshqaruv', style: GoogleFonts.outfit()),
+              onTap: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const UsersView()));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.settings_outlined),
+              title: Text('Sozlamalar', style: GoogleFonts.outfit()),
+              onTap: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SettingsView()));
+              },
+            ),
+
             const Divider(),
             ListTile(
               leading: const Icon(Icons.logout, color: Colors.red),
@@ -220,7 +270,7 @@ class _DashboardViewState extends State<DashboardView> {
                 }
               },
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 24),
           ],
         ),
       ),
