@@ -8,6 +8,10 @@ import 'products_view.dart';
 import 'inventory_view.dart';
 import 'customers_view.dart';
 import 'reports_view.dart';
+import 'suppliers_view.dart';
+import 'expenses_view.dart';
+import 'sales_history_view.dart';
+import 'settings_view.dart';
 import 'login_view.dart';
 
 class DashboardView extends StatefulWidget {
@@ -113,6 +117,11 @@ class _DashboardViewState extends State<DashboardView> {
               selected: true,
               onTap: () => Navigator.of(context).pop(),
             ),
+            // --- SOTUV ---
+            Padding(
+              padding: const EdgeInsets.only(left: 16, top: 8, bottom: 2),
+              child: Text('SOTUV', style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.grey)),
+            ),
             ListTile(
               leading: const Icon(Icons.point_of_sale_outlined),
               title: Text('Kassa (POS)', style: GoogleFonts.outfit()),
@@ -120,6 +129,19 @@ class _DashboardViewState extends State<DashboardView> {
                 Navigator.of(context).pop();
                 Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PosView()));
               },
+            ),
+            ListTile(
+              leading: const Icon(Icons.history_outlined),
+              title: Text('Sotuvlar Tarixi', style: GoogleFonts.outfit()),
+              onTap: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SalesHistoryView()));
+              },
+            ),
+            // --- OMBOR ---
+            Padding(
+              padding: const EdgeInsets.only(left: 16, top: 8, bottom: 2),
+              child: Text('OMBOR', style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.grey)),
             ),
             ListTile(
               leading: const Icon(Icons.inventory_2_outlined),
@@ -137,6 +159,24 @@ class _DashboardViewState extends State<DashboardView> {
                 Navigator.of(context).push(MaterialPageRoute(builder: (_) => const InventoryView()));
               },
             ),
+            // --- MOLIYA ---
+            Padding(
+              padding: const EdgeInsets.only(left: 16, top: 8, bottom: 2),
+              child: Text('MOLIYA', style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.grey)),
+            ),
+            ListTile(
+              leading: const Icon(Icons.receipt_long_outlined),
+              title: Text('Xarajatlar', style: GoogleFonts.outfit()),
+              onTap: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ExpensesView()));
+              },
+            ),
+            // --- HAMKORLAR ---
+            Padding(
+              padding: const EdgeInsets.only(left: 16, top: 8, bottom: 2),
+              child: Text('HAMKORLAR', style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.grey)),
+            ),
             ListTile(
               leading: const Icon(Icons.people_alt_outlined),
               title: Text('Mijozlar', style: GoogleFonts.outfit()),
@@ -144,6 +184,19 @@ class _DashboardViewState extends State<DashboardView> {
                 Navigator.of(context).pop();
                 Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CustomersView()));
               },
+            ),
+            ListTile(
+              leading: const Icon(Icons.store_outlined),
+              title: Text('Ta\'minotchilar', style: GoogleFonts.outfit()),
+              onTap: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SuppliersView()));
+              },
+            ),
+            // --- HISOBOT ---
+            Padding(
+              padding: const EdgeInsets.only(left: 16, top: 8, bottom: 2),
+              child: Text('HISOBOT', style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.grey)),
             ),
             ListTile(
               leading: const Icon(Icons.description_outlined),

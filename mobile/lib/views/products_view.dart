@@ -24,7 +24,7 @@ class _ProductsViewState extends State<ProductsView> {
   Future<void> _fetchProducts() async {
     setState(() => _loading = true);
     try {
-      final res = await _apiService.get('/products?q=$_searchQuery');
+      final res = await _apiService.get('/products?limit=100&q=$_searchQuery');
       if (res.statusCode == 200) {
         setState(() {
           _products = res.data['data'] ?? [];

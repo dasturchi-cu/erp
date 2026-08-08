@@ -23,7 +23,7 @@ class _InventoryViewState extends State<InventoryView> {
   Future<void> _fetchInventory() async {
     setState(() => _loading = true);
     try {
-      final res = await _apiService.get('/inventory/batches');
+      final res = await _apiService.get('/inventory/batches?limit=100');
       if (res.statusCode == 200) {
         setState(() {
           _batches = res.data['data'] ?? [];
