@@ -15,15 +15,15 @@ class _ProductsViewState extends State<ProductsView> {
   List<dynamic> _products = [];
   List<dynamic> _categories = [];
   String _searchQuery = '';
+  String? _selectedCategoryId;
 
-  // Form Controllers
+  // Add Product form controllers
   final _skuController = TextEditingController();
   final _nameController = TextEditingController();
   final _barcodeController = TextEditingController();
   final _unitController = TextEditingController(text: 'dona');
   final _purchasePriceController = TextEditingController();
   final _salePriceController = TextEditingController();
-  String? _selectedCategoryId;
 
   @override
   void initState() {
@@ -48,13 +48,18 @@ class _ProductsViewState extends State<ProductsView> {
       final res = await _apiService.get('/categories');
       if (res.statusCode == 200) {
         final raw = res.data;
-        setState(() {
-          if (raw is Map && raw.containsKey('data')) {
-            _categories = raw['data'] is List ? raw['data'] : [];
-          } else if (raw is List) {
-            _categories = raw;
-          }
-        });
+        if (mounted) {
+          setState(() {
+            if (raw is Map && raw.containsKey('data')) {
+              _categories = raw['data'] is List ? raw['data'] : [];
+            } else if (raw is List) {
+              _categories = raw;
+            }
+            if (_categories.isNotEmpty && _selectedCategoryId == null) {
+              _selectedCategoryId = _categories.first['id'] as String?;
+            }
+          });
+        }
       }
     } catch (_) {}
   }
@@ -64,23 +69,47 @@ class _ProductsViewState extends State<ProductsView> {
     try {
       final res = await _apiService.get('/products?limit=100&q=$_searchQuery');
       if (res.statusCode == 200) {
-        setState(() {
-          _products = res.data['data'] ?? [];
-          _loading = false;
-        });
+        if (mounted) {
+          setState(() {
+            final raw = res.data;
+            _products = raw is Map && raw.containsKey('data') ? (raw['data'] is List ? raw['data'] : []) : (raw is List ? raw : []);
+            _loading = false;
+          });
+        }
       }
     } catch (_) {
       if (mounted) setState(() => _loading = false);
     }
   }
 
+  Future<String?> _getOrCreateCategoryId() async {
+    if (_selectedCategoryId != null && _selectedCategoryId!.isNotEmpty) {
+      return _selectedCategoryId;
+    }
+    if (_categories.isNotEmpty && _categories.first['id'] != null) {
+      return _categories.first['id'] as String;
+    }
+    // Create a default category if none exists in company
+    try {
+      final res = await _apiService.post('/categories', {'name': 'Umumiy'});
+      if (res.data != null && res.data['id'] != null) {
+        final newId = res.data['id'] as String;
+        await _fetchCategories();
+        return newId;
+      }
+    } catch (_) {}
+    return null;
+  }
+
   void _showAddProductDialog() {
-    _skuController.text = 'SKU-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
+    _skuController.text = 'PRD-${DateTime.now().millisecondsSinceEpoch.toString().substring(6)}';
     _nameController.clear();
     _barcodeController.clear();
     _purchasePriceController.clear();
     _salePriceController.clear();
-    _selectedCategoryId = _categories.isNotEmpty ? _categories.first['id'] : null;
+    if (_categories.isNotEmpty) {
+      _selectedCategoryId = _categories.first['id'] as String?;
+    }
 
     showModalBottomSheet(
       context: context,
@@ -149,7 +178,7 @@ class _ProductsViewState extends State<ProductsView> {
                   ),
                   items: _categories.map((cat) => DropdownMenuItem<String>(
                     value: cat['id'] as String,
-                    child: Text(cat['name'] ?? ''),
+                    child: Text(cat['name'] ?? 'Kategoriya'),
                   )).toList(),
                   onChanged: (val) {
                     setModalState(() => _selectedCategoryId = val);
@@ -188,12 +217,29 @@ class _ProductsViewState extends State<ProductsView> {
                 onPressed: () async {
                   final sku = _skuController.text.trim();
                   final name = _nameController.text.trim();
-                  final purchase = _purchasePriceController.text.trim();
-                  final sale = _salePriceController.text.trim();
+                  final purchaseRaw = _purchasePriceController.text.trim();
+                  final saleRaw = _salePriceController.text.trim();
 
-                  if (sku.isEmpty || name.isEmpty || purchase.isEmpty || sale.isEmpty) {
+                  if (sku.isEmpty || name.isEmpty || purchaseRaw.isEmpty || saleRaw.isEmpty) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('Barcha majburiy kataklarni to\'ldiring!')),
+                    );
+                    return;
+                  }
+
+                  final purchaseNum = double.tryParse(purchaseRaw);
+                  final saleNum = double.tryParse(saleRaw);
+                  if (purchaseNum == null || saleNum == null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Narxlar faqat raqam shaklida bo\'lishi kerak!')),
+                    );
+                    return;
+                  }
+
+                  final categoryId = await _getOrCreateCategoryId();
+                  if (categoryId == null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Kategoriya aniqlanmadi. Avval kategoriya yarating!')),
                     );
                     return;
                   }
@@ -202,12 +248,12 @@ class _ProductsViewState extends State<ProductsView> {
                     final res = await _apiService.post('/products', {
                       'sku': sku,
                       'name': name,
-                      if (_selectedCategoryId != null) 'categoryId': _selectedCategoryId,
+                      'categoryId': categoryId,
                       if (_barcodeController.text.trim().isNotEmpty)
                         'barcode': _barcodeController.text.trim(),
-                      'unitOfMeasure': _unitController.text.trim(),
-                      'purchasePriceUzs': purchase,
-                      'salePriceUzs': sale,
+                      'unitOfMeasure': _unitController.text.trim().isNotEmpty ? _unitController.text.trim() : 'dona',
+                      'purchasePriceUzs': purchaseNum.toStringAsFixed(0),
+                      'salePriceUzs': saleNum.toStringAsFixed(0),
                     });
 
                     if (res.statusCode == 200 || res.statusCode == 201) {
@@ -230,7 +276,10 @@ class _ProductsViewState extends State<ProductsView> {
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 14),
                 ),
-                child: Text('Saqlash', style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold)),
+                child: Text(
+                  'Saqlash',
+                  style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
               ),
             ],
           ),
@@ -239,9 +288,24 @@ class _ProductsViewState extends State<ProductsView> {
     );
   }
 
+  String _formatNumber(dynamic val) {
+    if (val == null) return '0';
+    final n = (val is num) ? val.toDouble() : (double.tryParse(val.toString()) ?? 0.0);
+    final str = n.abs().toStringAsFixed(0);
+    final buffer = StringBuffer();
+    for (int i = 0; i < str.length; i++) {
+      if (i > 0 && (str.length - i) % 3 == 0) {
+        buffer.write(' ');
+      }
+      buffer.write(str[i]);
+    }
+    return '${n < 0 ? '-' : ''}${buffer.toString()}';
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -262,65 +326,72 @@ class _ProductsViewState extends State<ProductsView> {
       ),
       body: Column(
         children: [
+          // Search bar
           Padding(
-            padding: const EdgeInsets.all(12.0),
+            padding: const EdgeInsets.all(16.0),
             child: TextField(
-              decoration: const InputDecoration(
-                labelText: 'Katalogdan qidirish...',
-                prefixIcon: Icon(Icons.search),
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                hintText: 'Katalogdan qidirish...',
+                prefixIcon: const Icon(Icons.search),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                contentPadding: const EdgeInsets.symmetric(vertical: 12),
               ),
               onChanged: (val) {
-                setState(() => _searchQuery = val);
+                _searchQuery = val;
                 _fetchProducts();
               },
             ),
           ),
+          // Product List
           Expanded(
             child: _loading
                 ? const Center(child: CircularProgressIndicator())
                 : _products.isEmpty
                     ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.inventory_2_outlined, size: 60, color: theme.colorScheme.outline),
-                            const SizedBox(height: 12),
-                            const Text('Hech qanday mahsulot topilmadi'),
-                          ],
+                        child: Text(
+                          'Mahsulotlar topilmadi',
+                          style: GoogleFonts.outfit(fontSize: 16, color: Colors.grey),
                         ),
                       )
                     : RefreshIndicator(
                         onRefresh: _fetchProducts,
                         child: ListView.builder(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
                           itemCount: _products.length,
-                          itemBuilder: (context, idx) {
-                            final p = _products[idx];
+                          itemBuilder: (context, index) {
+                            final p = _products[index];
+                            final sku = p['sku'] ?? 'N/A';
+                            final name = p['name'] ?? 'Nomi yo\'q';
+                            final salePrice = p['salePriceUzs'] ?? 0;
+                            final stock = p['totalStock'] ?? 0;
+
                             return Card(
-                              margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                              margin: const EdgeInsets.only(bottom: 8),
                               child: ListTile(
                                 leading: CircleAvatar(
                                   backgroundColor: theme.colorScheme.primaryContainer,
-                                  child: Icon(Icons.inventory_2, color: theme.colorScheme.onPrimaryContainer),
+                                  child: Icon(
+                                    Icons.inventory_2,
+                                    color: theme.colorScheme.onPrimaryContainer,
+                                    size: 20,
+                                  ),
                                 ),
-                                title: Text(p['name'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold)),
-                                subtitle: Text('SKU: ${p['sku']} | Barkod: ${p['barcode'] ?? 'yo\'q'}'),
-                                trailing: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  crossAxisAlignment: CrossAxisAlignment.end,
-                                  children: [
-                                    Text(
-                                      '${p['salePriceUzs']} UZS',
-                                      style: TextStyle(
-                                        color: theme.colorScheme.primary,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    Text(
-                                      'Qoldiq: ${p['stock'] ?? '0'} ${p['unitOfMeasure'] ?? 'dona'}',
-                                      style: const TextStyle(fontSize: 12),
-                                    ),
-                                  ],
+                                title: Text(
+                                  name,
+                                  style: GoogleFonts.outfit(fontWeight: FontWeight.w600),
+                                ),
+                                subtitle: Text(
+                                  'SKU: $sku | Qoldiq: $stock ${p['unitOfMeasure'] ?? 'dona'}',
+                                  style: GoogleFonts.outfit(fontSize: 12),
+                                ),
+                                trailing: Text(
+                                  '${_formatNumber(salePrice)} so\'m',
+                                  style: GoogleFonts.outfit(
+                                    fontWeight: FontWeight.bold,
+                                    color: theme.colorScheme.primary,
+                                  ),
                                 ),
                               ),
                             );
