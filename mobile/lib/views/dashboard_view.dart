@@ -78,22 +78,46 @@ class _DashboardViewState extends State<DashboardView> {
     }
   }
 
+  String _formatStatValue(dynamic val) {
+    if (val == null) return '0 UZS';
+    double amount = 0.0;
+    if (val is Map) {
+      amount = double.tryParse(val['uzs']?.toString() ?? val['amount']?.toString() ?? '0') ?? 0.0;
+    } else if (val is num) {
+      amount = val.toDouble();
+    } else {
+      amount = double.tryParse(val.toString()) ?? 0.0;
+    }
+
+    final str = amount.abs().toStringAsFixed(0);
+    final buffer = StringBuffer();
+    for (int i = 0; i < str.length; i++) {
+      if (i > 0 && (str.length - i) % 3 == 0) {
+        buffer.write(' ');
+      }
+      buffer.write(str[i]);
+    }
+    return '${amount < 0 ? '-' : ''}${buffer.toString()} UZS';
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
     return Scaffold(
+      backgroundColor: const Color(0xFFAFAFA),
       appBar: AppBar(
         title: Text(
-          'Dashboard',
-          style: GoogleFonts.outfit(fontWeight: FontWeight.w600),
+          'ERP Boshqaruv',
+          style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 20),
         ),
+        elevation: 0,
         actions: [
           if (_pendingSyncCount > 0)
             IconButton(
               icon: Badge(
                 label: Text('$_pendingSyncCount'),
-                child: const Icon(Icons.sync_problem),
+                child: const Icon(Icons.sync_problem, color: Colors.orange),
               ),
               onPressed: _handleSync,
             )
@@ -109,16 +133,23 @@ class _DashboardViewState extends State<DashboardView> {
           padding: EdgeInsets.zero,
           children: [
             UserAccountsDrawerHeader(
-              currentAccountPicture: CircleAvatar(
-                backgroundColor: theme.colorScheme.primaryContainer,
-                child: Icon(Icons.person, color: theme.colorScheme.onPrimaryContainer),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [theme.colorScheme.primary, theme.colorScheme.secondary],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
               ),
-              accountName: Text('ERP Manager', style: GoogleFonts.outfit(fontWeight: FontWeight.w600)),
-              accountEmail: const Text('admin@erp.uz'),
+              currentAccountPicture: const CircleAvatar(
+                backgroundColor: Colors.white24,
+                child: Icon(Icons.person, color: Colors.white, size: 36),
+              ),
+              accountName: Text('Super Admin', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 18)),
+              accountEmail: Text('admin@erp.uz', style: GoogleFonts.outfit(color: Colors.white70)),
             ),
             ListTile(
               leading: const Icon(Icons.dashboard_outlined),
-              title: Text('Dashboard', style: GoogleFonts.outfit()),
+              title: Text('Dashboard', style: GoogleFonts.outfit(fontWeight: FontWeight.w600)),
               selected: true,
               onTap: () => Navigator.of(context).pop(),
             ),
@@ -129,7 +160,7 @@ class _DashboardViewState extends State<DashboardView> {
               child: Text('SOTUV', style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.grey)),
             ),
             ListTile(
-              leading: const Icon(Icons.point_of_sale_outlined),
+              leading: const Icon(Icons.point_of_sale_outlined, color: Colors.indigo),
               title: Text('Kassa (POS)', style: GoogleFonts.outfit()),
               onTap: () {
                 Navigator.of(context).pop();
@@ -137,7 +168,7 @@ class _DashboardViewState extends State<DashboardView> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.history_outlined),
+              leading: const Icon(Icons.history_outlined, color: Colors.blue),
               title: Text('Sotuvlar Tarixi', style: GoogleFonts.outfit()),
               onTap: () {
                 Navigator.of(context).pop();
@@ -145,7 +176,7 @@ class _DashboardViewState extends State<DashboardView> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.assignment_return_outlined),
+              leading: const Icon(Icons.assignment_return_outlined, color: Colors.orange),
               title: Text('Vozvratlar (Qaytarish)', style: GoogleFonts.outfit()),
               onTap: () {
                 Navigator.of(context).pop();
@@ -159,7 +190,7 @@ class _DashboardViewState extends State<DashboardView> {
               child: Text('OMBOR', style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.grey)),
             ),
             ListTile(
-              leading: const Icon(Icons.inventory_2_outlined),
+              leading: const Icon(Icons.inventory_2_outlined, color: Colors.teal),
               title: Text('Mahsulotlar', style: GoogleFonts.outfit()),
               onTap: () {
                 Navigator.of(context).pop();
@@ -167,7 +198,7 @@ class _DashboardViewState extends State<DashboardView> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.add_shopping_cart),
+              leading: const Icon(Icons.add_shopping_cart, color: Colors.green),
               title: Text('Mahsulot Kirim Qilish', style: GoogleFonts.outfit()),
               onTap: () {
                 Navigator.of(context).pop();
@@ -175,7 +206,7 @@ class _DashboardViewState extends State<DashboardView> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.warehouse_outlined),
+              leading: const Icon(Icons.warehouse_outlined, color: Colors.brown),
               title: Text('Ombor (Stock)', style: GoogleFonts.outfit()),
               onTap: () {
                 Navigator.of(context).pop();
@@ -189,7 +220,7 @@ class _DashboardViewState extends State<DashboardView> {
               child: Text('MOLIYA', style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.grey)),
             ),
             ListTile(
-              leading: const Icon(Icons.receipt_long_outlined),
+              leading: const Icon(Icons.receipt_long_outlined, color: Colors.red),
               title: Text('Xarajatlar', style: GoogleFonts.outfit()),
               onTap: () {
                 Navigator.of(context).pop();
@@ -197,7 +228,7 @@ class _DashboardViewState extends State<DashboardView> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.currency_exchange),
+              leading: const Icon(Icons.currency_exchange, color: Colors.amber),
               title: Text('Valyuta Kurslari', style: GoogleFonts.outfit()),
               onTap: () {
                 Navigator.of(context).pop();
@@ -211,7 +242,7 @@ class _DashboardViewState extends State<DashboardView> {
               child: Text('HAMKORLAR', style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.grey)),
             ),
             ListTile(
-              leading: const Icon(Icons.people_alt_outlined),
+              leading: const Icon(Icons.people_alt_outlined, color: Colors.deepPurple),
               title: Text('Mijozlar', style: GoogleFonts.outfit()),
               onTap: () {
                 Navigator.of(context).pop();
@@ -219,7 +250,7 @@ class _DashboardViewState extends State<DashboardView> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.store_outlined),
+              leading: const Icon(Icons.store_outlined, color: Colors.blueGrey),
               title: Text('Ta\'minotchilar', style: GoogleFonts.outfit()),
               onTap: () {
                 Navigator.of(context).pop();
@@ -233,7 +264,7 @@ class _DashboardViewState extends State<DashboardView> {
               child: Text('TIZIM VA HISOBOT', style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.grey)),
             ),
             ListTile(
-              leading: const Icon(Icons.description_outlined),
+              leading: const Icon(Icons.description_outlined, color: Colors.purple),
               title: Text('Hisobotlar', style: GoogleFonts.outfit()),
               onTap: () {
                 Navigator.of(context).pop();
@@ -241,7 +272,7 @@ class _DashboardViewState extends State<DashboardView> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.badge_outlined),
+              leading: const Icon(Icons.badge_outlined, color: Colors.indigo),
               title: Text('Xodimlar va Boshqaruv', style: GoogleFonts.outfit()),
               onTap: () {
                 Navigator.of(context).pop();
@@ -249,7 +280,7 @@ class _DashboardViewState extends State<DashboardView> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.settings_outlined),
+              leading: const Icon(Icons.settings_outlined, color: Colors.grey),
               title: Text('Sozlamalar', style: GoogleFonts.outfit()),
               onTap: () {
                 Navigator.of(context).pop();
@@ -260,7 +291,7 @@ class _DashboardViewState extends State<DashboardView> {
             const Divider(),
             ListTile(
               leading: const Icon(Icons.logout, color: Colors.red),
-              title: Text('Chiqish', style: GoogleFonts.outfit(color: Colors.red)),
+              title: Text('Chiqish', style: GoogleFonts.outfit(color: Colors.red, fontWeight: FontWeight.w600)),
               onTap: () async {
                 await _apiService.clearSession();
                 if (context.mounted) {
@@ -284,23 +315,137 @@ class _DashboardViewState extends State<DashboardView> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Offline Alert
+                    // Welcome Banner Card
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [theme.colorScheme.primary, theme.colorScheme.tertiary],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: theme.colorScheme.primary.withOpacity(0.2),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          )
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          const CircleAvatar(
+                            radius: 26,
+                            backgroundColor: Colors.white24,
+                            child: Icon(Icons.storefront, color: Colors.white, size: 30),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Xayrli kun! 👋',
+                                  style: GoogleFonts.outfit(color: Colors.white70, fontSize: 13),
+                                ),
+                                Text(
+                                  'ERP Enterprise Tizimi',
+                                  style: GoogleFonts.outfit(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.white24,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: const Row(
+                              children: [
+                                Icon(Icons.circle, color: Colors.greenAccent, size: 8),
+                                SizedBox(width: 4),
+                                Text('ONLINE', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Offline Alert Banner
                     if (_pendingSyncCount > 0)
                       Card(
-                        color: theme.colorScheme.secondaryContainer,
+                        color: Colors.orange.shade50,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: BorderSide(color: Colors.orange.shade300),
+                        ),
                         margin: const EdgeInsets.only(bottom: 16),
                         child: ListTile(
-                          leading: const Icon(Icons.wifi_off_outlined, color: Colors.orange),
-                          title: const Text('Oflayn tranzaksiyalar mavjud'),
-                          subtitle: Text('$_pendingSyncCount ta sotuv zaxirada kutilmoqda.'),
+                          leading: const Icon(Icons.wifi_off_outlined, color: Colors.orange, size: 28),
+                          title: const Text('Oflayn sotuvlar zaxirada', style: TextStyle(fontWeight: FontWeight.bold)),
+                          subtitle: Text('$_pendingSyncCount ta sotuv internetga ulanishni kutmoqda.'),
                           trailing: ElevatedButton(
                             onPressed: _handleSync,
+                            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, foregroundColor: Colors.white),
                             child: const Text('Sinxronlash'),
                           ),
                         ),
                       ),
 
+                    // Quick Actions Bar
+                    Text('Tezkor Amallar', style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
+                    const SizedBox(height: 10),
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          _buildQuickActionButton(
+                            context,
+                            'Kassa POS',
+                            Icons.point_of_sale,
+                            Colors.indigo,
+                            () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PosView())),
+                          ),
+                          _buildQuickActionButton(
+                            context,
+                            'Kirim Qilish',
+                            Icons.add_shopping_cart,
+                            Colors.green,
+                            () => Navigator.push(context, MaterialPageRoute(builder: (_) => const InventoryReceiveView())),
+                          ),
+                          _buildQuickActionButton(
+                            context,
+                            'Mijozlar',
+                            Icons.person_add_alt_1,
+                            Colors.deepPurple,
+                            () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CustomersView())),
+                          ),
+                          _buildQuickActionButton(
+                            context,
+                            'Vozvrat',
+                            Icons.assignment_return,
+                            Colors.orange,
+                            () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ReturnsView())),
+                          ),
+                          _buildQuickActionButton(
+                            context,
+                            'Xarajat',
+                            Icons.receipt_long,
+                            Colors.red,
+                            () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ExpensesView())),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+
                     // Grid stats
+                    Text('Moliyaviy Ko\'rsatkichlar', style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
+                    const SizedBox(height: 10),
                     GridView.count(
                       crossAxisCount: 2,
                       crossAxisSpacing: 12,
@@ -313,28 +458,32 @@ class _DashboardViewState extends State<DashboardView> {
                           'Bugungi Sotuv',
                           _formatStatValue(_stats['todaySales']),
                           Icons.trending_up,
-                          Colors.blue,
+                          const Color(0xFF2563EB),
+                          const Color(0xFFEFF6FF),
                         ),
                         _buildStatCard(
                           context,
                           'Haftalik Sotuv',
                           _formatStatValue(_stats['weeklySales']),
                           Icons.calendar_view_week,
-                          Colors.green,
+                          const Color(0xFF059669),
+                          const Color(0xFFECFDF5),
                         ),
                         _buildStatCard(
                           context,
                           'Sof Foyda',
                           _formatStatValue(_stats['netProfit']),
                           Icons.attach_money,
-                          Colors.purple,
+                          const Color(0xFF7C3AED),
+                          const Color(0xFFF5F3FF),
                         ),
                         _buildStatCard(
                           context,
                           'Mijozlar Qarzi',
                           _formatStatValue(_stats['customerDebt']),
                           Icons.assignment_late,
-                          Colors.red,
+                          const Color(0xFFDC2626),
+                          const Color(0xFFFEF2F2),
                         ),
                       ],
                     ),
@@ -343,31 +492,42 @@ class _DashboardViewState extends State<DashboardView> {
                     // Sales Chart Card
                     Card(
                       elevation: 2,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                       child: Padding(
                         padding: const EdgeInsets.all(16.0),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              'Sotuvlar Grafigi',
-                              style: GoogleFonts.outfit(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Sotuvlar Dinamikasi',
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: theme.colorScheme.primaryContainer,
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Text('Haftalik', style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.bold, color: theme.colorScheme.onPrimaryContainer)),
+                                ),
+                              ],
                             ),
-                            const SizedBox(height: 24),
+                            const SizedBox(height: 20),
                             SizedBox(
-                              height: 200,
+                              height: 180,
                               child: LineChart(
                                 LineChartData(
                                   gridData: const FlGridData(show: false),
                                   titlesData: const FlTitlesData(
-                                    leftTitles: AxisTitles(
-                                      sideTitles: SideTitles(showTitles: false),
-                                    ),
-                                    topTitles: AxisTitles(
-                                      sideTitles: SideTitles(showTitles: false),
-                                    ),
+                                    leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                                    topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                                    rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
                                   ),
                                   borderData: FlBorderData(show: false),
                                   lineBarsData: [
@@ -383,9 +543,11 @@ class _DashboardViewState extends State<DashboardView> {
                                       isCurved: true,
                                       color: theme.colorScheme.primary,
                                       barWidth: 4,
+                                      isStrokeCapRound: true,
+                                      dotData: const FlDotData(show: true),
                                       belowBarData: BarAreaData(
                                         show: true,
-                                        color: theme.colorScheme.primary.withOpacity(0.15),
+                                        color: theme.colorScheme.primary.withOpacity(0.12),
                                       ),
                                     ),
                                   ],
@@ -403,26 +565,42 @@ class _DashboardViewState extends State<DashboardView> {
     );
   }
 
-  String _formatStatValue(dynamic val) {
-    if (val == null) return '0 UZS';
-    double amount = 0.0;
-    if (val is Map) {
-      amount = double.tryParse(val['uzs']?.toString() ?? val['amount']?.toString() ?? '0') ?? 0.0;
-    } else if (val is num) {
-      amount = val.toDouble();
-    } else {
-      amount = double.tryParse(val.toString()) ?? 0.0;
-    }
-
-    final str = amount.abs().toStringAsFixed(0);
-    final buffer = StringBuffer();
-    for (int i = 0; i < str.length; i++) {
-      if (i > 0 && (str.length - i) % 3 == 0) {
-        buffer.write(' ');
-      }
-      buffer.write(str[i]);
-    }
-    return '${amount < 0 ? '-' : ''}${buffer.toString()} UZS';
+  Widget _buildQuickActionButton(
+    BuildContext context,
+    String label,
+    IconData icon,
+    Color color,
+    VoidCallback onTap,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 10),
+      child: Material(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        elevation: 1,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 14,
+                  backgroundColor: color.withOpacity(0.15),
+                  child: Icon(icon, color: color, size: 16),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  label,
+                  style: GoogleFonts.outfit(fontWeight: FontWeight.w600, fontSize: 13),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildStatCard(
@@ -430,21 +608,40 @@ class _DashboardViewState extends State<DashboardView> {
     String title,
     String value,
     IconData icon,
-    Color color,
+    Color accentColor,
+    Color bgColor,
   ) {
-    final theme = Theme.of(context);
-    return Card(
-      elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(14.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            CircleAvatar(
-              backgroundColor: color.withOpacity(0.15),
-              child: Icon(icon, color: color),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: bgColor,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(icon, color: accentColor, size: 22),
+                ),
+                Icon(Icons.arrow_forward_ios, size: 12, color: Colors.grey.shade400),
+              ],
             ),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -452,8 +649,9 @@ class _DashboardViewState extends State<DashboardView> {
                 Text(
                   title,
                   style: GoogleFonts.outfit(
-                    fontSize: 14,
-                    color: theme.colorScheme.onSurfaceVariant,
+                    fontSize: 13,
+                    color: Colors.grey.shade600,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -462,8 +660,9 @@ class _DashboardViewState extends State<DashboardView> {
                   child: Text(
                     value,
                     style: GoogleFonts.outfit(
-                      fontSize: 18,
+                      fontSize: 16,
                       fontWeight: FontWeight.bold,
+                      color: Colors.black87,
                     ),
                   ),
                 ),
