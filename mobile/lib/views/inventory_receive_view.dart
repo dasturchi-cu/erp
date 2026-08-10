@@ -21,6 +21,7 @@ class _InventoryReceiveViewState extends State<InventoryReceiveView> {
   Map<String, dynamic>? _selectedProduct;
   Map<String, dynamic>? _selectedWarehouse;
   Map<String, dynamic>? _selectedSupplier;
+  String _paymentType = 'CASH'; // CASH = naqd, CREDIT = nasiya (qarzga)
 
   final _quantityController = TextEditingController();
   final _costController = TextEditingController();
@@ -196,6 +197,13 @@ class _InventoryReceiveViewState extends State<InventoryReceiveView> {
       return;
     }
 
+    if (_selectedSupplier == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Ta\'minotchi tanlanishi majburiy!')),
+      );
+      return;
+    }
+
     final qty = _quantityController.text.trim();
     final cost = _costController.text.trim();
 
@@ -212,7 +220,8 @@ class _InventoryReceiveViewState extends State<InventoryReceiveView> {
         'warehouseId': _selectedWarehouse!['id'],
         'quantity': qty,
         'unitCostUzs': cost,
-        if (_selectedSupplier != null) 'supplierId': _selectedSupplier!['id'],
+        'supplierId': _selectedSupplier!['id'],
+        'paymentType': _paymentType,
       });
 
       if (res.statusCode == 200 || res.statusCode == 201) {
@@ -321,23 +330,38 @@ class _InventoryReceiveViewState extends State<InventoryReceiveView> {
                         onChanged: (val) => setState(() => _selectedWarehouse = val),
                       ),
                       const SizedBox(height: 12),
-                      // Supplier Picker
+                      // Supplier Picker (required by backend)
                       DropdownButtonFormField<Map<String, dynamic>>(
                         value: _selectedSupplier,
                         isExpanded: true,
                         decoration: const InputDecoration(
-                          labelText: 'Ta\'minotchi (ixtiyoriy)',
+                          labelText: 'Ta\'minotchi *',
                           prefixIcon: Icon(Icons.store_outlined),
                           border: OutlineInputBorder(),
                         ),
-                        items: [
-                          const DropdownMenuItem(value: null, child: Text('Ta\'minotchisiz')),
-                          ..._suppliers.map((s) => DropdownMenuItem(
-                            value: s as Map<String, dynamic>,
-                            child: Text(s['name'] ?? '', overflow: TextOverflow.ellipsis),
-                          )),
-                        ],
+                        items: _suppliers
+                            .map((s) => DropdownMenuItem(
+                                  value: s as Map<String, dynamic>,
+                                  child: Text(s['name'] ?? '', overflow: TextOverflow.ellipsis),
+                                ))
+                            .toList(),
                         onChanged: (val) => setState(() => _selectedSupplier = val),
+                      ),
+                      const SizedBox(height: 12),
+                      // Payment type (required by backend): naqd yoki nasiya
+                      DropdownButtonFormField<String>(
+                        value: _paymentType,
+                        isExpanded: true,
+                        decoration: const InputDecoration(
+                          labelText: 'To\'lov turi *',
+                          prefixIcon: Icon(Icons.payments_outlined),
+                          border: OutlineInputBorder(),
+                        ),
+                        items: const [
+                          DropdownMenuItem(value: 'CASH', child: Text('Naqd (darhol to\'landi)')),
+                          DropdownMenuItem(value: 'CREDIT', child: Text('Nasiya (ta\'minotchiga qarz)')),
+                        ],
+                        onChanged: (val) => setState(() => _paymentType = val ?? 'CASH'),
                       ),
                       const SizedBox(height: 12),
                       Row(
