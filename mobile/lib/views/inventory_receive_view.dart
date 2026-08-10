@@ -16,6 +16,7 @@ class _InventoryReceiveViewState extends State<InventoryReceiveView> {
   List<dynamic> _products = [];
   List<dynamic> _warehouses = [];
   List<dynamic> _suppliers = [];
+  List<dynamic> _branches = [];
 
   Map<String, dynamic>? _selectedProduct;
   Map<String, dynamic>? _selectedWarehouse;
@@ -23,6 +24,9 @@ class _InventoryReceiveViewState extends State<InventoryReceiveView> {
 
   final _quantityController = TextEditingController();
   final _costController = TextEditingController();
+
+  // Add Warehouse dialog controller
+  final _newWarehouseNameCtrl = TextEditingController();
 
   @override
   void initState() {
@@ -34,6 +38,7 @@ class _InventoryReceiveViewState extends State<InventoryReceiveView> {
   void dispose() {
     _quantityController.dispose();
     _costController.dispose();
+    _newWarehouseNameCtrl.dispose();
     super.dispose();
   }
 
@@ -43,20 +48,144 @@ class _InventoryReceiveViewState extends State<InventoryReceiveView> {
       final pRes = await _apiService.get('/products?limit=100');
       final wRes = await _apiService.get('/inventory/warehouses');
       final sRes = await _apiService.get('/suppliers?limit=100');
+      final bRes = await _apiService.get('/inventory/branches');
 
       if (mounted) {
-        setState(() {
-          _products = pRes.data['data'] ?? pRes.data ?? [];
-          _warehouses = wRes.data['data'] ?? wRes.data ?? [];
-          _suppliers = sRes.data['data'] ?? sRes.data ?? [];
+        final pList = pRes.data is Map && pRes.data.containsKey('data') ? pRes.data['data'] : (pRes.data is List ? pRes.data : []);
+        var wList = wRes.data is Map && wRes.data.containsKey('data') ? wRes.data['data'] : (wRes.data is List ? wRes.data : []);
+        final sList = sRes.data is Map && sRes.data.containsKey('data') ? sRes.data['data'] : (sRes.data is List ? sRes.data : []);
+        final bList = bRes.data is Map && bRes.data.containsKey('data') ? bRes.data['data'] : (bRes.data is List ? bRes.data : []);
 
-          if (_warehouses.isNotEmpty) _selectedWarehouse = _warehouses.first;
+        // Auto-create default warehouse if none exists
+        if (wList.isEmpty && bList.isNotEmpty) {
+          try {
+            final defaultWh = await _apiService.post('/inventory/warehouses', {
+              'name': 'Asosiy Ombor',
+              'branchId': bList.first['id'],
+              'isDefault': true,
+            });
+            if (defaultWh.statusCode == 200 || defaultWh.statusCode == 201) {
+              wList = [defaultWh.data];
+            }
+          } catch (_) {}
+        }
+
+        setState(() {
+          _products = pList is List ? pList : [];
+          _warehouses = wList is List ? wList : [];
+          _suppliers = sList is List ? sList : [];
+          _branches = bList is List ? bList : [];
+
+          if (_warehouses.isNotEmpty) {
+            _selectedWarehouse = _warehouses.first as Map<String, dynamic>;
+          }
           _loading = false;
         });
       }
-    } catch (_) {
+    } catch (e) {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  Future<void> _createWarehouseOnTheFly() async {
+    if (_branches.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Kompaniyada filiallar topilmadi.')),
+      );
+      return;
+    }
+
+    _newWarehouseNameCtrl.text = 'Yangi Ombor';
+    String selectedBranchId = _branches.first['id'];
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) => Padding(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 20,
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Yangi Ombor Yaratish',
+                style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _newWarehouseNameCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Ombor Nomi *',
+                  prefixIcon: Icon(Icons.warehouse_outlined),
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              if (_branches.length > 1)
+                DropdownButtonFormField<String>(
+                  value: selectedBranchId,
+                  decoration: const InputDecoration(
+                    labelText: 'Filial *',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: _branches.map((b) => DropdownMenuItem<String>(
+                    value: b['id'] as String,
+                    child: Text(b['name'] ?? 'Filial'),
+                  )).toList(),
+                  onChanged: (val) {
+                    if (val != null) setModalState(() => selectedBranchId = val);
+                  },
+                ),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.add_business),
+                label: Text('Omborni Saqlash', style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold)),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+                onPressed: () async {
+                  final name = _newWarehouseNameCtrl.text.trim();
+                  if (name.isEmpty) return;
+
+                  try {
+                    final res = await _apiService.post('/inventory/warehouses', {
+                      'name': name,
+                      'branchId': selectedBranchId,
+                      'isDefault': _warehouses.isEmpty,
+                    });
+
+                    if (res.statusCode == 200 || res.statusCode == 201) {
+                      if (mounted) {
+                        Navigator.pop(ctx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Ombor muvaffaqiyatli yaratildi!')),
+                        );
+                        _loadDependencies();
+                      }
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Xatolik: ${ApiService.parseError(e)}')),
+                      );
+                    }
+                  }
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _handleReceive() async {
@@ -117,20 +246,40 @@ class _InventoryReceiveViewState extends State<InventoryReceiveView> {
           'Mahsulot Kirim Qilish',
           style: GoogleFonts.outfit(fontWeight: FontWeight.w600),
         ),
+        actions: [
+          IconButton(icon: const Icon(Icons.refresh), onPressed: _loadDependencies),
+        ],
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
-              padding: const EdgeInsets.all(16.0),
+              padding: EdgeInsets.only(
+                left: 16.0,
+                right: 16.0,
+                top: 16.0,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 32.0,
+              ),
               child: Card(
+                elevation: 2,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Text(
-                        'Kirim Ma\'lumotlari',
-                        style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Kirim Ma\'lumotlari',
+                            style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold),
+                          ),
+                          TextButton.icon(
+                            onPressed: _createWarehouseOnTheFly,
+                            icon: const Icon(Icons.add_business, size: 18),
+                            label: Text('+ Ombor', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 16),
                       // Product Picker

@@ -12,93 +12,340 @@ class InventoryView extends StatefulWidget {
 class _InventoryViewState extends State<InventoryView> {
   final _apiService = ApiService();
   bool _loading = true;
+
   List<dynamic> _batches = [];
+  List<dynamic> _warehouses = [];
+  List<dynamic> _branches = [];
+
+  final _warehouseNameCtrl = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    _fetchInventory();
+    _loadData();
   }
 
-  Future<void> _fetchInventory() async {
+  @override
+  void dispose() {
+    _warehouseNameCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadData() async {
     setState(() => _loading = true);
     try {
-      final res = await _apiService.get('/inventory/batches?limit=100');
-      if (res.statusCode == 200) {
+      final bRes = await _apiService.get('/inventory/batches?limit=100');
+      final wRes = await _apiService.get('/inventory/warehouses');
+      final brRes = await _apiService.get('/inventory/branches');
+
+      if (mounted) {
+        final rawB = bRes.data;
+        final rawW = wRes.data;
+        final rawBr = brRes.data;
+
         setState(() {
-          _batches = res.data['data'] ?? [];
+          _batches = rawB is Map && rawB.containsKey('data') ? rawB['data'] : (rawB is List ? rawB : []);
+          _warehouses = rawW is Map && rawW.containsKey('data') ? rawW['data'] : (rawW is List ? rawW : []);
+          _branches = rawBr is Map && rawBr.containsKey('data') ? rawBr['data'] : (rawBr is List ? rawBr : []);
           _loading = false;
         });
       }
     } catch (_) {
-      setState(() => _loading = false);
+      if (mounted) setState(() => _loading = false);
     }
+  }
+
+  void _showAddWarehouseDialog() {
+    _warehouseNameCtrl.text = 'Asosiy Ombor';
+    String? selectedBranchId = _branches.isNotEmpty ? _branches.first['id'] as String? : null;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) => Padding(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 20,
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Yangi Ombor Yaratish',
+                style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _warehouseNameCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Ombor Nomi *',
+                  prefixIcon: Icon(Icons.warehouse_outlined),
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              if (_branches.isNotEmpty)
+                DropdownButtonFormField<String>(
+                  value: selectedBranchId,
+                  decoration: const InputDecoration(
+                    labelText: 'Filial *',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: _branches.map((b) => DropdownMenuItem<String>(
+                    value: b['id'] as String,
+                    child: Text(b['name'] ?? 'Filial'),
+                  )).toList(),
+                  onChanged: (val) => setModalState(() => selectedBranchId = val),
+                ),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.add_business),
+                label: Text('Saqlash', style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold)),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+                onPressed: () async {
+                  final name = _warehouseNameCtrl.text.trim();
+                  if (name.isEmpty) return;
+
+                  if (selectedBranchId == null && _branches.isNotEmpty) {
+                    selectedBranchId = _branches.first['id'] as String?;
+                  }
+
+                  if (selectedBranchId == null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Filial topilmadi.')),
+                    );
+                    return;
+                  }
+
+                  try {
+                    final res = await _apiService.post('/inventory/warehouses', {
+                      'name': name,
+                      'branchId': selectedBranchId,
+                      'isDefault': _warehouses.isEmpty,
+                    });
+
+                    if (res.statusCode == 200 || res.statusCode == 201) {
+                      if (mounted) {
+                        Navigator.pop(ctx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Yangi ombor yaratildi!')),
+                        );
+                        _loadData();
+                      }
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Xatolik: ${ApiService.parseError(e)}')),
+                      );
+                    }
+                  }
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
     return Scaffold(
       appBar: AppBar(
         title: Text(
           'Ombor va Partiyalar',
           style: GoogleFonts.outfit(fontWeight: FontWeight.w600),
         ),
+        actions: [
+          IconButton(icon: const Icon(Icons.refresh), onPressed: _loadData),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _showAddWarehouseDialog,
+        icon: const Icon(Icons.add_business),
+        label: Text('Ombor Qo\'shish', style: GoogleFonts.outfit(fontWeight: FontWeight.w600)),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : _batches.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.warehouse_outlined, size: 60, color: theme.colorScheme.outline),
-                      const SizedBox(height: 12),
-                      const Text('Omborda mahsulot partiyalari mavjud emas'),
-                    ],
-                  ),
-                )
-              : RefreshIndicator(
-                  onRefresh: _fetchInventory,
-                  child: ListView.builder(
-                    itemCount: _batches.length,
-                    itemBuilder: (context, idx) {
-                      final b = _batches[idx];
-                      return Card(
-                        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                        child: ListTile(
-                          leading: Icon(Icons.layers, color: theme.colorScheme.secondary),
-                          title: Text(b['productName'] ?? b['product']?['name'] ?? 'Mahsulot nomi noma\'lum'),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('Partiya #: ${b['batchNumber'] ?? 'Noma\'lum'}'),
-                              Text('Ombor: ${b['warehouseName'] ?? b['warehouse']?['name'] ?? 'Asosiy Ombor'}'),
-                            ],
-                          ),
-                          trailing: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Text(
-                                '${b['remainingQty']} dona',
-                                style: const TextStyle(fontWeight: FontWeight.bold),
+          : RefreshIndicator(
+              onRefresh: _loadData,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Warehouses list header
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Mavjud Omborlar (${_warehouses.length})',
+                          style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                        TextButton.icon(
+                          onPressed: _showAddWarehouseDialog,
+                          icon: const Icon(Icons.add, size: 18),
+                          label: const Text('Qo\'shish'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    _warehouses.isEmpty
+                        ? Card(
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.info_outline, color: Colors.orange),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Text(
+                                      'Hali ombor mavjud emas. "+ Ombor Qo\'shish" tugmasini bosing!',
+                                      style: GoogleFonts.outfit(),
+                                    ),
+                                  ),
+                                ],
                               ),
-                              if (b['expiresAt'] != null)
-                                Text(
-                                  'Muddati: ${b['expiresAt'].toString().split('T')[0]}',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: theme.colorScheme.error,
+                            ),
+                          )
+                        : SizedBox(
+                            height: 100,
+                            child: ListView.builder(
+                              scrollDirection: Axis.horizontal,
+                              itemCount: _warehouses.length,
+                              itemBuilder: (ctx, idx) {
+                                final wh = _warehouses[idx];
+                                final isDef = wh['isDefault'] == true;
+                                return Card(
+                                  margin: const EdgeInsets.only(right: 12),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  color: isDef ? theme.colorScheme.primaryContainer : theme.colorScheme.surfaceContainerHigh,
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Icon(
+                                              Icons.warehouse,
+                                              color: isDef ? theme.colorScheme.onPrimaryContainer : theme.colorScheme.primary,
+                                              size: 20,
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Text(
+                                              wh['name'] ?? 'Ombor',
+                                              style: GoogleFonts.outfit(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 15,
+                                                color: isDef ? theme.colorScheme.onPrimaryContainer : theme.colorScheme.onSurface,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Text(
+                                          isDef ? 'Asosiy Ombor' : 'Ombor',
+                                          style: GoogleFonts.outfit(
+                                            fontSize: 12,
+                                            color: isDef ? theme.colorScheme.onPrimaryContainer.withOpacity(0.8) : Colors.grey,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                    const SizedBox(height: 24),
+
+                    // Batches list header
+                    Text(
+                      'Ombordagi Mahsulot Partiyalari',
+                      style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 12),
+                    _batches.isEmpty
+                        ? Center(
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 40),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.warehouse_outlined, size: 56, color: theme.colorScheme.outline),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    'Omborda hali mahsulot partiyalari mavjud emas',
+                                    style: GoogleFonts.outfit(fontSize: 15, color: Colors.grey),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                        : ListView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: _batches.length,
+                            itemBuilder: (context, idx) {
+                              final b = _batches[idx];
+                              return Card(
+                                margin: const EdgeInsets.only(bottom: 8),
+                                child: ListTile(
+                                  leading: CircleAvatar(
+                                    backgroundColor: theme.colorScheme.secondaryContainer,
+                                    child: Icon(Icons.layers, color: theme.colorScheme.onSecondaryContainer, size: 20),
+                                  ),
+                                  title: Text(
+                                    b['productName'] ?? b['product']?['name'] ?? 'Mahsulot nomi noma\'lum',
+                                    style: GoogleFonts.outfit(fontWeight: FontWeight.w600),
+                                  ),
+                                  subtitle: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text('Partiya #: ${b['batchNumber'] ?? 'Noma\'lum'}', style: GoogleFonts.outfit(fontSize: 12)),
+                                      Text('Ombor: ${b['warehouseName'] ?? b['warehouse']?['name'] ?? 'Asosiy Ombor'}', style: GoogleFonts.outfit(fontSize: 12)),
+                                    ],
+                                  ),
+                                  trailing: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                    children: [
+                                      Text(
+                                        '${b['remainingQty']} dona',
+                                        style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14),
+                                      ),
+                                      if (b['expiresAt'] != null)
+                                        Text(
+                                          'Muddati: ${b['expiresAt'].toString().split('T')[0]}',
+                                          style: GoogleFonts.outfit(
+                                            fontSize: 11,
+                                            color: theme.colorScheme.error,
+                                          ),
+                                        ),
+                                    ],
                                   ),
                                 ),
-                            ],
+                              );
+                            },
                           ),
-                        ),
-                      );
-                    },
-                  ),
+                  ],
                 ),
+              ),
+            ),
     );
   }
 }
