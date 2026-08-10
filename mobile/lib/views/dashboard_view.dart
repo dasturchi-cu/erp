@@ -103,9 +103,10 @@ class _DashboardViewState extends State<DashboardView> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFAFAFA),
+      backgroundColor: theme.colorScheme.surface,
       appBar: AppBar(
         title: Text(
           'ERP Boshqaruv',
@@ -157,7 +158,7 @@ class _DashboardViewState extends State<DashboardView> {
             // --- SOTUV ---
             Padding(
               padding: const EdgeInsets.only(left: 16, top: 12, bottom: 2),
-              child: Text('SOTUV', style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.grey)),
+              child: Text('SOTUV', style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.w700, color: theme.colorScheme.onSurfaceVariant)),
             ),
             ListTile(
               leading: const Icon(Icons.point_of_sale_outlined, color: Colors.indigo),
@@ -187,7 +188,7 @@ class _DashboardViewState extends State<DashboardView> {
             // --- OMBOR ---
             Padding(
               padding: const EdgeInsets.only(left: 16, top: 12, bottom: 2),
-              child: Text('OMBOR', style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.grey)),
+              child: Text('OMBOR', style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.w700, color: theme.colorScheme.onSurfaceVariant)),
             ),
             ListTile(
               leading: const Icon(Icons.inventory_2_outlined, color: Colors.teal),
@@ -217,7 +218,7 @@ class _DashboardViewState extends State<DashboardView> {
             // --- MOLIYA ---
             Padding(
               padding: const EdgeInsets.only(left: 16, top: 12, bottom: 2),
-              child: Text('MOLIYA', style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.grey)),
+              child: Text('MOLIYA', style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.w700, color: theme.colorScheme.onSurfaceVariant)),
             ),
             ListTile(
               leading: const Icon(Icons.receipt_long_outlined, color: Colors.red),
@@ -239,7 +240,7 @@ class _DashboardViewState extends State<DashboardView> {
             // --- HAMKORLAR ---
             Padding(
               padding: const EdgeInsets.only(left: 16, top: 12, bottom: 2),
-              child: Text('HAMKORLAR', style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.grey)),
+              child: Text('HAMKORLAR', style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.w700, color: theme.colorScheme.onSurfaceVariant)),
             ),
             ListTile(
               leading: const Icon(Icons.people_alt_outlined, color: Colors.deepPurple),
@@ -261,7 +262,7 @@ class _DashboardViewState extends State<DashboardView> {
             // --- TIZIM ---
             Padding(
               padding: const EdgeInsets.only(left: 16, top: 12, bottom: 2),
-              child: Text('TIZIM VA HISOBOT', style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.grey)),
+              child: Text('TIZIM VA HISOBOT', style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.w700, color: theme.colorScheme.onSurfaceVariant)),
             ),
             ListTile(
               leading: const Icon(Icons.description_outlined, color: Colors.purple),
@@ -397,7 +398,10 @@ class _DashboardViewState extends State<DashboardView> {
                       ),
 
                     // Quick Actions Bar
-                    Text('Tezkor Amallar', style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
+                    Text(
+                      'Tezkor Amallar',
+                      style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: theme.colorScheme.onSurface),
+                    ),
                     const SizedBox(height: 10),
                     SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
@@ -444,7 +448,10 @@ class _DashboardViewState extends State<DashboardView> {
                     const SizedBox(height: 20),
 
                     // Grid stats
-                    Text('Moliyaviy Ko\'rsatkichlar', style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
+                    Text(
+                      'Moliyaviy Ko\'rsatkichlar',
+                      style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: theme.colorScheme.onSurface),
+                    ),
                     const SizedBox(height: 10),
                     GridView.count(
                       crossAxisCount: 2,
@@ -459,7 +466,7 @@ class _DashboardViewState extends State<DashboardView> {
                           _formatStatValue(_stats['todaySales']),
                           Icons.trending_up,
                           const Color(0xFF2563EB),
-                          const Color(0xFFEFF6FF),
+                          isDark ? const Color(0xFF1E293B) : const Color(0xFFEFF6FF),
                         ),
                         _buildStatCard(
                           context,
@@ -467,7 +474,7 @@ class _DashboardViewState extends State<DashboardView> {
                           _formatStatValue(_stats['weeklySales']),
                           Icons.calendar_view_week,
                           const Color(0xFF059669),
-                          const Color(0xFFECFDF5),
+                          isDark ? const Color(0xFF064E3B) : const Color(0xFFECFDF5),
                         ),
                         _buildStatCard(
                           context,
@@ -475,7 +482,7 @@ class _DashboardViewState extends State<DashboardView> {
                           _formatStatValue(_stats['netProfit']),
                           Icons.attach_money,
                           const Color(0xFF7C3AED),
-                          const Color(0xFFF5F3FF),
+                          isDark ? const Color(0xFF3B0764) : const Color(0xFFF5F3FF),
                         ),
                         _buildStatCard(
                           context,
@@ -483,7 +490,7 @@ class _DashboardViewState extends State<DashboardView> {
                           _formatStatValue(_stats['customerDebt']),
                           Icons.assignment_late,
                           const Color(0xFFDC2626),
-                          const Color(0xFFFEF2F2),
+                          isDark ? const Color(0xFF450A0A) : const Color(0xFFFEF2F2),
                         ),
                       ],
                     ),
@@ -572,10 +579,11 @@ class _DashboardViewState extends State<DashboardView> {
     Color color,
     VoidCallback onTap,
   ) {
+    final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.only(right: 10),
       child: Material(
-        color: Colors.white,
+        color: theme.colorScheme.surfaceContainerHigh,
         borderRadius: BorderRadius.circular(12),
         elevation: 1,
         child: InkWell(
@@ -593,7 +601,11 @@ class _DashboardViewState extends State<DashboardView> {
                 const SizedBox(width: 8),
                 Text(
                   label,
-                  style: GoogleFonts.outfit(fontWeight: FontWeight.w600, fontSize: 13),
+                  style: GoogleFonts.outfit(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                    color: theme.colorScheme.onSurface,
+                  ),
                 ),
               ],
             ),
@@ -611,18 +623,10 @@ class _DashboardViewState extends State<DashboardView> {
     Color accentColor,
     Color bgColor,
   ) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
+    final theme = Theme.of(context);
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(14.0),
         child: Column(
@@ -640,7 +644,7 @@ class _DashboardViewState extends State<DashboardView> {
                   ),
                   child: Icon(icon, color: accentColor, size: 22),
                 ),
-                Icon(Icons.arrow_forward_ios, size: 12, color: Colors.grey.shade400),
+                Icon(Icons.arrow_forward_ios, size: 12, color: theme.colorScheme.onSurfaceVariant),
               ],
             ),
             Column(
@@ -650,7 +654,7 @@ class _DashboardViewState extends State<DashboardView> {
                   title,
                   style: GoogleFonts.outfit(
                     fontSize: 13,
-                    color: Colors.grey.shade600,
+                    color: theme.colorScheme.onSurfaceVariant,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -662,7 +666,7 @@ class _DashboardViewState extends State<DashboardView> {
                     style: GoogleFonts.outfit(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: Colors.black87,
+                      color: theme.colorScheme.onSurface,
                     ),
                   ),
                 ),
