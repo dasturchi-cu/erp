@@ -176,10 +176,22 @@ export function LoginPage() {
           </Button>
         </Box>
 
-        <Box sx={{ textAlign: 'center' }}>
+        <Box sx={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: 1.5, mt: 1 }}>
           <Link component={RouterLink} to="/forgot-password" underline="hover" variant="body2" color="primary">
             Parolni unutdingizmi?
           </Link>
+          <Box sx={{ pt: 1, borderTop: '1px solid', borderColor: 'divider' }}>
+            <Button
+              component={RouterLink}
+              to="/download"
+              variant="outlined"
+              size="small"
+              fullWidth
+              sx={{ borderRadius: 2, fontWeight: 700 }}
+            >
+              📥 Dasturlarni Yuklab Olish (Windows / Android)
+            </Button>
+          </Box>
         </Box>
       </AuthCard>
 

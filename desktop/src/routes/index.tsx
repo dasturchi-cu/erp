@@ -7,6 +7,7 @@ import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage';
 import { DeviceBlockedPage } from '@/pages/DeviceBlockedPage';
 import { SessionExpiredPage } from '@/pages/SessionExpiredPage';
 import { PermissionDeniedPage } from '@/pages/PermissionDeniedPage';
+import { DownloadPage } from '@/pages/DownloadPage';
 import { AuthGuard, GuestGuard, RoutePermissionGuard } from '@/routes/guards';
 import { DefaultHomeRedirect } from '@/routes/DefaultHomeRedirect';
 import { lazy, Suspense, useEffect } from 'react';
@@ -204,6 +205,7 @@ export const router = createHashRouter([
     element: <GuestGuard />,
     children: [
       { path: '/login', element: <LoginPage /> },
+      { path: '/download', element: <DownloadPage /> },
       { path: '/forgot-password', element: <ForgotPasswordPage /> },
       { path: '/device-blocked', element: <DeviceBlockedPage /> },
       { path: '/session-expired', element: <SessionExpiredPage /> },
