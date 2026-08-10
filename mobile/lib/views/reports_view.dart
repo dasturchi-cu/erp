@@ -40,7 +40,14 @@ class _ReportsViewState extends State<ReportsView> {
 
   String _formatAmount(dynamic val) {
     if (val == null) return '0 UZS';
-    final n = (val is num) ? val.toDouble() : (double.tryParse(val.toString()) ?? 0.0);
+    double n = 0.0;
+    if (val is Map) {
+      n = double.tryParse(val['uzs']?.toString() ?? val['amount']?.toString() ?? '0') ?? 0.0;
+    } else if (val is num) {
+      n = val.toDouble();
+    } else {
+      n = double.tryParse(val.toString()) ?? 0.0;
+    }
     final str = n.abs().toStringAsFixed(0);
     final buffer = StringBuffer();
     for (int i = 0; i < str.length; i++) {

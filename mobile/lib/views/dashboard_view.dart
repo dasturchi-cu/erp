@@ -311,28 +311,28 @@ class _DashboardViewState extends State<DashboardView> {
                         _buildStatCard(
                           context,
                           'Bugungi Sotuv',
-                          '${_stats['todaySales'] ?? 0.0} UZS',
+                          _formatStatValue(_stats['todaySales']),
                           Icons.trending_up,
                           Colors.blue,
                         ),
                         _buildStatCard(
                           context,
                           'Haftalik Sotuv',
-                          '${_stats['weeklySales'] ?? 0.0} UZS',
+                          _formatStatValue(_stats['weeklySales']),
                           Icons.calendar_view_week,
                           Colors.green,
                         ),
                         _buildStatCard(
                           context,
                           'Sof Foyda',
-                          '${_stats['netProfit'] ?? 0.0} UZS',
+                          _formatStatValue(_stats['netProfit']),
                           Icons.attach_money,
                           Colors.purple,
                         ),
                         _buildStatCard(
                           context,
                           'Mijozlar Qarzi',
-                          '${_stats['customerDebt'] ?? 0.0} UZS',
+                          _formatStatValue(_stats['customerDebt']),
                           Icons.assignment_late,
                           Colors.red,
                         ),
@@ -401,6 +401,28 @@ class _DashboardViewState extends State<DashboardView> {
               ),
             ),
     );
+  }
+
+  String _formatStatValue(dynamic val) {
+    if (val == null) return '0 UZS';
+    double amount = 0.0;
+    if (val is Map) {
+      amount = double.tryParse(val['uzs']?.toString() ?? val['amount']?.toString() ?? '0') ?? 0.0;
+    } else if (val is num) {
+      amount = val.toDouble();
+    } else {
+      amount = double.tryParse(val.toString()) ?? 0.0;
+    }
+
+    final str = amount.abs().toStringAsFixed(0);
+    final buffer = StringBuffer();
+    for (int i = 0; i < str.length; i++) {
+      if (i > 0 && (str.length - i) % 3 == 0) {
+        buffer.write(' ');
+      }
+      buffer.write(str[i]);
+    }
+    return '${amount < 0 ? '-' : ''}${buffer.toString()} UZS';
   }
 
   Widget _buildStatCard(
