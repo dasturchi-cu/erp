@@ -1,6 +1,7 @@
 import { Navigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { getHomePathForRole } from '@/utils/auth';
+import { isSaasPortal } from '@/utils/portal';
 
 export function DefaultHomeRedirect() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -8,15 +9,13 @@ export function DefaultHomeRedirect() {
   const companies = useAuthStore((s) => s.companies);
   const user = useAuthStore((s) => s.user);
 
-  // On the Vercel web deployment we set VITE_DEFAULT_PORTAL=saas so the site
-  // lands on the SaaS admin panel; the packaged desktop .exe leaves it unset
-  // and lands on the store login.
-  const defaultPortal = import.meta.env.VITE_DEFAULT_PORTAL as string | undefined;
+  // The web deployment (Vercel) serves the SaaS admin panel only — never the
+  // store UI, even for a stale store session in localStorage.
+  if (isSaasPortal()) {
+    return <Navigate to="/super-admin/login" replace />;
+  }
 
   if (!isAuthenticated) {
-    if (defaultPortal === 'saas') {
-      return <Navigate to="/super-admin/login" replace />;
-    }
     return <Navigate to="/login" replace />;
   }
 
