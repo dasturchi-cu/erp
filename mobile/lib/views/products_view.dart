@@ -55,8 +55,9 @@ class _ProductsViewState extends State<ProductsView> {
             } else if (raw is List) {
               _categories = raw;
             }
-            if (_categories.isNotEmpty && _selectedCategoryId == null) {
-              _selectedCategoryId = _categories.first['id'] as String?;
+            final valid = _categories.where((c) => c is Map && c['id'] != null).toList();
+            if (valid.isNotEmpty && _selectedCategoryId == null) {
+              _selectedCategoryId = valid.first['id'].toString();
             }
           });
         }
@@ -83,17 +84,19 @@ class _ProductsViewState extends State<ProductsView> {
   }
 
   Future<String?> _getOrCreateCategoryId() async {
+    final valid = _categories.where((c) => c is Map && c['id'] != null).toList();
     if (_selectedCategoryId != null && _selectedCategoryId!.isNotEmpty) {
-      return _selectedCategoryId;
+      final exists = valid.any((c) => c['id'].toString() == _selectedCategoryId);
+      if (exists) return _selectedCategoryId;
     }
-    if (_categories.isNotEmpty && _categories.first['id'] != null) {
-      return _categories.first['id'] as String;
+    if (valid.isNotEmpty) {
+      return valid.first['id'].toString();
     }
-    // Create a default category if none exists in company
+    // Auto-create a default category if none exists
     try {
       final res = await _apiService.post('/categories', {'name': 'Umumiy'});
       if (res.data != null && res.data['id'] != null) {
-        final newId = res.data['id'] as String;
+        final newId = res.data['id'].toString();
         await _fetchCategories();
         return newId;
       }
@@ -107,8 +110,10 @@ class _ProductsViewState extends State<ProductsView> {
     _barcodeController.clear();
     _purchasePriceController.clear();
     _salePriceController.clear();
-    if (_categories.isNotEmpty) {
-      _selectedCategoryId = _categories.first['id'] as String?;
+
+    final validCats = _categories.where((c) => c is Map && c['id'] != null).toList();
+    if (validCats.isNotEmpty) {
+      _selectedCategoryId = validCats.first['id'].toString();
     }
 
     showModalBottomSheet(
@@ -118,172 +123,188 @@ class _ProductsViewState extends State<ProductsView> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setModalState) => Padding(
-          padding: EdgeInsets.only(
-            left: 20,
-            right: 20,
-            top: 20,
-            bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                'Yangi Mahsulot Qo\'shish',
-                style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
-              Row(
+        builder: (ctx, setModalState) {
+          final validCategories = _categories.where((c) => c is Map && c['id'] != null).toList();
+          String? currentCategoryVal = _selectedCategoryId;
+          if (validCategories.isNotEmpty) {
+            final hasMatch = validCategories.any((c) => c['id'].toString() == currentCategoryVal);
+            if (!hasMatch) {
+              currentCategoryVal = validCategories.first['id'].toString();
+            }
+          } else {
+            currentCategoryVal = null;
+          }
+
+          return Padding(
+            padding: EdgeInsets.only(
+              left: 20,
+              right: 20,
+              top: 20,
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _skuController,
-                      decoration: const InputDecoration(
-                        labelText: 'SKU kodi *',
-                        border: OutlineInputBorder(),
-                        isDense: true,
+                  Text(
+                    'Yangi Mahsulot Qo\'shish',
+                    style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _skuController,
+                          decoration: const InputDecoration(
+                            labelText: 'SKU kodi *',
+                            border: OutlineInputBorder(),
+                            isDense: true,
+                          ),
+                        ),
                       ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextField(
+                          controller: _barcodeController,
+                          decoration: const InputDecoration(
+                            labelText: 'Barkod (ixtiyoriy)',
+                            border: OutlineInputBorder(),
+                            isDense: true,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _nameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Mahsulot Nomi *',
+                      prefixIcon: Icon(Icons.inventory_2_outlined),
+                      border: OutlineInputBorder(),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      controller: _barcodeController,
+                  const SizedBox(height: 12),
+                  if (validCategories.isNotEmpty)
+                    DropdownButtonFormField<String>(
+                      value: currentCategoryVal,
+                      isExpanded: true,
                       decoration: const InputDecoration(
-                        labelText: 'Barkod (ixtiyoriy)',
+                        labelText: 'Kategoriya *',
                         border: OutlineInputBorder(),
-                        isDense: true,
                       ),
+                      items: validCategories.map((cat) => DropdownMenuItem<String>(
+                        value: cat['id'].toString(),
+                        child: Text((cat['name'] ?? 'Kategoriya').toString(), overflow: TextOverflow.ellipsis),
+                      )).toList(),
+                      onChanged: (val) {
+                        setModalState(() => _selectedCategoryId = val);
+                      },
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Mahsulot Nomi *',
-                  prefixIcon: Icon(Icons.inventory_2_outlined),
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              if (_categories.isNotEmpty)
-                DropdownButtonFormField<String>(
-                  value: _selectedCategoryId,
-                  decoration: const InputDecoration(
-                    labelText: 'Kategoriya *',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: _categories.map((cat) => DropdownMenuItem<String>(
-                    value: cat['id'] as String,
-                    child: Text(cat['name'] ?? 'Kategoriya'),
-                  )).toList(),
-                  onChanged: (val) {
-                    setModalState(() => _selectedCategoryId = val);
-                  },
-                ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _purchasePriceController,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        labelText: 'Tannarx (UZS) *',
-                        border: OutlineInputBorder(),
-                        isDense: true,
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _purchasePriceController,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            labelText: 'Tannarx (UZS) *',
+                            border: OutlineInputBorder(),
+                            isDense: true,
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      controller: _salePriceController,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        labelText: 'Sotish Narxi (UZS) *',
-                        border: OutlineInputBorder(),
-                        isDense: true,
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextField(
+                          controller: _salePriceController,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            labelText: 'Sotish Narxi (UZS) *',
+                            border: OutlineInputBorder(),
+                            isDense: true,
+                          ),
+                        ),
                       ),
-                    ),
+                    ],
                   ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: () async {
-                  final sku = _skuController.text.trim();
-                  final name = _nameController.text.trim();
-                  final purchaseRaw = _purchasePriceController.text.trim();
-                  final saleRaw = _salePriceController.text.trim();
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () async {
+                      final sku = _skuController.text.trim();
+                      final name = _nameController.text.trim();
+                      final purchaseRaw = _purchasePriceController.text.trim();
+                      final saleRaw = _salePriceController.text.trim();
 
-                  if (sku.isEmpty || name.isEmpty || purchaseRaw.isEmpty || saleRaw.isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Barcha majburiy kataklarni to\'ldiring!')),
-                    );
-                    return;
-                  }
-
-                  final purchaseNum = double.tryParse(purchaseRaw);
-                  final saleNum = double.tryParse(saleRaw);
-                  if (purchaseNum == null || saleNum == null) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Narxlar faqat raqam shaklida bo\'lishi kerak!')),
-                    );
-                    return;
-                  }
-
-                  final categoryId = await _getOrCreateCategoryId();
-                  if (categoryId == null) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Kategoriya aniqlanmadi. Avval kategoriya yarating!')),
-                    );
-                    return;
-                  }
-
-                  try {
-                    final res = await _apiService.post('/products', {
-                      'sku': sku,
-                      'name': name,
-                      'categoryId': categoryId,
-                      if (_barcodeController.text.trim().isNotEmpty)
-                        'barcode': _barcodeController.text.trim(),
-                      'unitOfMeasure': _unitController.text.trim().isNotEmpty ? _unitController.text.trim() : 'dona',
-                      'purchasePriceUzs': purchaseNum.toStringAsFixed(0),
-                      'salePriceUzs': saleNum.toStringAsFixed(0),
-                    });
-
-                    if (res.statusCode == 200 || res.statusCode == 201) {
-                      if (mounted) {
-                        Navigator.pop(ctx);
+                      if (sku.isEmpty || name.isEmpty || purchaseRaw.isEmpty || saleRaw.isEmpty) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Mahsulot yaratildi!')),
+                          const SnackBar(content: Text('Barcha majburiy kataklarni to\'ldiring!')),
                         );
-                        _fetchProducts();
+                        return;
                       }
-                    }
-                  } catch (e) {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Xatolik: ${ApiService.parseError(e)}')),
-                      );
-                    }
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                ),
-                child: Text(
-                  'Saqlash',
-                  style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
+
+                      final purchaseNum = double.tryParse(purchaseRaw);
+                      final saleNum = double.tryParse(saleRaw);
+                      if (purchaseNum == null || saleNum == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Narxlar faqat raqam shaklida bo\'lishi kerak!')),
+                        );
+                        return;
+                      }
+
+                      final categoryId = await _getOrCreateCategoryId();
+                      if (categoryId == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Kategoriya aniqlanmadi. Avval kategoriya yarating!')),
+                        );
+                        return;
+                      }
+
+                      try {
+                        final res = await _apiService.post('/products', {
+                          'sku': sku,
+                          'name': name,
+                          'categoryId': categoryId,
+                          if (_barcodeController.text.trim().isNotEmpty)
+                            'barcode': _barcodeController.text.trim(),
+                          'unitOfMeasure': _unitController.text.trim().isNotEmpty ? _unitController.text.trim() : 'dona',
+                          'purchasePriceUzs': purchaseNum.toStringAsFixed(0),
+                          'salePriceUzs': saleNum.toStringAsFixed(0),
+                        });
+
+                        if (res.statusCode == 200 || res.statusCode == 201) {
+                          if (mounted) {
+                            Navigator.pop(ctx);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Mahsulot yaratildi!')),
+                            );
+                            _fetchProducts();
+                          }
+                        }
+                      } catch (e) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Xatolik: ${ApiService.parseError(e)}')),
+                          );
+                        }
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    child: Text(
+                      'Saqlash',
+                      style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
   }

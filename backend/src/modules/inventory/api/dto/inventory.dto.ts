@@ -138,8 +138,9 @@ export class CreateWarehouseRequestDto {
   @MaxLength(255)
   name!: string;
 
+  @IsOptional()
   @IsUUID()
-  branchId!: string;
+  branchId?: string;
 
   @IsOptional()
   @IsString()

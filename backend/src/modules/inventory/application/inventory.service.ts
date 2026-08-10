@@ -780,11 +780,19 @@ export class InventoryService {
     ip?: string,
     requestId?: string,
   ): Promise<WarehouseResponseDto> {
-    const branch = await this.prisma.branch.findFirst({
-      where: { id: dto.branchId, companyId },
-    });
+    let branch = dto.branchId
+      ? await this.prisma.branch.findFirst({ where: { id: dto.branchId, companyId } })
+      : await this.prisma.branch.findFirst({ where: { companyId } });
+
     if (!branch) {
-      throw AppException.notFound('Branch', dto.branchId);
+      branch = await this.prisma.branch.create({
+        data: {
+          companyId,
+          name: 'Asosiy Filial',
+          isDefault: true,
+          status: CompanyStatus.ACTIVE,
+        },
+      });
     }
 
     try {
@@ -801,7 +809,7 @@ export class InventoryService {
       const created = await this.prisma.warehouse.create({
         data: {
           companyId,
-          branchId: dto.branchId,
+          branchId: branch.id,
           name: dto.name.trim(),
           address: dto.address ?? null,
           isDefault,
