@@ -1,4 +1,9 @@
 {
+  "build": {
+    "env": {
+      "VITE_DEFAULT_PORTAL": "saas"
+    }
+  },
   "rewrites": [
     {
       "source": "/api/(.*)",
