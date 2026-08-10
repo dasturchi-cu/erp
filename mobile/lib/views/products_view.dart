@@ -14,22 +14,30 @@ class _ProductsViewState extends State<ProductsView> {
   bool _loading = true;
   List<dynamic> _products = [];
   List<dynamic> _categories = [];
+  List<dynamic> _warehouses = [];
   String _searchQuery = '';
   String? _selectedCategoryId;
+  String? _selectedWarehouseId;
+  String _selectedUnit = 'dona';
+
+  static const List<String> _units = ['dona', 'kg', 'litr', 'metr', 'quti', 'to\'plam'];
 
   // Add Product form controllers
   final _skuController = TextEditingController();
   final _nameController = TextEditingController();
   final _barcodeController = TextEditingController();
-  final _unitController = TextEditingController(text: 'dona');
   final _purchasePriceController = TextEditingController();
   final _salePriceController = TextEditingController();
+  final _wholesalePriceController = TextEditingController();
+  final _stockController = TextEditingController();
+  final _minStockController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _fetchProducts();
     _fetchCategories();
+    _fetchWarehouses();
   }
 
   @override
@@ -37,10 +45,32 @@ class _ProductsViewState extends State<ProductsView> {
     _skuController.dispose();
     _nameController.dispose();
     _barcodeController.dispose();
-    _unitController.dispose();
     _purchasePriceController.dispose();
     _salePriceController.dispose();
+    _wholesalePriceController.dispose();
+    _stockController.dispose();
+    _minStockController.dispose();
     super.dispose();
+  }
+
+  Future<void> _fetchWarehouses() async {
+    try {
+      final res = await _apiService.get('/warehouses');
+      final raw = res.data;
+      final list = raw is Map && raw['data'] is List ? raw['data'] as List : (raw is List ? raw : []);
+      if (mounted) {
+        setState(() {
+          _warehouses = list;
+          if (_warehouses.isNotEmpty && _selectedWarehouseId == null) {
+            final def = _warehouses.firstWhere(
+              (w) => w is Map && (w['isDefault'] == true),
+              orElse: () => _warehouses.first,
+            );
+            _selectedWarehouseId = def is Map ? def['id']?.toString() : null;
+          }
+        });
+      }
+    } catch (_) {}
   }
 
   Future<void> _fetchCategories() async {
@@ -110,10 +140,17 @@ class _ProductsViewState extends State<ProductsView> {
     _barcodeController.clear();
     _purchasePriceController.clear();
     _salePriceController.clear();
+    _wholesalePriceController.clear();
+    _stockController.clear();
+    _minStockController.clear();
+    _selectedUnit = 'dona';
 
     final validCats = _categories.where((c) => c is Map && c['id'] != null).toList();
     if (validCats.isNotEmpty) {
       _selectedCategoryId = validCats.first['id'].toString();
+    }
+    if (_warehouses.isEmpty) {
+      _fetchWarehouses();
     }
 
     showModalBottomSheet(
@@ -231,6 +268,86 @@ class _ProductsViewState extends State<ProductsView> {
                       ),
                     ],
                   ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          value: _selectedUnit,
+                          isExpanded: true,
+                          decoration: const InputDecoration(
+                            labelText: 'O\'lchov birligi',
+                            border: OutlineInputBorder(),
+                            isDense: true,
+                          ),
+                          items: _units.map((u) => DropdownMenuItem(value: u, child: Text(u))).toList(),
+                          onChanged: (val) => setModalState(() => _selectedUnit = val ?? 'dona'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextField(
+                          controller: _wholesalePriceController,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            labelText: 'Ulgurji narx (ixtiyoriy)',
+                            border: OutlineInputBorder(),
+                            isDense: true,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _stockController,
+                          keyboardType: TextInputType.number,
+                          decoration: InputDecoration(
+                            labelText: 'Boshlang\'ich qoldiq ($_selectedUnit)',
+                            hintText: 'Nechta dona',
+                            border: const OutlineInputBorder(),
+                            isDense: true,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextField(
+                          controller: _minStockController,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            labelText: 'Min. qoldiq (ogohlantirish)',
+                            border: OutlineInputBorder(),
+                            isDense: true,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  if (_warehouses.isNotEmpty)
+                    DropdownButtonFormField<String>(
+                      value: _warehouses.any((w) => w is Map && w['id']?.toString() == _selectedWarehouseId)
+                          ? _selectedWarehouseId
+                          : null,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Ombor (qoldiq kiritilsa majburiy)',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                      items: _warehouses
+                          .whereType<Map>()
+                          .map((w) => DropdownMenuItem(
+                                value: w['id'].toString(),
+                                child: Text((w['name'] ?? 'Ombor').toString(), overflow: TextOverflow.ellipsis),
+                              ))
+                          .toList(),
+                      onChanged: (val) => setModalState(() => _selectedWarehouseId = val),
+                    ),
                   const SizedBox(height: 16),
                   ElevatedButton(
                     onPressed: () async {
@@ -263,6 +380,18 @@ class _ProductsViewState extends State<ProductsView> {
                         return;
                       }
 
+                      final stockRaw = _stockController.text.trim();
+                      final stockNum = stockRaw.isEmpty ? 0.0 : (double.tryParse(stockRaw) ?? 0.0);
+                      if (stockNum > 0 && (_selectedWarehouseId == null || _selectedWarehouseId!.isEmpty)) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Qoldiq kiritilganda omborni tanlang!')),
+                        );
+                        return;
+                      }
+
+                      final wholesaleRaw = _wholesalePriceController.text.trim();
+                      final minStockRaw = _minStockController.text.trim();
+
                       try {
                         final res = await _apiService.post('/products', {
                           'sku': sku,
@@ -270,9 +399,16 @@ class _ProductsViewState extends State<ProductsView> {
                           'categoryId': categoryId,
                           if (_barcodeController.text.trim().isNotEmpty)
                             'barcode': _barcodeController.text.trim(),
-                          'unitOfMeasure': _unitController.text.trim().isNotEmpty ? _unitController.text.trim() : 'dona',
+                          'unitOfMeasure': _selectedUnit,
                           'purchasePriceUzs': purchaseNum.toStringAsFixed(0),
                           'salePriceUzs': saleNum.toStringAsFixed(0),
+                          if (wholesaleRaw.isNotEmpty && double.tryParse(wholesaleRaw) != null)
+                            'wholesalePriceUzs': double.parse(wholesaleRaw).toStringAsFixed(0),
+                          if (minStockRaw.isNotEmpty && double.tryParse(minStockRaw) != null)
+                            'minStockLevel': double.parse(minStockRaw).toStringAsFixed(0),
+                          if (stockNum > 0) 'initialStock': stockNum.toStringAsFixed(0),
+                          if (stockNum > 0 && _selectedWarehouseId != null)
+                            'initialWarehouseId': _selectedWarehouseId,
                         });
 
                         if (res.statusCode == 200 || res.statusCode == 201) {

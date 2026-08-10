@@ -365,7 +365,7 @@ class _CustomersViewState extends State<CustomersView> {
                       items: const [
                         DropdownMenuItem(value: 'CASH', child: Text('Naqd')),
                         DropdownMenuItem(value: 'CARD', child: Text('Karta')),
-                        DropdownMenuItem(value: 'TRANSFER', child: Text('O\'tkazma')),
+                        DropdownMenuItem(value: 'BANK_TRANSFER', child: Text('O\'tkazma')),
                       ],
                       onChanged: (val) {
                         if (val != null) setModalState(() => payMethod = val);
@@ -385,13 +385,16 @@ class _CustomersViewState extends State<CustomersView> {
                   onPressed: () async {
                     final payAmt = payAmountController.text.trim();
                     if (payAmt.isEmpty) return;
+                    // FULL if the payment clears the whole debt, otherwise PARTIAL.
+                    final payNum = double.tryParse(payAmt) ?? 0;
+                    final paymentType = payNum >= debtUzs ? 'FULL' : 'PARTIAL';
                     try {
                       final res = await _apiService.post('/debt-payments', {
                         'customerId': c['id'],
                         'amount': payAmt,
                         'currency': 'UZS',
                         'paymentMethod': payMethod,
-                        'paymentType': 'DEBT_PAYMENT',
+                        'paymentType': paymentType,
                         'notes': 'Mobil ilovadan qarz to\'lovi',
                       });
                       if (res.statusCode == 200 || res.statusCode == 201) {

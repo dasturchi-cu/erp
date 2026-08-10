@@ -138,16 +138,23 @@ class _PosViewState extends State<PosView> {
       if (proceed != true) return;
     }
 
+    // Backend SalePaymentType supports only CASH / CREDIT / MIXED.
+    // "Nasiya (Qarz)" is a credit sale; cash/card/transfer are paid in full now.
+    final bool isCredit = _paymentType == 'DEBT';
+    final String backendPaymentType = isCredit ? 'CREDIT' : 'CASH';
+    // A credit sale is unpaid up front; a cash/card/transfer sale is paid in full.
+    final String amountPaid = isCredit ? '0.0000' : _totalAmount.toStringAsFixed(4);
+
     final salePayload = {
       'originalCurrency': 'UZS',
-      'paymentType': _paymentType,
-      'amountPaidUzs': _totalAmount.toStringAsFixed(4),
+      'paymentType': backendPaymentType,
+      'amountPaidUzs': amountPaid,
       if (_selectedCustomer != null) 'customerId': _selectedCustomer!['id'],
       'lineItems': _cart
           .map((item) => {
                 'productId': item['product']['id'],
                 'quantity': item['quantity'].toStringAsFixed(4),
-                'customPrice': item['salePrice'].toStringAsFixed(4),
+                'unitPriceUzs': item['salePrice'].toStringAsFixed(4),
               })
           .toList(),
     };
