@@ -56,18 +56,6 @@ export function LoginPage() {
     clearError();
     setRememberDevice(data.rememberDevice);
 
-    // If logging in as SaaS Super Admin (admin@erp.uz or SaaS credentials)
-    if (data.email.toLowerCase() === 'admin@erp.uz') {
-      try {
-        await useSaaSStore.getState().login(data.email, data.password, data.rememberDevice);
-        if (useSaaSStore.getState().isAuthenticated) {
-          navigate('/super-admin/dashboard');
-          return;
-        }
-      } catch {
-        // Fallback to normal login if SaaS login fails
-      }
-    }
 
     await login(data.email, data.password);
 
@@ -180,7 +168,7 @@ export function LoginPage() {
           <Link component={RouterLink} to="/forgot-password" underline="hover" variant="body2" color="primary">
             Parolni unutdingizmi?
           </Link>
-          <Box sx={{ pt: 1, borderTop: '1px solid', borderColor: 'divider' }}>
+          <Box sx={{ pt: 1, borderTop: '1px solid', borderColor: 'divider', display: 'flex', flexDirection: 'column', gap: 1 }}>
             <Button
               component={RouterLink}
               to="/download"
@@ -191,6 +179,9 @@ export function LoginPage() {
             >
               📥 Dasturlarni Yuklab Olish (Windows / Android)
             </Button>
+            <Link component={RouterLink} to="/super-admin/login" underline="hover" variant="caption" color="text.secondary">
+              SaaS Cloud Admin Paneliga o'tish →
+            </Link>
           </Box>
         </Box>
       </AuthCard>
