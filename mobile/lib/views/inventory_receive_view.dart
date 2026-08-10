@@ -46,9 +46,9 @@ class _InventoryReceiveViewState extends State<InventoryReceiveView> {
     setState(() => _loading = true);
     try {
       final pRes = await _apiService.get('/products?limit=100');
-      final wRes = await _apiService.get('/inventory/warehouses');
+      final wRes = await _apiService.get('/warehouses');
       final sRes = await _apiService.get('/suppliers?limit=100');
-      final bRes = await _apiService.get('/inventory/branches');
+      final bRes = await _apiService.get('/branches');
 
       if (mounted) {
         final pList = pRes.data is Map && pRes.data.containsKey('data') ? pRes.data['data'] : (pRes.data is List ? pRes.data : []);
@@ -59,7 +59,7 @@ class _InventoryReceiveViewState extends State<InventoryReceiveView> {
         // Auto-create default warehouse if none exists
         if (wList.isEmpty && bList.isNotEmpty) {
           try {
-            final defaultWh = await _apiService.post('/inventory/warehouses', {
+            final defaultWh = await _apiService.post('/warehouses', {
               'name': 'Asosiy Ombor',
               'branchId': bList.first['id'],
               'isDefault': true,
@@ -157,7 +157,7 @@ class _InventoryReceiveViewState extends State<InventoryReceiveView> {
                   if (name.isEmpty) return;
 
                   try {
-                    final res = await _apiService.post('/inventory/warehouses', {
+                    final res = await _apiService.post('/warehouses', {
                       'name': name,
                       'branchId': selectedBranchId,
                       'isDefault': _warehouses.isEmpty,

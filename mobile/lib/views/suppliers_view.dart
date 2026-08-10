@@ -253,7 +253,7 @@ class _SuppliersViewState extends State<SuppliersView> {
                       items: const [
                         DropdownMenuItem(value: 'CASH', child: Text('Naqd')),
                         DropdownMenuItem(value: 'CARD', child: Text('Karta')),
-                        DropdownMenuItem(value: 'TRANSFER', child: Text('O\'tkazma')),
+                        DropdownMenuItem(value: 'BANK_TRANSFER', child: Text('O\'tkazma')),
                       ],
                       onChanged: (v) => setModalState(() => payMethod = v!),
                     ),
@@ -268,8 +268,7 @@ class _SuppliersViewState extends State<SuppliersView> {
                     final payAmt = payCtrl.text.trim();
                     if (payAmt.isEmpty) return;
                     try {
-                      final res = await _api.post('/suppliers/payments', {
-                        'supplierId': s['id'],
+                      final res = await _api.post('/suppliers/${s['id']}/payments', {
                         'amount': payAmt,
                         'paymentMethod': payMethod,
                         'currency': 'UZS',

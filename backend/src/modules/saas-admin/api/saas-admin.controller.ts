@@ -122,6 +122,12 @@ export class SaaSAdminController {
     return this.saasService.changeUserPassword(id, userId, password);
   }
 
+  @UseGuards(SaasJwtGuard)
+  @Patch('company/:id/license')
+  updateLicense(@Param('id') id: string, @Body() dto: SaasLicenseDto) {
+    return this.saasService.updateLicense(id, dto);
+  }
+
   // --- SUPER ADMIN USER MANAGEMENT ---
 
   @UseGuards(SaasJwtGuard)

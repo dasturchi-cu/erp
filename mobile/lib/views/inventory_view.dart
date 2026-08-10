@@ -35,8 +35,8 @@ class _InventoryViewState extends State<InventoryView> {
     setState(() => _loading = true);
     try {
       final bRes = await _apiService.get('/inventory/batches?limit=100');
-      final wRes = await _apiService.get('/inventory/warehouses');
-      final brRes = await _apiService.get('/inventory/branches');
+      final wRes = await _apiService.get('/warehouses');
+      final brRes = await _apiService.get('/branches');
 
       if (mounted) {
         final rawB = bRes.data;
@@ -127,7 +127,7 @@ class _InventoryViewState extends State<InventoryView> {
                   }
 
                   try {
-                    final res = await _apiService.post('/inventory/warehouses', {
+                    final res = await _apiService.post('/warehouses', {
                       'name': name,
                       'branchId': selectedBranchId,
                       'isDefault': _warehouses.isEmpty,
