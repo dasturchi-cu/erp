@@ -86,7 +86,34 @@ export function LoginPage() {
   return (
     <AuthLayout>
       <AuthCard variant="narrow" sx={{ position: 'relative' }}>
-        <Typography variant="h4" component="h1" fontWeight={600} gutterBottom>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
+          <Box
+            sx={{
+              width: 52,
+              height: 52,
+              borderRadius: 2.5,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 26,
+              color: '#fff',
+              background: 'linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%)',
+              boxShadow: '0 8px 20px rgba(79,70,229,0.35)',
+            }}
+          >
+            🏪
+          </Box>
+          <Box>
+            <Typography variant="h6" fontWeight={800} lineHeight={1.1} letterSpacing={-0.3}>
+              ERP Business
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              Do‘kon boshqaruv tizimi
+            </Typography>
+          </Box>
+        </Box>
+
+        <Typography variant="h4" component="h1" fontWeight={700} gutterBottom letterSpacing={-0.5}>
           Tizimga kirish
         </Typography>
         <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
@@ -151,7 +178,20 @@ export function LoginPage() {
             variant="contained"
             fullWidth
             disabled={isLoading}
-            sx={{ mb: 2, height: 44 }}
+            sx={{
+              mb: 1.5,
+              height: 48,
+              borderRadius: 2,
+              fontWeight: 700,
+              fontSize: '1rem',
+              textTransform: 'none',
+              background: 'linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%)',
+              boxShadow: '0 8px 20px rgba(79,70,229,0.30)',
+              '&:hover': {
+                background: 'linear-gradient(135deg, #4338CA 0%, #6D28D9 100%)',
+                boxShadow: '0 10px 24px rgba(79,70,229,0.40)',
+              },
+            }}
           >
             {isLoading ? (
               <>
@@ -162,6 +202,10 @@ export function LoginPage() {
               'Kirish'
             )}
           </Button>
+
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center', mb: 1 }}>
+            Birinchi kirish 30–60 soniya olishi mumkin (server uyg‘onadi).
+          </Typography>
         </Box>
 
         <Box sx={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: 1.5, mt: 1 }}>
