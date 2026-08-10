@@ -151,7 +151,7 @@ class _SuppliersViewState extends State<SuppliersView> {
                 } catch (e) {
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Xatolik: ${e.toString()}')),
+                      SnackBar(content: Text('Xatolik: ${ApiService.parseError(e)}')),
                     );
                   }
                 }
@@ -283,7 +283,7 @@ class _SuppliersViewState extends State<SuppliersView> {
                         }
                       }
                     } catch (e) {
-                      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Xatolik: ${e.toString()}')));
+                      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Xatolik: ${ApiService.parseError(e)}')));
                     }
                   },
                 ),

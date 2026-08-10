@@ -192,7 +192,7 @@ class _CustomersViewState extends State<CustomersView> {
                 } catch (e) {
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Xatolik: ${e.toString()}')),
+                      SnackBar(content: Text('Xatolik: ${ApiService.parseError(e)}')),
                     );
                   }
                 }
@@ -406,7 +406,7 @@ class _CustomersViewState extends State<CustomersView> {
                     } catch (e) {
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Xatolik: ${e.toString()}')),
+                          SnackBar(content: Text('Xatolik: ${ApiService.parseError(e)}')),
                         );
                       }
                     }

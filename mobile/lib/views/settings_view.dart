@@ -62,7 +62,7 @@ class _SettingsViewState extends State<SettingsView> {
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Xatolik: ${e.toString()}')),
+        SnackBar(content: Text('Xatolik: ${ApiService.parseError(e)}')),
       );
     }
   }

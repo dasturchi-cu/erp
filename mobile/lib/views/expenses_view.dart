@@ -18,14 +18,17 @@ class _ExpensesViewState extends State<ExpensesView> {
   // Add expense form
   final _amountCtrl = TextEditingController();
   final _noteCtrl = TextEditingController();
-  String _selectedCategory = 'other';
+  String _selectedCategory = 'OTHER';
 
   final _categories = [
-    {'value': 'rent', 'label': 'Ijara', 'icon': Icons.home_outlined},
-    {'value': 'salary', 'label': 'Maosh', 'icon': Icons.payments_outlined},
-    {'value': 'utilities', 'label': 'Kommunal', 'icon': Icons.electrical_services_outlined},
-    {'value': 'transport', 'label': 'Transport', 'icon': Icons.directions_car_outlined},
-    {'value': 'other', 'label': 'Boshqa', 'icon': Icons.category_outlined},
+    {'value': 'RENT', 'label': 'Ijara', 'icon': Icons.home_outlined},
+    {'value': 'SALARY', 'label': 'Maosh', 'icon': Icons.payments_outlined},
+    {'value': 'UTILITIES', 'label': 'Kommunal', 'icon': Icons.electrical_services_outlined},
+    {'value': 'SUPPLIES', 'label': 'Jihozlar / Zaxira', 'icon': Icons.shopping_bag_outlined},
+    {'value': 'MARKETING', 'label': 'Reklama', 'icon': Icons.campaign_outlined},
+    {'value': 'TRANSPORT', 'label': 'Transport', 'icon': Icons.directions_car_outlined},
+    {'value': 'MAINTENANCE', 'label': 'Ta\'mirlash', 'icon': Icons.build_outlined},
+    {'value': 'OTHER', 'label': 'Boshqa', 'icon': Icons.category_outlined},
   ];
 
   @override
@@ -44,11 +47,12 @@ class _ExpensesViewState extends State<ExpensesView> {
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
-      final res = await _api.get('/expenses?limit=30');
+      final res = await _api.get('/expenses?limit=50');
       final cashRes = await _api.get('/expenses/cash-register');
       if (mounted) {
         setState(() {
-          _expenses = res.data['data'] ?? res.data ?? [];
+          final raw = res.data;
+          _expenses = raw is Map && raw.containsKey('data') ? raw['data'] : (raw is List ? raw : []);
           _cashBalance = cashRes.data ?? {};
           _loading = false;
         });
@@ -59,26 +63,46 @@ class _ExpensesViewState extends State<ExpensesView> {
   }
 
   Future<void> _addExpense() async {
-    if (_amountCtrl.text.isEmpty) return;
+    final amtText = _amountCtrl.text.trim();
+    if (amtText.isEmpty) return;
+
+    final parsedAmt = double.tryParse(amtText);
+    if (parsedAmt == null || parsedAmt <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Xarajat summasi musbat raqam bo\'lishi kerak!')),
+      );
+      return;
+    }
+
+    final note = _noteCtrl.text.trim();
+    final catObj = _categories.firstWhere((c) => c['value'] == _selectedCategory, orElse: () => _categories.last);
+    final desc = note.isNotEmpty ? note : (catObj['label'] as String);
+
     try {
-      await _api.post('/expenses', {
-        'amount': double.parse(_amountCtrl.text),
+      final res = await _api.post('/expenses', {
         'category': _selectedCategory,
-        'note': _noteCtrl.text,
+        'description': desc,
+        'originalCurrency': 'UZS',
+        'amount': parsedAmt,
+        'expenseDate': DateTime.now().toIso8601String(),
+        if (note.isNotEmpty) 'notes': note,
       });
-      _amountCtrl.clear();
-      _noteCtrl.clear();
-      Navigator.of(context).pop();
-      _load();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Xarajat qo\'shildi!')),
-        );
+
+      if (res.statusCode == 200 || res.statusCode == 201) {
+        _amountCtrl.clear();
+        _noteCtrl.clear();
+        if (mounted) {
+          Navigator.of(context).pop();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Xarajat muvaffaqiyatli saqlandi!')),
+          );
+          _load();
+        }
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Xatolik: ${e.toString()}')),
+          SnackBar(content: Text('Xatolik: ${ApiService.parseError(e)}')),
         );
       }
     }
@@ -107,7 +131,7 @@ class _ExpensesViewState extends State<ExpensesView> {
                 controller: _amountCtrl,
                 keyboardType: TextInputType.number,
                 decoration: const InputDecoration(
-                  labelText: 'Summa (so\'m)',
+                  labelText: 'Summa (so\'m) *',
                   prefixIcon: Icon(Icons.money),
                   border: OutlineInputBorder(),
                 ),
@@ -116,7 +140,7 @@ class _ExpensesViewState extends State<ExpensesView> {
               DropdownButtonFormField<String>(
                 value: _selectedCategory,
                 decoration: const InputDecoration(
-                  labelText: 'Kategoriya',
+                  labelText: 'Kategoriya *',
                   border: OutlineInputBorder(),
                 ),
                 items: _categories.map((c) => DropdownMenuItem(
@@ -129,7 +153,7 @@ class _ExpensesViewState extends State<ExpensesView> {
               TextField(
                 controller: _noteCtrl,
                 decoration: const InputDecoration(
-                  labelText: 'Izoh (ixtiyoriy)',
+                  labelText: 'Izoh / Tafsilot',
                   prefixIcon: Icon(Icons.notes),
                   border: OutlineInputBorder(),
                 ),
@@ -138,7 +162,7 @@ class _ExpensesViewState extends State<ExpensesView> {
               ElevatedButton.icon(
                 onPressed: _addExpense,
                 icon: const Icon(Icons.add),
-                label: Text('Qo\'shish', style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.w600)),
+                label: Text('Saqlash', style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.w600)),
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 14),
                 ),
@@ -150,10 +174,24 @@ class _ExpensesViewState extends State<ExpensesView> {
     );
   }
 
+  String _formatNumber(dynamic val) {
+    if (val == null) return '0';
+    final n = (val is num) ? val.toDouble() : (double.tryParse(val.toString()) ?? 0.0);
+    final str = n.abs().toStringAsFixed(0);
+    final buffer = StringBuffer();
+    for (int i = 0; i < str.length; i++) {
+      if (i > 0 && (str.length - i) % 3 == 0) {
+        buffer.write(' ');
+      }
+      buffer.write(str[i]);
+    }
+    return '${n < 0 ? '-' : ''}${buffer.toString()}';
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final cashBalance = (_cashBalance['balance'] ?? 0.0) as num;
+    final cashBalance = (_cashBalance['balance'] ?? 0.0);
 
     return Scaffold(
       appBar: AppBar(
@@ -165,7 +203,7 @@ class _ExpensesViewState extends State<ExpensesView> {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _showAddExpenseDialog,
         icon: const Icon(Icons.add),
-        label: Text('Xarajat', style: GoogleFonts.outfit()),
+        label: Text('Xarajat Qo\'shish', style: GoogleFonts.outfit()),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -187,14 +225,14 @@ class _ExpensesViewState extends State<ExpensesView> {
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.account_balance_wallet, color: Colors.white, size: 36),
+                        const Icon(Icons.account_balance_wallet, color: Colors.white, size: 36),
                         const SizedBox(width: 16),
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text('Kassa Balansi', style: GoogleFonts.outfit(color: Colors.white70, fontSize: 14)),
                             Text(
-                              '${cashBalance.toStringAsFixed(0)} so\'m',
+                              '${_formatNumber(cashBalance)} so\'m',
                               style: GoogleFonts.outfit(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
                             ),
                           ],
@@ -211,7 +249,7 @@ class _ExpensesViewState extends State<ExpensesView> {
                               children: [
                                 Icon(Icons.receipt_long_outlined, size: 64, color: theme.colorScheme.outline),
                                 const SizedBox(height: 12),
-                                Text('Xarajatlar yo\'q', style: GoogleFonts.outfit(fontSize: 16)),
+                                Text('Xarajatlar topilmadi', style: GoogleFonts.outfit(fontSize: 16)),
                               ],
                             ),
                           )
@@ -224,6 +262,7 @@ class _ExpensesViewState extends State<ExpensesView> {
                                 (c) => c['value'] == e['category'],
                                 orElse: () => _categories.last,
                               );
+                              final amt = e['amount'] ?? 0;
                               return Card(
                                 margin: const EdgeInsets.only(bottom: 8),
                                 child: ListTile(
@@ -232,12 +271,14 @@ class _ExpensesViewState extends State<ExpensesView> {
                                     child: Icon(cat['icon'] as IconData, color: Colors.red, size: 20),
                                   ),
                                   title: Text(
-                                    cat['label'] as String,
+                                    (e['description'] != null && e['description'].toString().isNotEmpty)
+                                        ? e['description']
+                                        : (cat['label'] as String),
                                     style: GoogleFonts.outfit(fontWeight: FontWeight.w600),
                                   ),
-                                  subtitle: Text(e['note'] ?? '', style: GoogleFonts.outfit(fontSize: 13)),
+                                  subtitle: Text(e['notes'] ?? e['note'] ?? cat['label'] as String, style: GoogleFonts.outfit(fontSize: 13)),
                                   trailing: Text(
-                                    '-${(e['amount'] ?? 0).toString()} so\'m',
+                                    '-${_formatNumber(amt)} so\'m',
                                     style: GoogleFonts.outfit(
                                       color: Colors.red,
                                       fontWeight: FontWeight.bold,

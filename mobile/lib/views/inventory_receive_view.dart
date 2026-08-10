@@ -102,7 +102,7 @@ class _InventoryReceiveViewState extends State<InventoryReceiveView> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Xatolik: ${e.toString()}')),
+          SnackBar(content: Text('Xatolik: ${ApiService.parseError(e)}')),
         );
       }
     }

@@ -172,7 +172,7 @@ class _UsersViewState extends State<UsersView> {
                   } catch (e) {
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Xatolik: ${e.toString()}')),
+                        SnackBar(content: Text('Xatolik: ${ApiService.parseError(e)}')),
                       );
                     }
                   }

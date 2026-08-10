@@ -90,7 +90,7 @@ class _CurrencyViewState extends State<CurrencyView> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Xatolik: ${e.toString()}')),
+          SnackBar(content: Text('Xatolik: ${ApiService.parseError(e)}')),
         );
       }
     }

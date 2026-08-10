@@ -150,4 +150,24 @@ class ApiService {
   Future<Response> post(String path, dynamic data) async {
     return dio.post(path, data: data);
   }
+
+  static String parseError(dynamic e) {
+    if (e is DioException) {
+      final res = e.response;
+      if (res?.data != null && res!.data is Map) {
+        final msg = res.data['message'];
+        if (msg != null) {
+          if (msg is List) return msg.join(', ');
+          return msg.toString();
+        }
+      }
+      if (e.type == DioExceptionType.connectionTimeout || e.type == DioExceptionType.receiveTimeout) {
+        return 'Server bilan aloqa vaqti tugadi';
+      }
+      if (e.type == DioExceptionType.connectionError) {
+        return 'Internet aloqasi mavjud emas';
+      }
+    }
+    return e.toString();
+  }
 }
