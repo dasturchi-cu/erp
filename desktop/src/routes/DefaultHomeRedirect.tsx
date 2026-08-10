@@ -8,7 +8,15 @@ export function DefaultHomeRedirect() {
   const companies = useAuthStore((s) => s.companies);
   const user = useAuthStore((s) => s.user);
 
+  // On the Vercel web deployment we set VITE_DEFAULT_PORTAL=saas so the site
+  // lands on the SaaS admin panel; the packaged desktop .exe leaves it unset
+  // and lands on the store login.
+  const defaultPortal = import.meta.env.VITE_DEFAULT_PORTAL as string | undefined;
+
   if (!isAuthenticated) {
+    if (defaultPortal === 'saas') {
+      return <Navigate to="/super-admin/login" replace />;
+    }
     return <Navigate to="/login" replace />;
   }
 
