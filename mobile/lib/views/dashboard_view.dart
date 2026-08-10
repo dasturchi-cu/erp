@@ -467,6 +467,7 @@ class _DashboardViewState extends State<DashboardView> {
                           Icons.trending_up,
                           const Color(0xFF2563EB),
                           isDark ? const Color(0xFF1E293B) : const Color(0xFFEFF6FF),
+                          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SalesHistoryView())),
                         ),
                         _buildStatCard(
                           context,
@@ -475,6 +476,7 @@ class _DashboardViewState extends State<DashboardView> {
                           Icons.calendar_view_week,
                           const Color(0xFF059669),
                           isDark ? const Color(0xFF064E3B) : const Color(0xFFECFDF5),
+                          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ReportsView())),
                         ),
                         _buildStatCard(
                           context,
@@ -483,6 +485,7 @@ class _DashboardViewState extends State<DashboardView> {
                           Icons.attach_money,
                           const Color(0xFF7C3AED),
                           isDark ? const Color(0xFF3B0764) : const Color(0xFFF5F3FF),
+                          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ReportsView())),
                         ),
                         _buildStatCard(
                           context,
@@ -491,6 +494,7 @@ class _DashboardViewState extends State<DashboardView> {
                           Icons.assignment_late,
                           const Color(0xFFDC2626),
                           isDark ? const Color(0xFF450A0A) : const Color(0xFFFEF2F2),
+                          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CustomersView())),
                         ),
                       ],
                     ),
@@ -621,58 +625,63 @@ class _DashboardViewState extends State<DashboardView> {
     String value,
     IconData icon,
     Color accentColor,
-    Color bgColor,
-  ) {
+    Color bgColor, {
+    VoidCallback? onTap,
+  }) {
     final theme = Theme.of(context);
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(14.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: bgColor,
-                    borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.all(14.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: bgColor,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(icon, color: accentColor, size: 22),
                   ),
-                  child: Icon(icon, color: accentColor, size: 22),
-                ),
-                Icon(Icons.arrow_forward_ios, size: 12, color: theme.colorScheme.onSurfaceVariant),
-              ],
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: GoogleFonts.outfit(
-                    fontSize: 13,
-                    color: theme.colorScheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    value,
+                  Icon(Icons.arrow_forward_ios, size: 12, color: theme.colorScheme.onSurfaceVariant),
+                ],
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
                     style: GoogleFonts.outfit(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: theme.colorScheme.onSurface,
+                      fontSize: 13,
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
-                ),
-              ],
-            ),
-          ],
+                  const SizedBox(height: 4),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      value,
+                      style: GoogleFonts.outfit(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: theme.colorScheme.onSurface,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
