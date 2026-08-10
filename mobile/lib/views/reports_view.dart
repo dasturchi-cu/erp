@@ -27,9 +27,12 @@ class _ReportsViewState extends State<ReportsView> {
       final res = await _apiService.get('/analytics/dashboard/enterprise');
       final topRes = await _apiService.get('/analytics/top/products');
       if (mounted) {
+        final topRaw = topRes.data;
         setState(() {
           _stats = res.data ?? {};
-          _topProducts = topRes.data is List ? topRes.data : (topRes.data['data'] ?? []);
+          _topProducts = topRaw is Map && topRaw.containsKey('data')
+              ? (topRaw['data'] is List ? topRaw['data'] : [])
+              : (topRaw is List ? topRaw : []);
           _loading = false;
         });
       }

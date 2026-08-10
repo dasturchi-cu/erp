@@ -38,10 +38,11 @@ class _ReturnsViewState extends State<ReturnsView> {
       final res = await _api.get('/sales/returns');
       final pRes = await _api.get('/products?limit=100');
       if (mounted) {
+        final raw = res.data;
+        final pRaw = pRes.data;
         setState(() {
-          final raw = res.data;
-          _returns = raw is Map && raw.containsKey('data') ? raw['data'] : (raw is List ? raw : []);
-          _products = pRes.data['data'] ?? pRes.data ?? [];
+          _returns = raw is Map && raw.containsKey('data') ? (raw['data'] is List ? raw['data'] : []) : (raw is List ? raw : []);
+          _products = pRaw is Map && pRaw.containsKey('data') ? (pRaw['data'] is List ? pRaw['data'] : []) : (pRaw is List ? pRaw : []);
           _loading = false;
         });
       }
@@ -65,84 +66,92 @@ class _ReturnsViewState extends State<ReturnsView> {
         builder: (ctx, setModalState) => Padding(
           padding: EdgeInsets.only(
             left: 20, right: 20, top: 20,
-            bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text('Vozvrat (Tovarni Qaytarish)', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<Map<String, dynamic>>(
-                value: _selectedProduct,
-                isExpanded: true,
-                decoration: const InputDecoration(
-                  labelText: 'Qaytarilayotgan Mahsulot *',
-                  border: OutlineInputBorder(),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text('Vozvrat (Tovarni Qaytarish)', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 12),
+                if (_products.isNotEmpty)
+                  DropdownButtonFormField<Map<String, dynamic>>(
+                    value: _selectedProduct,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Qaytarilayotgan Mahsulot *',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: _products.map((p) => DropdownMenuItem(
+                      value: p as Map<String, dynamic>,
+                      child: Text(p['name'] ?? '', overflow: TextOverflow.ellipsis),
+                    )).toList(),
+                    onChanged: (val) => setModalState(() => _selectedProduct = val),
+                  )
+                else
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8.0),
+                    child: Text('Katalogda mahsulotlar topilmadi.', style: TextStyle(color: Colors.red)),
+                  ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _qtyCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Soni (Miqdori) *',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
-                items: _products.map((p) => DropdownMenuItem(
-                  value: p as Map<String, dynamic>,
-                  child: Text(p['name'] ?? '', overflow: TextOverflow.ellipsis),
-                )).toList(),
-                onChanged: (val) => setModalState(() => _selectedProduct = val),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _qtyCtrl,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Soni (Miqdori) *',
-                  border: OutlineInputBorder(),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _reasonCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Qaytarish Sababi (Brak, yaroqsiz...) *',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _reasonCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Qaytarish Sababi (Brak, yaroqsiz...) *',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: () async {
-                  if (_selectedProduct == null || _reasonCtrl.text.trim().isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Mahsulot va sabab majburiy!')),
-                    );
-                    return;
-                  }
-                  try {
-                    final res = await _api.post('/sales/returns', {
-                      'reason': _reasonCtrl.text.trim(),
-                      'lineItems': [
-                        {
-                          'productId': _selectedProduct!['id'],
-                          'quantity': _qtyCtrl.text.trim(),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () async {
+                    if (_selectedProduct == null || _reasonCtrl.text.trim().isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Mahsulot va sabab majburiy!')),
+                      );
+                      return;
+                    }
+                    try {
+                      final res = await _api.post('/sales/returns', {
+                        'reason': _reasonCtrl.text.trim(),
+                        'lineItems': [
+                          {
+                            'productId': _selectedProduct!['id'],
+                            'quantity': _qtyCtrl.text.trim(),
+                          }
+                        ]
+                      });
+                      if (res.statusCode == 200 || res.statusCode == 201) {
+                        if (mounted) {
+                          Navigator.pop(ctx);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Vozvrat muvaffaqiyatli saqlandi!')),
+                          );
+                          _load();
                         }
-                      ]
-                    });
-                    if (res.statusCode == 200 || res.statusCode == 201) {
+                      }
+                    } catch (e) {
                       if (mounted) {
-                        Navigator.pop(ctx);
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Vozvrat muvaffaqiyatli saqlandi!')),
+                          SnackBar(content: Text('Xatolik: ${ApiService.parseError(e)}')),
                         );
-                        _load();
                       }
                     }
-                  } catch (e) {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Xatolik: ${ApiService.parseError(e)}')),
-                      );
-                    }
-                  }
-                },
-                style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
-                child: Text('Vozvrat Yaratish', style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold)),
-              ),
-            ],
+                  },
+                  style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
+                  child: Text('Vozvrat Yaratish', style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
           ),
         ),
       ),

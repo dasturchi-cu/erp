@@ -42,10 +42,11 @@ class _UsersViewState extends State<UsersView> {
       final res = await _api.get('/admin/users');
       final rRes = await _api.get('/admin/roles');
       if (mounted) {
+        final raw = res.data;
+        final rRaw = rRes.data;
         setState(() {
-          final raw = res.data;
-          _users = raw is Map && raw.containsKey('data') ? raw['data'] : (raw is List ? raw : []);
-          _roles = rRes.data is List ? rRes.data : (rRes.data['data'] ?? []);
+          _users = raw is Map && raw.containsKey('data') ? (raw['data'] is List ? raw['data'] : []) : (raw is List ? raw : []);
+          _roles = rRaw is Map && rRaw.containsKey('data') ? (rRaw['data'] is List ? rRaw['data'] : []) : (rRaw is List ? rRaw : []);
           _loading = false;
         });
       }
@@ -59,7 +60,7 @@ class _UsersViewState extends State<UsersView> {
     _firstCtrl.clear();
     _lastCtrl.clear();
     _passCtrl.text = 'Admin123!';
-    _selectedRoleId = _roles.isNotEmpty ? _roles.first['id'] : null;
+    _selectedRoleId = _roles.isNotEmpty ? _roles.first['id'] as String? : null;
 
     showModalBottomSheet(
       context: context,
@@ -71,116 +72,118 @@ class _UsersViewState extends State<UsersView> {
         builder: (ctx, setModalState) => Padding(
           padding: EdgeInsets.only(
             left: 20, right: 20, top: 20,
-            bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text('Yangi Xodim Qo\'shish', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _emailCtrl,
-                keyboardType: TextInputType.emailAddress,
-                decoration: const InputDecoration(
-                  labelText: 'Email Pochta *',
-                  prefixIcon: Icon(Icons.email_outlined),
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _firstCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Ismi *',
-                        border: OutlineInputBorder(),
-                        isDense: true,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      controller: _lastCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Familiyasi *',
-                        border: OutlineInputBorder(),
-                        isDense: true,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _passCtrl,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'Boshlang\'ich Parol *',
-                  prefixIcon: Icon(Icons.lock_outlined),
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              if (_roles.isNotEmpty)
-                DropdownButtonFormField<String>(
-                  value: _selectedRoleId,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text('Yangi Xodim Qo\'shish', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _emailCtrl,
+                  keyboardType: TextInputType.emailAddress,
                   decoration: const InputDecoration(
-                    labelText: 'Xodim Roli *',
+                    labelText: 'Email Pochta *',
+                    prefixIcon: Icon(Icons.email_outlined),
                     border: OutlineInputBorder(),
                   ),
-                  items: _roles.map((r) => DropdownMenuItem<String>(
-                    value: r['id'] as String,
-                    child: Text(r['name'] ?? ''),
-                  )).toList(),
-                  onChanged: (val) => setModalState(() => _selectedRoleId = val),
                 ),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: () async {
-                  final email = _emailCtrl.text.trim();
-                  final first = _firstCtrl.text.trim();
-                  final last = _lastCtrl.text.trim();
-                  final pass = _passCtrl.text.trim();
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _firstCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'Ismi *',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: _lastCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'Familiyasi *',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _passCtrl,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Boshlang\'ich Parol *',
+                    prefixIcon: Icon(Icons.lock_outlined),
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                if (_roles.isNotEmpty)
+                  DropdownButtonFormField<String>(
+                    value: _selectedRoleId,
+                    decoration: const InputDecoration(
+                      labelText: 'Xodim Roli *',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: _roles.map((r) => DropdownMenuItem<String>(
+                      value: r['id'] as String,
+                      child: Text(r['name'] ?? 'Rol'),
+                    )).toList(),
+                    onChanged: (val) => setModalState(() => _selectedRoleId = val),
+                  ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () async {
+                    final email = _emailCtrl.text.trim();
+                    final first = _firstCtrl.text.trim();
+                    final last = _lastCtrl.text.trim();
+                    final pass = _passCtrl.text.trim();
 
-                  if (email.isEmpty || first.isEmpty || pass.isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Barcha majburiy kataklarni to\'ldiring!')),
-                    );
-                    return;
-                  }
-                  try {
-                    final res = await _api.post('/admin/users', {
-                      'email': email,
-                      'firstName': first,
-                      'lastName': last,
-                      'password': pass,
-                      if (_selectedRoleId != null) 'roleId': _selectedRoleId,
-                    });
-                    if (res.statusCode == 200 || res.statusCode == 201) {
+                    if (email.isEmpty || first.isEmpty || pass.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Barcha majburiy kataklarni to\'ldiring!')),
+                      );
+                      return;
+                    }
+                    try {
+                      final res = await _api.post('/admin/users', {
+                        'email': email,
+                        'firstName': first,
+                        'lastName': last,
+                        'password': pass,
+                        if (_selectedRoleId != null) 'roleId': _selectedRoleId,
+                      });
+                      if (res.statusCode == 200 || res.statusCode == 201) {
+                        if (mounted) {
+                          Navigator.pop(ctx);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Xodim muvaffaqiyatli qo\'shildi!')),
+                          );
+                          _load();
+                        }
+                      }
+                    } catch (e) {
                       if (mounted) {
-                        Navigator.pop(ctx);
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Xodim muvaffaqiyatli qo\'shildi!')),
+                          SnackBar(content: Text('Xatolik: ${ApiService.parseError(e)}')),
                         );
-                        _load();
                       }
                     }
-                  } catch (e) {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Xatolik: ${ApiService.parseError(e)}')),
-                      );
-                    }
-                  }
-                },
-                style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
-                child: Text('Xodimni Saqlash', style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold)),
-              ),
-            ],
+                  },
+                  style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
+                  child: Text('Xodimni Saqlash', style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
           ),
         ),
       ),
