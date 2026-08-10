@@ -10,6 +10,7 @@ import { PermissionDeniedPage } from '@/pages/PermissionDeniedPage';
 import { DownloadPage } from '@/pages/DownloadPage';
 import { AuthGuard, GuestGuard, RoutePermissionGuard } from '@/routes/guards';
 import { DefaultHomeRedirect } from '@/routes/DefaultHomeRedirect';
+import { isSaasPortal } from '@/utils/portal';
 import { lazy, Suspense, useEffect } from 'react';
 import { useSaaSStore } from '@/stores/saasStore';
 
@@ -201,30 +202,37 @@ export const router = createHashRouter([
       },
     ],
   },
-  {
-    element: <GuestGuard />,
-    children: [
-      { path: '/login', element: <LoginPage /> },
-      { path: '/download', element: <DownloadPage /> },
-      { path: '/forgot-password', element: <ForgotPasswordPage /> },
-      { path: '/device-blocked', element: <DeviceBlockedPage /> },
-      { path: '/session-expired', element: <SessionExpiredPage /> },
-    ],
-  },
-  {
-    element: <AuthGuard />,
-    children: [
-      { path: '/company-select', element: <CompanySelectPage /> },
-      {
-        element: <RoutePermissionGuard />,
-        children: [
-          {
-            element: <AppShell />,
-            children: shellRoutes,
-          },
-        ],
-      },
-    ],
-  },
+  // Store portal routes — served only by the packaged desktop .exe. On the web
+  // (SaaS portal) these are omitted, so any store URL falls through to the
+  // catch-all and redirects to the SaaS admin login.
+  ...(isSaasPortal()
+    ? []
+    : [
+        {
+          element: <GuestGuard />,
+          children: [
+            { path: '/login', element: <LoginPage /> },
+            { path: '/download', element: <DownloadPage /> },
+            { path: '/forgot-password', element: <ForgotPasswordPage /> },
+            { path: '/device-blocked', element: <DeviceBlockedPage /> },
+            { path: '/session-expired', element: <SessionExpiredPage /> },
+          ],
+        },
+        {
+          element: <AuthGuard />,
+          children: [
+            { path: '/company-select', element: <CompanySelectPage /> },
+            {
+              element: <RoutePermissionGuard />,
+              children: [
+                {
+                  element: <AppShell />,
+                  children: shellRoutes,
+                },
+              ],
+            },
+          ],
+        },
+      ]),
   { path: '*', element: <DefaultHomeRedirect /> },
 ]);
