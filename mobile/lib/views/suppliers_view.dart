@@ -68,101 +68,114 @@ class _SuppliersViewState extends State<SuppliersView> {
     _contactCtrl.clear();
     _notesCtrl.clear();
 
+    final formKey = GlobalKey<FormState>();
+    bool submitted = false;
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.only(
-          left: 20, right: 20, top: 20,
-          bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
-        ),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text('Yangi Ta\'minotchi Qo\'shish', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _nameCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Ta\'minotchi Nomi / Firma *',
-                  prefixIcon: Icon(Icons.store),
-                  border: OutlineInputBorder(),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) {
+          return Padding(
+            padding: EdgeInsets.only(
+              left: 20, right: 20, top: 20,
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+            ),
+            child: SingleChildScrollView(
+              child: Form(
+                key: formKey,
+                autovalidateMode: submitted ? AutovalidateMode.always : AutovalidateMode.disabled,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text('Yangi Ta\'minotchi Qo\'shish', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _nameCtrl,
+                      validator: (v) => (v == null || v.trim().isEmpty) ? 'Ta\'minotchi / firma nomi majburiy!' : null,
+                      decoration: const InputDecoration(
+                        labelText: 'Ta\'minotchi Nomi / Firma *',
+                        prefixIcon: Icon(Icons.store),
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _phoneCtrl,
+                      keyboardType: TextInputType.phone,
+                      validator: (v) => (v == null || v.trim().isEmpty) ? 'Telefon raqam majburiy!' : null,
+                      decoration: const InputDecoration(
+                        labelText: 'Telefon Raqam *',
+                        prefixIcon: Icon(Icons.phone),
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _contactCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Mas\'ul Shaxs (Kontakt)',
+                        prefixIcon: Icon(Icons.person_outline),
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _notesCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Izoh / Qayd',
+                        prefixIcon: Icon(Icons.notes),
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: () async {
+                        setModalState(() => submitted = true);
+                        if (!formKey.currentState!.validate()) {
+                          return;
+                        }
+
+                        final name = _nameCtrl.text.trim();
+                        final phone = _phoneCtrl.text.trim();
+
+                        try {
+                          final res = await _api.post('/suppliers', {
+                            'name': name,
+                            'phone': phone,
+                            if (_contactCtrl.text.trim().isNotEmpty) 'contactPerson': _contactCtrl.text.trim(),
+                            if (_notesCtrl.text.trim().isNotEmpty) 'notes': _notesCtrl.text.trim(),
+                          });
+                          if (res.statusCode == 200 || res.statusCode == 201) {
+                            if (mounted) {
+                              Navigator.pop(ctx);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Ta\'minotchi muvaffaqiyatli qo\'shildi!')),
+                              );
+                              _load(_searchQuery);
+                            }
+                          }
+                        } catch (e) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Xatolik: ${ApiService.parseError(e)}')),
+                            );
+                          }
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
+                      child: Text('Saqlash', style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold)),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _phoneCtrl,
-                keyboardType: TextInputType.phone,
-                decoration: const InputDecoration(
-                  labelText: 'Telefon Raqam *',
-                  prefixIcon: Icon(Icons.phone),
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _contactCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Mas\'ul Shaxs (Kontakt)',
-                  prefixIcon: Icon(Icons.person_outline),
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _notesCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Izoh / Qayd',
-                  prefixIcon: Icon(Icons.notes),
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: () async {
-                  final name = _nameCtrl.text.trim();
-                  final phone = _phoneCtrl.text.trim();
-                  if (name.isEmpty || phone.isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Nomi va telefon raqam majburiy!')),
-                    );
-                    return;
-                  }
-                  try {
-                    final res = await _api.post('/suppliers', {
-                      'name': name,
-                      'phone': phone,
-                      if (_contactCtrl.text.trim().isNotEmpty) 'contactPerson': _contactCtrl.text.trim(),
-                      if (_notesCtrl.text.trim().isNotEmpty) 'notes': _notesCtrl.text.trim(),
-                    });
-                    if (res.statusCode == 200 || res.statusCode == 201) {
-                      if (mounted) {
-                        Navigator.pop(ctx);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Ta\'minotchi qo\'shildi!')),
-                        );
-                        _load(_searchQuery);
-                      }
-                    }
-                  } catch (e) {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Xatolik: ${ApiService.parseError(e)}')),
-                      );
-                    }
-                  }
-                },
-                style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
-                child: Text('Saqlash', style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold)),
-              ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -173,101 +186,114 @@ class _SuppliersViewState extends State<SuppliersView> {
     _contactCtrl.text = s['contactPerson'] ?? '';
     _notesCtrl.text = s['notes'] ?? '';
 
+    final formKey = GlobalKey<FormState>();
+    bool submitted = false;
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.only(
-          left: 20, right: 20, top: 20,
-          bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
-        ),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text('Ta\'minotchini Tahrirlash', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _nameCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Ta\'minotchi Nomi *',
-                  prefixIcon: Icon(Icons.store),
-                  border: OutlineInputBorder(),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) {
+          return Padding(
+            padding: EdgeInsets.only(
+              left: 20, right: 20, top: 20,
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+            ),
+            child: SingleChildScrollView(
+              child: Form(
+                key: formKey,
+                autovalidateMode: submitted ? AutovalidateMode.always : AutovalidateMode.disabled,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text('Ta\'minotchini Tahrirlash', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _nameCtrl,
+                      validator: (v) => (v == null || v.trim().isEmpty) ? 'Ta\'minotchi nomi majburiy!' : null,
+                      decoration: const InputDecoration(
+                        labelText: 'Ta\'minotchi Nomi *',
+                        prefixIcon: Icon(Icons.store),
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _phoneCtrl,
+                      keyboardType: TextInputType.phone,
+                      validator: (v) => (v == null || v.trim().isEmpty) ? 'Telefon raqam majburiy!' : null,
+                      decoration: const InputDecoration(
+                        labelText: 'Telefon Raqam *',
+                        prefixIcon: Icon(Icons.phone),
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _contactCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Mas\'ul Shaxs',
+                        prefixIcon: Icon(Icons.person_outline),
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _notesCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Izoh',
+                        prefixIcon: Icon(Icons.notes),
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: () async {
+                        setModalState(() => submitted = true);
+                        if (!formKey.currentState!.validate()) {
+                          return;
+                        }
+
+                        final name = _nameCtrl.text.trim();
+                        final phone = _phoneCtrl.text.trim();
+
+                        try {
+                          final res = await _api.patch('/suppliers/${s['id']}', {
+                            'name': name,
+                            'phone': phone,
+                            'contactPerson': _contactCtrl.text.trim(),
+                            'notes': _notesCtrl.text.trim(),
+                          });
+                          if (res.statusCode == 200 || res.statusCode == 204) {
+                            if (mounted) {
+                              Navigator.pop(ctx);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Ta\'minotchi ma\'lumotlari yangilandi!')),
+                              );
+                              _load(_searchQuery);
+                            }
+                          }
+                        } catch (e) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Xatolik: ${ApiService.parseError(e)}')),
+                            );
+                          }
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
+                      child: Text('O\'zgarishlarni Saqlash', style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold)),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _phoneCtrl,
-                keyboardType: TextInputType.phone,
-                decoration: const InputDecoration(
-                  labelText: 'Telefon Raqam *',
-                  prefixIcon: Icon(Icons.phone),
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _contactCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Mas\'ul Shaxs',
-                  prefixIcon: Icon(Icons.person_outline),
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _notesCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Izoh',
-                  prefixIcon: Icon(Icons.notes),
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: () async {
-                  final name = _nameCtrl.text.trim();
-                  final phone = _phoneCtrl.text.trim();
-                  if (name.isEmpty || phone.isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Nomi va telefon raqam majburiy!')),
-                    );
-                    return;
-                  }
-                  try {
-                    final res = await _api.patch('/suppliers/${s['id']}', {
-                      'name': name,
-                      'phone': phone,
-                      'contactPerson': _contactCtrl.text.trim(),
-                      'notes': _notesCtrl.text.trim(),
-                    });
-                    if (res.statusCode == 200 || res.statusCode == 204) {
-                      if (mounted) {
-                        Navigator.pop(ctx);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Ta\'minotchi ma\'lumotlari yangilandi!')),
-                        );
-                        _load(_searchQuery);
-                      }
-                    }
-                  } catch (e) {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Xatolik: ${ApiService.parseError(e)}')),
-                      );
-                    }
-                  }
-                },
-                style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
-                child: Text('O\'zgarishlarni Saqlash', style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold)),
-              ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
   }

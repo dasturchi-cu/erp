@@ -153,6 +153,9 @@ class _ProductsViewState extends State<ProductsView> {
       _fetchWarehouses();
     }
 
+    final formKey = GlobalKey<FormState>();
+    bool submitted = false;
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -181,272 +184,288 @@ class _ProductsViewState extends State<ProductsView> {
               bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
             ),
             child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    'Yangi Mahsulot Qo\'shish',
-                    style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _skuController,
-                          decoration: const InputDecoration(
-                            labelText: 'SKU kodi *',
-                            border: OutlineInputBorder(),
-                            isDense: true,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: TextField(
-                          controller: _barcodeController,
-                          decoration: const InputDecoration(
-                            labelText: 'Barkod (ixtiyoriy)',
-                            border: OutlineInputBorder(),
-                            isDense: true,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _nameController,
-                    decoration: const InputDecoration(
-                      labelText: 'Mahsulot Nomi *',
-                      prefixIcon: Icon(Icons.inventory_2_outlined),
-                      border: OutlineInputBorder(),
+              child: Form(
+                key: formKey,
+                autovalidateMode: submitted ? AutovalidateMode.always : AutovalidateMode.disabled,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'Yangi Mahsulot Qo\'shish',
+                      style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  if (validCategories.isNotEmpty)
-                    DropdownButtonFormField<String>(
-                      value: currentCategoryVal,
-                      isExpanded: true,
-                      style: TextStyle(color: theme.colorScheme.onSurface, fontSize: 14, fontWeight: FontWeight.w500),
-                      dropdownColor: theme.colorScheme.surface,
-                      iconEnabledColor: theme.colorScheme.onSurface,
+                    const SizedBox(height: 12),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: _skuController,
+                            validator: (v) => (v == null || v.trim().isEmpty) ? 'SKU kodi majburiy!' : null,
+                            decoration: const InputDecoration(
+                              labelText: 'SKU kodi *',
+                              border: OutlineInputBorder(),
+                              isDense: true,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextFormField(
+                            controller: _barcodeController,
+                            decoration: const InputDecoration(
+                              labelText: 'Barkod (ixtiyoriy)',
+                              border: OutlineInputBorder(),
+                              isDense: true,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _nameController,
+                      validator: (v) => (v == null || v.trim().isEmpty) ? 'Mahsulot nomi majburiy!' : null,
                       decoration: const InputDecoration(
-                        labelText: 'Kategoriya *',
+                        labelText: 'Mahsulot Nomi *',
+                        prefixIcon: Icon(Icons.inventory_2_outlined),
                         border: OutlineInputBorder(),
                       ),
-                      items: validCategories.map((cat) => DropdownMenuItem<String>(
-                        value: cat['id'].toString(),
-                        child: Text((cat['name'] ?? 'Kategoriya').toString(), style: TextStyle(color: theme.colorScheme.onSurface), overflow: TextOverflow.ellipsis),
-                      )).toList(),
-                      onChanged: (val) {
-                        setModalState(() => _selectedCategoryId = val);
-                      },
                     ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _purchasePriceController,
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(
-                            labelText: 'Tannarx (UZS) *',
-                            border: OutlineInputBorder(),
-                            isDense: true,
+                    const SizedBox(height: 12),
+                    if (validCategories.isNotEmpty)
+                      DropdownButtonFormField<String>(
+                        value: currentCategoryVal,
+                        isExpanded: true,
+                        style: TextStyle(color: theme.colorScheme.onSurface, fontSize: 14, fontWeight: FontWeight.w500),
+                        dropdownColor: theme.colorScheme.surface,
+                        iconEnabledColor: theme.colorScheme.onSurface,
+                        decoration: const InputDecoration(
+                          labelText: 'Kategoriya *',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: validCategories.map((cat) => DropdownMenuItem<String>(
+                          value: cat['id'].toString(),
+                          child: Text((cat['name'] ?? 'Kategoriya').toString(), style: TextStyle(color: theme.colorScheme.onSurface), overflow: TextOverflow.ellipsis),
+                        )).toList(),
+                        onChanged: (val) {
+                          setModalState(() => _selectedCategoryId = val);
+                        },
+                      ),
+                    const SizedBox(height: 12),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: _purchasePriceController,
+                            keyboardType: TextInputType.number,
+                            validator: (v) {
+                              if (v == null || v.trim().isEmpty) return 'Tannarx majburiy!';
+                              if (double.tryParse(v.trim()) == null) return 'Faqat raqam!';
+                              return null;
+                            },
+                            decoration: const InputDecoration(
+                              labelText: 'Tannarx (UZS) *',
+                              border: OutlineInputBorder(),
+                              isDense: true,
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: TextField(
-                          controller: _salePriceController,
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(
-                            labelText: 'Sotish Narxi (UZS) *',
-                            border: OutlineInputBorder(),
-                            isDense: true,
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextFormField(
+                            controller: _salePriceController,
+                            keyboardType: TextInputType.number,
+                            validator: (v) {
+                              if (v == null || v.trim().isEmpty) return 'Sotish narxi majburiy!';
+                              if (double.tryParse(v.trim()) == null) return 'Faqat raqam!';
+                              return null;
+                            },
+                            decoration: const InputDecoration(
+                              labelText: 'Sotish Narxi (UZS) *',
+                              border: OutlineInputBorder(),
+                              isDense: true,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: DropdownButtonFormField<String>(
-                          value: _selectedUnit,
-                          isExpanded: true,
-                          style: TextStyle(color: theme.colorScheme.onSurface, fontSize: 14, fontWeight: FontWeight.w500),
-                          dropdownColor: theme.colorScheme.surface,
-                          iconEnabledColor: theme.colorScheme.onSurface,
-                          decoration: const InputDecoration(
-                            labelText: 'O\'lchov birligi',
-                            border: OutlineInputBorder(),
-                            isDense: true,
-                          ),
-                          items: _units.map((u) => DropdownMenuItem(value: u, child: Text(u, style: TextStyle(color: theme.colorScheme.onSurface)))).toList(),
-                          onChanged: (val) => setModalState(() => _selectedUnit = val ?? 'dona'),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: TextField(
-                          controller: _wholesalePriceController,
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(
-                            labelText: 'Ulgurji narx (ixtiyoriy)',
-                            border: OutlineInputBorder(),
-                            isDense: true,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _stockController,
-                          keyboardType: TextInputType.number,
-                          decoration: InputDecoration(
-                            labelText: 'Boshlang\'ich qoldiq ($_selectedUnit)',
-                            hintText: 'Nechta dona',
-                            border: const OutlineInputBorder(),
-                            isDense: true,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: TextField(
-                          controller: _minStockController,
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(
-                            labelText: 'Min. qoldiq (ogohlantirish)',
-                            border: OutlineInputBorder(),
-                            isDense: true,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  if (_warehouses.isNotEmpty)
-                    DropdownButtonFormField<String>(
-                      value: _warehouses.any((w) => w is Map && w['id']?.toString() == _selectedWarehouseId)
-                          ? _selectedWarehouseId
-                          : null,
-                      isExpanded: true,
-                      style: TextStyle(color: theme.colorScheme.onSurface, fontSize: 14, fontWeight: FontWeight.w500),
-                      dropdownColor: theme.colorScheme.surface,
-                      iconEnabledColor: theme.colorScheme.onSurface,
-                      decoration: const InputDecoration(
-                        labelText: 'Ombor (qoldiq kiritilsa majburiy)',
-                        border: OutlineInputBorder(),
-                        isDense: true,
-                      ),
-                      items: _warehouses
-                          .whereType<Map>()
-                          .map((w) => DropdownMenuItem(
-                                value: w['id'].toString(),
-                                child: Text((w['name'] ?? 'Ombor').toString(), style: TextStyle(color: theme.colorScheme.onSurface), overflow: TextOverflow.ellipsis),
-                              ))
-                          .toList(),
-                      onChanged: (val) => setModalState(() => _selectedWarehouseId = val),
+                      ],
                     ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () async {
-                      final sku = _skuController.text.trim();
-                      final name = _nameController.text.trim();
-                      final purchaseRaw = _purchasePriceController.text.trim();
-                      final saleRaw = _salePriceController.text.trim();
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            value: _selectedUnit,
+                            isExpanded: true,
+                            style: TextStyle(color: theme.colorScheme.onSurface, fontSize: 14, fontWeight: FontWeight.w500),
+                            dropdownColor: theme.colorScheme.surface,
+                            iconEnabledColor: theme.colorScheme.onSurface,
+                            decoration: const InputDecoration(
+                              labelText: 'O\'lchov birligi',
+                              border: OutlineInputBorder(),
+                              isDense: true,
+                            ),
+                            items: _units.map((u) => DropdownMenuItem(value: u, child: Text(u, style: TextStyle(color: theme.colorScheme.onSurface)))).toList(),
+                            onChanged: (val) => setModalState(() => _selectedUnit = val ?? 'dona'),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextFormField(
+                            controller: _wholesalePriceController,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              labelText: 'Ulgurji narx (ixtiyoriy)',
+                              border: OutlineInputBorder(),
+                              isDense: true,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: _stockController,
+                            keyboardType: TextInputType.number,
+                            decoration: InputDecoration(
+                              labelText: 'Boshlang\'ich qoldiq ($_selectedUnit)',
+                              hintText: 'Nechta dona',
+                              border: const OutlineInputBorder(),
+                              isDense: true,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextFormField(
+                            controller: _minStockController,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              labelText: 'Min. qoldiq (ogohlantirish)',
+                              border: OutlineInputBorder(),
+                              isDense: true,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    if (_warehouses.isNotEmpty)
+                      DropdownButtonFormField<String>(
+                        value: _warehouses.any((w) => w is Map && w['id']?.toString() == _selectedWarehouseId)
+                            ? _selectedWarehouseId
+                            : null,
+                        isExpanded: true,
+                        style: TextStyle(color: theme.colorScheme.onSurface, fontSize: 14, fontWeight: FontWeight.w500),
+                        dropdownColor: theme.colorScheme.surface,
+                        iconEnabledColor: theme.colorScheme.onSurface,
+                        decoration: const InputDecoration(
+                          labelText: 'Ombor (qoldiq kiritilsa majburiy)',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        items: _warehouses
+                            .whereType<Map>()
+                            .map((w) => DropdownMenuItem(
+                                  value: w['id'].toString(),
+                                  child: Text((w['name'] ?? 'Ombor').toString(), style: TextStyle(color: theme.colorScheme.onSurface), overflow: TextOverflow.ellipsis),
+                                ))
+                            .toList(),
+                        onChanged: (val) => setModalState(() => _selectedWarehouseId = val),
+                      ),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: () async {
+                        setModalState(() => submitted = true);
+                        if (!formKey.currentState!.validate()) {
+                          return;
+                        }
 
-                      if (sku.isEmpty || name.isEmpty || purchaseRaw.isEmpty || saleRaw.isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Barcha majburiy kataklarni to\'ldiring!')),
-                        );
-                        return;
-                      }
+                        final sku = _skuController.text.trim();
+                        final name = _nameController.text.trim();
+                        final purchaseRaw = _purchasePriceController.text.trim();
+                        final saleRaw = _salePriceController.text.trim();
 
-                      final purchaseNum = double.tryParse(purchaseRaw);
-                      final saleNum = double.tryParse(saleRaw);
-                      if (purchaseNum == null || saleNum == null) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Narxlar faqat raqam shaklida bo\'lishi kerak!')),
-                        );
-                        return;
-                      }
+                        final purchaseNum = double.tryParse(purchaseRaw);
+                        final saleNum = double.tryParse(saleRaw);
+                        if (purchaseNum == null || saleNum == null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Narxlar faqat raqam shaklida bo\'lishi kerak!')),
+                          );
+                          return;
+                        }
 
-                      final categoryId = await _getOrCreateCategoryId();
-                      if (categoryId == null) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Kategoriya aniqlanmadi. Avval kategoriya yarating!')),
-                        );
-                        return;
-                      }
+                        final categoryId = await _getOrCreateCategoryId();
+                        if (categoryId == null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Kategoriya aniqlanmadi. Avval kategoriya yarating!')),
+                          );
+                          return;
+                        }
 
-                      final stockRaw = _stockController.text.trim();
-                      final stockNum = stockRaw.isEmpty ? 0.0 : (double.tryParse(stockRaw) ?? 0.0);
-                      if (stockNum > 0 && (_selectedWarehouseId == null || _selectedWarehouseId!.isEmpty)) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Qoldiq kiritilganda omborni tanlang!')),
-                        );
-                        return;
-                      }
+                        final stockRaw = _stockController.text.trim();
+                        final stockNum = stockRaw.isEmpty ? 0.0 : (double.tryParse(stockRaw) ?? 0.0);
+                        if (stockNum > 0 && (_selectedWarehouseId == null || _selectedWarehouseId!.isEmpty)) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Qoldiq kiritilganda omborni tanlang!')),
+                          );
+                          return;
+                        }
 
-                      final wholesaleRaw = _wholesalePriceController.text.trim();
-                      final minStockRaw = _minStockController.text.trim();
+                        final wholesaleRaw = _wholesalePriceController.text.trim();
+                        final minStockRaw = _minStockController.text.trim();
 
-                      try {
-                        final res = await _apiService.post('/products', {
-                          'sku': sku,
-                          'name': name,
-                          'categoryId': categoryId,
-                          if (_barcodeController.text.trim().isNotEmpty)
-                            'barcode': _barcodeController.text.trim(),
-                          'unitOfMeasure': _selectedUnit,
-                          'purchasePriceUzs': purchaseNum.toStringAsFixed(0),
-                          'salePriceUzs': saleNum.toStringAsFixed(0),
-                          if (wholesaleRaw.isNotEmpty && double.tryParse(wholesaleRaw) != null)
-                            'wholesalePriceUzs': double.parse(wholesaleRaw).toStringAsFixed(0),
-                          if (minStockRaw.isNotEmpty && double.tryParse(minStockRaw) != null)
-                            'minStockLevel': double.parse(minStockRaw).toStringAsFixed(0),
-                          if (stockNum > 0) 'initialStock': stockNum.toStringAsFixed(0),
-                          if (stockNum > 0 && _selectedWarehouseId != null)
-                            'initialWarehouseId': _selectedWarehouseId,
-                        });
+                        try {
+                          final res = await _apiService.post('/products', {
+                            'sku': sku,
+                            'name': name,
+                            'categoryId': categoryId,
+                            if (_barcodeController.text.trim().isNotEmpty)
+                              'barcode': _barcodeController.text.trim(),
+                            'unitOfMeasure': _selectedUnit,
+                            'purchasePriceUzs': purchaseNum.toStringAsFixed(0),
+                            'salePriceUzs': saleNum.toStringAsFixed(0),
+                            if (wholesaleRaw.isNotEmpty && double.tryParse(wholesaleRaw) != null)
+                              'wholesalePriceUzs': double.parse(wholesaleRaw).toStringAsFixed(0),
+                            if (minStockRaw.isNotEmpty && double.tryParse(minStockRaw) != null)
+                              'minStockLevel': double.parse(minStockRaw).toStringAsFixed(0),
+                            if (stockNum > 0) 'initialStock': stockNum.toStringAsFixed(0),
+                            if (stockNum > 0 && _selectedWarehouseId != null)
+                              'initialWarehouseId': _selectedWarehouseId,
+                          });
 
-                        if (res.statusCode == 200 || res.statusCode == 201) {
+                          if (res.statusCode == 200 || res.statusCode == 201) {
+                            if (mounted) {
+                              Navigator.pop(ctx);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Mahsulot muvaffaqiyatli yaratildi!')),
+                              );
+                              _fetchProducts();
+                            }
+                          }
+                        } catch (e) {
                           if (mounted) {
-                            Navigator.pop(ctx);
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Mahsulot yaratildi!')),
+                              SnackBar(content: Text('Xatolik: ${ApiService.parseError(e)}')),
                             );
-                            _fetchProducts();
                           }
                         }
-                      } catch (e) {
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Xatolik: ${ApiService.parseError(e)}')),
-                          );
-                        }
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      },
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      child: Text(
+                        'Saqlash',
+                        style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
                     ),
-                    child: Text(
-                      'Saqlash',
-                      style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           );
@@ -463,6 +482,9 @@ class _ProductsViewState extends State<ProductsView> {
     _salePriceController.text = (p['salePriceUzs'] ?? '').toString();
     _selectedCategoryId = p['categoryId']?.toString();
     _selectedUnit = p['unitOfMeasure'] ?? 'dona';
+
+    final formKey = GlobalKey<FormState>();
+    bool submitted = false;
 
     showModalBottomSheet(
       context: context,
@@ -483,121 +505,131 @@ class _ProductsViewState extends State<ProductsView> {
               bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
             ),
             child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    'Mahsulotni Tahrirlash',
-                    style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _skuController,
-                          decoration: const InputDecoration(
-                            labelText: 'SKU kodi *',
-                            border: OutlineInputBorder(),
-                            isDense: true,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: TextField(
-                          controller: _barcodeController,
-                          decoration: const InputDecoration(
-                            labelText: 'Barkod',
-                            border: OutlineInputBorder(),
-                            isDense: true,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _nameController,
-                    decoration: const InputDecoration(
-                      labelText: 'Mahsulot Nomi *',
-                      prefixIcon: Icon(Icons.inventory_2_outlined),
-                      border: OutlineInputBorder(),
+              child: Form(
+                key: formKey,
+                autovalidateMode: submitted ? AutovalidateMode.always : AutovalidateMode.disabled,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'Mahsulotni Tahrirlash',
+                      style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  if (validCategories.isNotEmpty)
-                    DropdownButtonFormField<String>(
-                      value: validCategories.any((c) => c['id'].toString() == _selectedCategoryId)
-                          ? _selectedCategoryId
-                          : validCategories.first['id'].toString(),
-                      isExpanded: true,
-                      style: TextStyle(color: theme.colorScheme.onSurface, fontSize: 14, fontWeight: FontWeight.w500),
-                      dropdownColor: theme.colorScheme.surface,
-                      iconEnabledColor: theme.colorScheme.onSurface,
+                    const SizedBox(height: 12),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: _skuController,
+                            validator: (v) => (v == null || v.trim().isEmpty) ? 'SKU kodi majburiy!' : null,
+                            decoration: const InputDecoration(
+                              labelText: 'SKU kodi *',
+                              border: OutlineInputBorder(),
+                              isDense: true,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextFormField(
+                            controller: _barcodeController,
+                            decoration: const InputDecoration(
+                              labelText: 'Barkod',
+                              border: OutlineInputBorder(),
+                              isDense: true,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _nameController,
+                      validator: (v) => (v == null || v.trim().isEmpty) ? 'Mahsulot nomi majburiy!' : null,
                       decoration: const InputDecoration(
-                        labelText: 'Kategoriya',
+                        labelText: 'Mahsulot Nomi *',
+                        prefixIcon: Icon(Icons.inventory_2_outlined),
                         border: OutlineInputBorder(),
                       ),
-                      items: validCategories.map((cat) => DropdownMenuItem<String>(
-                        value: cat['id'].toString(),
-                        child: Text((cat['name'] ?? 'Kategoriya').toString(), style: TextStyle(color: theme.colorScheme.onSurface), overflow: TextOverflow.ellipsis),
-                      )).toList(),
-                      onChanged: (val) => setModalState(() => _selectedCategoryId = val),
                     ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _purchasePriceController,
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(
-                            labelText: 'Tannarx (UZS)',
-                            border: OutlineInputBorder(),
-                            isDense: true,
+                    const SizedBox(height: 12),
+                    if (validCategories.isNotEmpty)
+                      DropdownButtonFormField<String>(
+                        value: validCategories.any((c) => c['id'].toString() == _selectedCategoryId)
+                            ? _selectedCategoryId
+                            : validCategories.first['id'].toString(),
+                        isExpanded: true,
+                        style: TextStyle(color: theme.colorScheme.onSurface, fontSize: 14, fontWeight: FontWeight.w500),
+                        dropdownColor: theme.colorScheme.surface,
+                        iconEnabledColor: theme.colorScheme.onSurface,
+                        decoration: const InputDecoration(
+                          labelText: 'Kategoriya',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: validCategories.map((cat) => DropdownMenuItem<String>(
+                          value: cat['id'].toString(),
+                          child: Text((cat['name'] ?? 'Kategoriya').toString(), style: TextStyle(color: theme.colorScheme.onSurface), overflow: TextOverflow.ellipsis),
+                        )).toList(),
+                        onChanged: (val) => setModalState(() => _selectedCategoryId = val),
+                      ),
+                    const SizedBox(height: 12),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: _purchasePriceController,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              labelText: 'Tannarx (UZS)',
+                              border: OutlineInputBorder(),
+                              isDense: true,
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: TextField(
-                          controller: _salePriceController,
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(
-                            labelText: 'Sotish Narxi (UZS) *',
-                            border: OutlineInputBorder(),
-                            isDense: true,
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextFormField(
+                            controller: _salePriceController,
+                            keyboardType: TextInputType.number,
+                            validator: (v) {
+                              if (v == null || v.trim().isEmpty) return 'Sotish narxi majburiy!';
+                              if (double.tryParse(v.trim()) == null) return 'Faqat raqam!';
+                              return null;
+                            },
+                            decoration: const InputDecoration(
+                              labelText: 'Sotish Narxi (UZS) *',
+                              border: OutlineInputBorder(),
+                              isDense: true,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () async {
-                      final name = _nameController.text.trim();
-                      final sku = _skuController.text.trim();
-                      final saleRaw = _salePriceController.text.trim();
-                      final purchaseRaw = _purchasePriceController.text.trim();
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: () async {
+                        setModalState(() => submitted = true);
+                        if (!formKey.currentState!.validate()) {
+                          return;
+                        }
 
-                      if (name.isEmpty || sku.isEmpty || saleRaw.isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Nomi, SKU va sotish narxi majburiy!')),
-                        );
-                        return;
-                      }
+                        final name = _nameController.text.trim();
+                        final sku = _skuController.text.trim();
+                        final saleRaw = _salePriceController.text.trim();
+                        final purchaseRaw = _purchasePriceController.text.trim();
 
-                      try {
-                        final res = await _apiService.patch('/products/${p['id']}', {
-                          'name': name,
-                          'sku': sku,
-                          'salePriceUzs': saleRaw,
-                          if (purchaseRaw.isNotEmpty) 'purchasePriceUzs': purchaseRaw,
-                          if (_barcodeController.text.trim().isNotEmpty) 'barcode': _barcodeController.text.trim(),
-                          if (_selectedCategoryId != null) 'categoryId': _selectedCategoryId,
-                        });
+                        try {
+                          final res = await _apiService.patch('/products/${p['id']}', {
+                            'name': name,
+                            'sku': sku,
+                            'salePriceUzs': saleRaw,
+                            if (purchaseRaw.isNotEmpty) 'purchasePriceUzs': purchaseRaw,
+                            if (_barcodeController.text.trim().isNotEmpty) 'barcode': _barcodeController.text.trim(),
+                            if (_selectedCategoryId != null) 'categoryId': _selectedCategoryId,
+                          });
 
                         if (res.statusCode == 200 || res.statusCode == 204) {
                           if (mounted) {
@@ -627,8 +659,9 @@ class _ProductsViewState extends State<ProductsView> {
                 ],
               ),
             ),
-          );
-        },
+          ),
+        );
+      },
       ),
     );
   }

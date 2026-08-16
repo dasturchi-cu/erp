@@ -68,6 +68,9 @@ class _InventoryViewState extends State<InventoryView> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setModalState) {
           final theme = Theme.of(context);
+          final formKey = GlobalKey<FormState>();
+          bool submitted = false;
+
           return Padding(
             padding: EdgeInsets.only(
               left: 20,
@@ -75,89 +78,98 @@ class _InventoryViewState extends State<InventoryView> {
               top: 20,
               bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  'Yangi Ombor Yaratish',
-                  style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: _warehouseNameCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Ombor Nomi *',
-                    prefixIcon: Icon(Icons.warehouse_outlined),
-                    border: OutlineInputBorder(),
+            child: Form(
+              key: formKey,
+              autovalidateMode: submitted ? AutovalidateMode.always : AutovalidateMode.disabled,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Yangi Ombor Yaratish',
+                    style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
-                ),
-                const SizedBox(height: 12),
-                if (_branches.isNotEmpty)
-                  DropdownButtonFormField<String>(
-                    value: selectedBranchId,
-                    style: TextStyle(color: theme.colorScheme.onSurface, fontSize: 14, fontWeight: FontWeight.w500),
-                    dropdownColor: theme.colorScheme.surface,
-                    iconEnabledColor: theme.colorScheme.onSurface,
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _warehouseNameCtrl,
+                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Ombor nomi majburiy!' : null,
                     decoration: const InputDecoration(
-                      labelText: 'Filial *',
+                      labelText: 'Ombor Nomi *',
+                      prefixIcon: Icon(Icons.warehouse_outlined),
                       border: OutlineInputBorder(),
                     ),
-                    items: _branches.map((b) => DropdownMenuItem<String>(
-                      value: b['id'] as String,
-                      child: Text(b['name'] ?? 'Filial', style: TextStyle(color: theme.colorScheme.onSurface)),
-                    )).toList(),
-                    onChanged: (val) => setModalState(() => selectedBranchId = val),
                   ),
-              const SizedBox(height: 16),
-              ElevatedButton.icon(
-                icon: const Icon(Icons.add_business),
-                label: Text('Saqlash', style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold)),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                ),
-                onPressed: () async {
-                  final name = _warehouseNameCtrl.text.trim();
-                  if (name.isEmpty) return;
-
-                  if (selectedBranchId == null && _branches.isNotEmpty) {
-                    selectedBranchId = _branches.first['id'] as String?;
-                  }
-
-                  try {
-                    final payload = <String, dynamic>{
-                      'name': name,
-                      'isDefault': _warehouses.isEmpty,
-                    };
-                    if (selectedBranchId != null && selectedBranchId!.isNotEmpty) {
-                      payload['branchId'] = selectedBranchId;
-                    }
-
-                    final res = await _apiService.post('/warehouses', payload);
-
-                    if (res.statusCode == 200 || res.statusCode == 201) {
-                      if (mounted) {
-                        Navigator.pop(ctx);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Yangi ombor yaratildi!')),
-                        );
-                        _loadData();
+                  const SizedBox(height: 12),
+                  if (_branches.isNotEmpty)
+                    DropdownButtonFormField<String>(
+                      value: selectedBranchId,
+                      style: TextStyle(color: theme.colorScheme.onSurface, fontSize: 14, fontWeight: FontWeight.w500),
+                      dropdownColor: theme.colorScheme.surface,
+                      iconEnabledColor: theme.colorScheme.onSurface,
+                      decoration: const InputDecoration(
+                        labelText: 'Filial',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: _branches.map((b) => DropdownMenuItem<String>(
+                        value: b['id'] as String,
+                        child: Text(b['name'] ?? 'Filial', style: TextStyle(color: theme.colorScheme.onSurface)),
+                      )).toList(),
+                      onChanged: (val) => setModalState(() => selectedBranchId = val),
+                    ),
+                  const SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.add_business),
+                    label: Text('Saqlash', style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold)),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    onPressed: () async {
+                      setModalState(() => submitted = true);
+                      if (!formKey.currentState!.validate()) {
+                        return;
                       }
-                    }
-                  } catch (e) {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Xatolik: ${ApiService.parseError(e)}')),
-                      );
-                    }
-                  }
-                },
+
+                      final name = _warehouseNameCtrl.text.trim();
+
+                      if (selectedBranchId == null && _branches.isNotEmpty) {
+                        selectedBranchId = _branches.first['id'] as String?;
+                      }
+
+                      try {
+                        final payload = <String, dynamic>{
+                          'name': name,
+                          'isDefault': _warehouses.isEmpty,
+                        };
+                        if (selectedBranchId != null && selectedBranchId!.isNotEmpty) {
+                          payload['branchId'] = selectedBranchId;
+                        }
+
+                        final res = await _apiService.post('/warehouses', payload);
+
+                        if (res.statusCode == 200 || res.statusCode == 201) {
+                          if (mounted) {
+                            Navigator.pop(ctx);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Yangi ombor muvaffaqiyatli yaratildi!')),
+                            );
+                            _loadData();
+                          }
+                        }
+                      } catch (e) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Xatolik: ${ApiService.parseError(e)}')),
+                          );
+                        }
+                      }
+                    },
+                  ),
+                ],
               ),
-            ],
-          ),
-        );
-      },
-    ),
+            ),
+          );
+        },
+      ),
   );
 }
 

@@ -13,6 +13,8 @@ class _InventoryReceiveViewState extends State<InventoryReceiveView> {
   final _apiService = ApiService();
   bool _loading = true;
   bool _submitting = false;
+  final _formKey = GlobalKey<FormState>();
+  bool _submitted = false;
 
   List<dynamic> _products = [];
   List<dynamic> _warehouses = [];
@@ -67,21 +69,21 @@ class _InventoryReceiveViewState extends State<InventoryReceiveView> {
               'isDefault': true,
             });
             if (defaultWh.statusCode == 200 || defaultWh.statusCode == 201) {
-              wList = [defaultWh.data];
+              final wRefresh = await _apiService.get('/warehouses');
+              wList = wRefresh.data is Map && wRefresh.data.containsKey('data') ? wRefresh.data['data'] : (wRefresh.data is List ? wRefresh.data : []);
             }
           } catch (_) {}
         }
 
         setState(() {
-          _products = pList is List ? pList : [];
-          _warehouses = wList is List ? wList : [];
-          _suppliers = sList is List ? sList : [];
-          _branches = bList is List ? bList : [];
-
-          if (_warehouses.isNotEmpty && _selectedWarehouse == null) {
+          _products = pList;
+          _warehouses = wList;
+          _suppliers = sList;
+          _branches = bList;
+          if (_warehouses.isNotEmpty) {
             _selectedWarehouse = _warehouses.first as Map<String, dynamic>;
           }
-          if (_suppliers.isNotEmpty && _selectedSupplier == null) {
+          if (_suppliers.isNotEmpty) {
             _selectedSupplier = _suppliers.first as Map<String, dynamic>;
           }
           _loading = false;
@@ -93,15 +95,8 @@ class _InventoryReceiveViewState extends State<InventoryReceiveView> {
   }
 
   Future<void> _createWarehouseOnTheFly() async {
-    if (_branches.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Kompaniyada filiallar topilmadi.')),
-      );
-      return;
-    }
-
     _newWarehouseNameCtrl.text = 'Yangi Ombor';
-    String selectedBranchId = _branches.first['id'];
+    String? selectedBranchId = _branches.isNotEmpty ? _branches.first['id'] : null;
 
     showModalBottomSheet(
       context: context,
@@ -110,113 +105,136 @@ class _InventoryReceiveViewState extends State<InventoryReceiveView> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setModalState) => Padding(
-          padding: EdgeInsets.only(
-            left: 20,
-            right: 20,
-            top: 20,
-            bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                'Yangi Ombor Yaratish',
-                style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _newWarehouseNameCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Ombor Nomi *',
-                  prefixIcon: Icon(Icons.warehouse_outlined),
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              if (_branches.length > 1)
-                DropdownButtonFormField<String>(
-                  value: selectedBranchId,
-                  decoration: const InputDecoration(
-                    labelText: 'Filial *',
-                    border: OutlineInputBorder(),
+        builder: (ctx, setModalState) {
+          final whFormKey = GlobalKey<FormState>();
+          bool whSubmitted = false;
+
+          return Padding(
+            padding: EdgeInsets.only(
+              left: 20,
+              right: 20,
+              top: 20,
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+            ),
+            child: Form(
+              key: whFormKey,
+              autovalidateMode: whSubmitted ? AutovalidateMode.always : AutovalidateMode.disabled,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Yangi Ombor Yaratish',
+                    style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
-                  items: _branches.map((b) => DropdownMenuItem<String>(
-                    value: b['id'] as String,
-                    child: Text(b['name'] ?? 'Filial'),
-                  )).toList(),
-                  onChanged: (val) {
-                    if (val != null) setModalState(() => selectedBranchId = val);
-                  },
-                ),
-              const SizedBox(height: 16),
-              ElevatedButton.icon(
-                icon: const Icon(Icons.add_business),
-                label: Text('Omborni Saqlash', style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold)),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                ),
-                onPressed: () async {
-                  final name = _newWarehouseNameCtrl.text.trim();
-                  if (name.isEmpty) return;
-
-                  try {
-                    final res = await _apiService.post('/warehouses', {
-                      'name': name,
-                      'branchId': selectedBranchId,
-                      'isDefault': _warehouses.isEmpty,
-                    });
-
-                    if (res.statusCode == 200 || res.statusCode == 201) {
-                      if (mounted) {
-                        Navigator.pop(ctx);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Ombor muvaffaqiyatli yaratildi!')),
-                        );
-                        _loadDependencies();
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _newWarehouseNameCtrl,
+                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Ombor nomi majburiy!' : null,
+                    decoration: const InputDecoration(
+                      labelText: 'Ombor Nomi *',
+                      prefixIcon: Icon(Icons.warehouse_outlined),
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  if (_branches.length > 1)
+                    DropdownButtonFormField<String>(
+                      value: selectedBranchId,
+                      decoration: const InputDecoration(
+                        labelText: 'Filial',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: _branches.map((b) => DropdownMenuItem<String>(
+                        value: b['id'] as String,
+                        child: Text(b['name'] ?? 'Filial'),
+                      )).toList(),
+                      onChanged: (val) {
+                        if (val != null) setModalState(() => selectedBranchId = val);
+                      },
+                    ),
+                  const SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.add_business),
+                    label: Text('Omborni Saqlash', style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold)),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    onPressed: () async {
+                      setModalState(() => whSubmitted = true);
+                      if (!whFormKey.currentState!.validate()) {
+                        return;
                       }
-                    }
-                  } catch (e) {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Xatolik: ${ApiService.parseError(e)}')),
-                      );
-                    }
-                  }
-                },
+
+                      final name = _newWarehouseNameCtrl.text.trim();
+
+                      try {
+                        final payload = <String, dynamic>{
+                          'name': name,
+                          'isDefault': _warehouses.isEmpty,
+                        };
+                        if (selectedBranchId != null && selectedBranchId!.isNotEmpty) {
+                          payload['branchId'] = selectedBranchId;
+                        }
+
+                        final res = await _apiService.post('/warehouses', payload);
+
+                        if (res.statusCode == 200 || res.statusCode == 201) {
+                          if (mounted) {
+                            Navigator.pop(ctx);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Ombor muvaffaqiyatli yaratildi!')),
+                            );
+                            _loadDependencies();
+                          }
+                        }
+                      } catch (e) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Xatolik: ${ApiService.parseError(e)}')),
+                          );
+                        }
+                      }
+                    },
+                  ),
+                ],
               ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
   }
 
   Future<void> _handleReceive() async {
-    if (_selectedProduct == null || _selectedWarehouse == null) {
+    setState(() => _submitted = true);
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    if (_selectedProduct == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Mahsulot va Ombor tanlanishi majburiy!')),
+        const SnackBar(content: Text('Iltimos, mahsulotni tanlang!')),
+      );
+      return;
+    }
+
+    if (_selectedWarehouse == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Iltimos, qaysi omborga kirim qilishni tanlang!')),
       );
       return;
     }
 
     if (_selectedSupplier == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Ta\'minotchi tanlanishi majburiy!')),
+        const SnackBar(content: Text('Iltimos, ta\'minotchini tanlang!')),
       );
       return;
     }
 
     final qtyRaw = _quantityController.text.trim();
     final costRaw = _costController.text.trim();
-
-    if (qtyRaw.isEmpty || costRaw.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Miqdor va Kelish Narxi kiritilishi kerak!')),
-      );
-      return;
-    }
 
     final qtyNum = double.tryParse(qtyRaw);
     final costNum = double.tryParse(costRaw);
@@ -308,170 +326,190 @@ class _InventoryReceiveViewState extends State<InventoryReceiveView> {
                   elevation: 1,
                   child: Padding(
                     padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'Kirim Ma\'lumotlari',
-                              style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold),
-                            ),
-                            TextButton.icon(
-                              onPressed: _createWarehouseOnTheFly,
-                              icon: const Icon(Icons.add_business, size: 18),
-                              label: Text('+ Ombor', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        // Product Picker
-                        DropdownButtonFormField<Map<String, dynamic>>(
-                          value: _selectedProduct,
-                          isExpanded: true,
-                          style: TextStyle(color: textColor, fontSize: 14, fontWeight: FontWeight.w500),
-                          dropdownColor: theme.colorScheme.surface,
-                          iconEnabledColor: textColor,
-                          decoration: const InputDecoration(
-                            labelText: 'Mahsulot *',
-                            prefixIcon: Icon(Icons.inventory_2_outlined),
+                    child: Form(
+                      key: _formKey,
+                      autovalidateMode: _submitted ? AutovalidateMode.always : AutovalidateMode.disabled,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Kirim Ma\'lumotlari',
+                                style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold),
+                              ),
+                              TextButton.icon(
+                                onPressed: _createWarehouseOnTheFly,
+                                icon: const Icon(Icons.add_business, size: 18),
+                                label: Text('+ Ombor', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+                              ),
+                            ],
                           ),
-                          items: _products.map((p) => DropdownMenuItem(
-                            value: p as Map<String, dynamic>,
-                            child: Text(
-                              '${p['name']} (SKU: ${p['sku']})',
-                              style: TextStyle(color: textColor),
-                              overflow: TextOverflow.ellipsis,
+                          const SizedBox(height: 16),
+                          // Product Picker
+                          DropdownButtonFormField<Map<String, dynamic>>(
+                            value: _selectedProduct,
+                            isExpanded: true,
+                            style: TextStyle(color: textColor, fontSize: 14, fontWeight: FontWeight.w500),
+                            dropdownColor: theme.colorScheme.surface,
+                            iconEnabledColor: textColor,
+                            validator: (v) => v == null ? 'Mahsulot tanlanishi majburiy!' : null,
+                            decoration: const InputDecoration(
+                              labelText: 'Mahsulot *',
+                              prefixIcon: Icon(Icons.inventory_2_outlined),
                             ),
-                          )).toList(),
-                          onChanged: (val) {
-                            setState(() {
-                              _selectedProduct = val;
-                              if (val != null && val['purchasePriceUzs'] != null) {
-                                final cost = double.tryParse(val['purchasePriceUzs'].toString()) ?? 0;
-                                _costController.text = cost.toStringAsFixed(0);
-                              }
-                            });
-                          },
-                        ),
-                        const SizedBox(height: 14),
-                        // Warehouse Picker
-                        DropdownButtonFormField<Map<String, dynamic>>(
-                          value: _selectedWarehouse,
-                          isExpanded: true,
-                          style: TextStyle(color: textColor, fontSize: 14, fontWeight: FontWeight.w500),
-                          dropdownColor: theme.colorScheme.surface,
-                          iconEnabledColor: textColor,
-                          decoration: const InputDecoration(
-                            labelText: 'Qaysi Omborgacha? *',
-                            prefixIcon: Icon(Icons.warehouse_outlined),
+                            items: _products.map((p) => DropdownMenuItem(
+                              value: p as Map<String, dynamic>,
+                              child: Text(
+                                '${p['name']} (SKU: ${p['sku']})',
+                                style: TextStyle(color: textColor),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            )).toList(),
+                            onChanged: (val) {
+                              setState(() {
+                                _selectedProduct = val;
+                                if (val != null && val['purchasePriceUzs'] != null) {
+                                  final cost = double.tryParse(val['purchasePriceUzs'].toString()) ?? 0;
+                                  _costController.text = cost.toStringAsFixed(0);
+                                }
+                              });
+                            },
                           ),
-                          items: _warehouses.map((w) => DropdownMenuItem(
-                            value: w as Map<String, dynamic>,
-                            child: Text(
-                              w['name'] ?? 'Ombor',
-                              style: TextStyle(color: textColor),
-                              overflow: TextOverflow.ellipsis,
+                          const SizedBox(height: 14),
+                          // Warehouse Picker
+                          DropdownButtonFormField<Map<String, dynamic>>(
+                            value: _selectedWarehouse,
+                            isExpanded: true,
+                            style: TextStyle(color: textColor, fontSize: 14, fontWeight: FontWeight.w500),
+                            dropdownColor: theme.colorScheme.surface,
+                            iconEnabledColor: textColor,
+                            validator: (v) => v == null ? 'Ombor tanlanishi majburiy!' : null,
+                            decoration: const InputDecoration(
+                              labelText: 'Qaysi Omborgacha? *',
+                              prefixIcon: Icon(Icons.warehouse_outlined),
                             ),
-                          )).toList(),
-                          onChanged: (val) => setState(() => _selectedWarehouse = val),
-                        ),
-                        const SizedBox(height: 14),
-                        // Supplier Picker (required by backend)
-                        DropdownButtonFormField<Map<String, dynamic>>(
-                          value: _selectedSupplier,
-                          isExpanded: true,
-                          style: TextStyle(color: textColor, fontSize: 14, fontWeight: FontWeight.w500),
-                          dropdownColor: theme.colorScheme.surface,
-                          iconEnabledColor: textColor,
-                          decoration: const InputDecoration(
-                            labelText: 'Ta\'minotchi *',
-                            prefixIcon: Icon(Icons.store_outlined),
+                            items: _warehouses.map((w) => DropdownMenuItem(
+                              value: w as Map<String, dynamic>,
+                              child: Text(
+                                w['name'] ?? 'Ombor',
+                                style: TextStyle(color: textColor),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            )).toList(),
+                            onChanged: (val) => setState(() => _selectedWarehouse = val),
                           ),
-                          items: _suppliers
-                              .map((s) => DropdownMenuItem(
-                                    value: s as Map<String, dynamic>,
-                                    child: Text(
-                                      s['name'] ?? '',
-                                      style: TextStyle(color: textColor),
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ))
-                              .toList(),
-                          onChanged: (val) => setState(() => _selectedSupplier = val),
-                        ),
-                        const SizedBox(height: 14),
-                        // Payment type (required by backend): naqd yoki nasiya
-                        DropdownButtonFormField<String>(
-                          value: _paymentType,
-                          isExpanded: true,
-                          style: TextStyle(color: textColor, fontSize: 14, fontWeight: FontWeight.w500),
-                          dropdownColor: theme.colorScheme.surface,
-                          iconEnabledColor: textColor,
-                          decoration: const InputDecoration(
-                            labelText: 'To\'lov turi *',
-                            prefixIcon: Icon(Icons.payments_outlined),
+                          const SizedBox(height: 14),
+                          // Supplier Picker (required by backend)
+                          DropdownButtonFormField<Map<String, dynamic>>(
+                            value: _selectedSupplier,
+                            isExpanded: true,
+                            style: TextStyle(color: textColor, fontSize: 14, fontWeight: FontWeight.w500),
+                            dropdownColor: theme.colorScheme.surface,
+                            iconEnabledColor: textColor,
+                            validator: (v) => v == null ? 'Ta\'minotchi tanlanishi majburiy!' : null,
+                            decoration: const InputDecoration(
+                              labelText: 'Ta\'minotchi *',
+                              prefixIcon: Icon(Icons.store_outlined),
+                            ),
+                            items: _suppliers
+                                .map((s) => DropdownMenuItem(
+                                      value: s as Map<String, dynamic>,
+                                      child: Text(
+                                        s['name'] ?? '',
+                                        style: TextStyle(color: textColor),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ))
+                                .toList(),
+                            onChanged: (val) => setState(() => _selectedSupplier = val),
                           ),
-                          items: [
-                            DropdownMenuItem(
-                              value: 'CASH',
-                              child: Text('Naqd (darhol to\'landi)', style: TextStyle(color: textColor)),
+                          const SizedBox(height: 14),
+                          // Payment type (required by backend): naqd yoki nasiya
+                          DropdownButtonFormField<String>(
+                            value: _paymentType,
+                            isExpanded: true,
+                            style: TextStyle(color: textColor, fontSize: 14, fontWeight: FontWeight.w500),
+                            dropdownColor: theme.colorScheme.surface,
+                            iconEnabledColor: textColor,
+                            decoration: const InputDecoration(
+                              labelText: 'To\'lov turi *',
+                              prefixIcon: Icon(Icons.payments_outlined),
                             ),
-                            DropdownMenuItem(
-                              value: 'CREDIT',
-                              child: Text('Nasiya (ta\'minotchiga qarz)', style: TextStyle(color: textColor)),
-                            ),
-                          ],
-                          onChanged: (val) => setState(() => _paymentType = val ?? 'CASH'),
-                        ),
-                        const SizedBox(height: 14),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: TextField(
-                                controller: _quantityController,
-                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                style: TextStyle(color: textColor, fontWeight: FontWeight.bold),
-                                decoration: const InputDecoration(
-                                  labelText: 'Kirim Miqdori *',
+                            items: [
+                              DropdownMenuItem(
+                                value: 'CASH',
+                                child: Text('Naqd (darhol to\'landi)', style: TextStyle(color: textColor)),
+                              ),
+                              DropdownMenuItem(
+                                value: 'CREDIT',
+                                child: Text('Nasiya (ta\'minotchiga qarz)', style: TextStyle(color: textColor)),
+                              ),
+                            ],
+                            onChanged: (val) => setState(() => _paymentType = val ?? 'CASH'),
+                          ),
+                          const SizedBox(height: 14),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: TextFormField(
+                                  controller: _quantityController,
+                                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                  style: TextStyle(color: textColor, fontWeight: FontWeight.bold),
+                                  validator: (v) {
+                                    if (v == null || v.trim().isEmpty) return 'Miqdor majburiy!';
+                                    final n = double.tryParse(v.trim());
+                                    if (n == null || n <= 0) return 'Musbat raqam!';
+                                    return null;
+                                  },
+                                  decoration: const InputDecoration(
+                                    labelText: 'Kirim Miqdori *',
+                                  ),
                                 ),
                               ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: TextField(
-                                controller: _costController,
-                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                style: TextStyle(color: textColor, fontWeight: FontWeight.bold),
-                                decoration: const InputDecoration(
-                                  labelText: 'Tannarx (UZS) *',
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: TextFormField(
+                                  controller: _costController,
+                                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                  style: TextStyle(color: textColor, fontWeight: FontWeight.bold),
+                                  validator: (v) {
+                                    if (v == null || v.trim().isEmpty) return 'Tannarx majburiy!';
+                                    final n = double.tryParse(v.trim());
+                                    if (n == null || n < 0) return 'To\'g\'ri narx!';
+                                    return null;
+                                  },
+                                  decoration: const InputDecoration(
+                                    labelText: 'Tannarx (UZS) *',
+                                  ),
                                 ),
                               ),
+                            ],
+                          ),
+                          const SizedBox(height: 24),
+                          ElevatedButton.icon(
+                            icon: _submitting
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                                  )
+                                : const Icon(Icons.add_shopping_cart),
+                            label: Text(
+                              _submitting ? 'Saqlanmoqda...' : 'Kirimni Saqlash',
+                              style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold),
                             ),
-                          ],
-                        ),
-                        const SizedBox(height: 24),
-                        ElevatedButton.icon(
-                          icon: _submitting
-                              ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
-                                )
-                              : const Icon(Icons.add_shopping_cart),
-                          label: Text(
-                            _submitting ? 'Saqlanmoqda...' : 'Kirimni Saqlash',
-                            style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold),
+                            style: ElevatedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              backgroundColor: theme.colorScheme.primary,
+                              foregroundColor: Colors.white,
+                            ),
+                            onPressed: _submitting ? null : _handleReceive,
                           ),
-                          style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            backgroundColor: theme.colorScheme.primary,
-                            foregroundColor: Colors.white,
-                          ),
-                          onPressed: _submitting ? null : _handleReceive,
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),

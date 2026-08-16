@@ -117,63 +117,83 @@ class _ExpensesViewState extends State<ExpensesView> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setModalState) => Padding(
-          padding: EdgeInsets.only(
-            left: 20, right: 20, top: 20,
-            bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text('Xarajat Qo\'shish', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _amountCtrl,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Summa (so\'m) *',
-                  prefixIcon: Icon(Icons.money),
-                  border: OutlineInputBorder(),
-                ),
+        builder: (ctx, setModalState) {
+          final formKey = GlobalKey<FormState>();
+          bool submitted = false;
+
+          return Padding(
+            padding: EdgeInsets.only(
+              left: 20, right: 20, top: 20,
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+            ),
+            child: Form(
+              key: formKey,
+              autovalidateMode: submitted ? AutovalidateMode.always : AutovalidateMode.disabled,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text('Xarajat Qo\'shish', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _amountCtrl,
+                    keyboardType: TextInputType.number,
+                    validator: (v) {
+                      if (v == null || v.trim().isEmpty) return 'Xarajat summasi majburiy!';
+                      final n = double.tryParse(v.trim());
+                      if (n == null || n <= 0) return 'Musbat raqam kiriting!';
+                      return null;
+                    },
+                    decoration: const InputDecoration(
+                      labelText: 'Summa (so\'m) *',
+                      prefixIcon: Icon(Icons.money),
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    value: _selectedCategory,
+                    style: TextStyle(color: theme.colorScheme.onSurface, fontSize: 14, fontWeight: FontWeight.w500),
+                    dropdownColor: theme.colorScheme.surface,
+                    iconEnabledColor: theme.colorScheme.onSurface,
+                    decoration: const InputDecoration(
+                      labelText: 'Kategoriya *',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: _categories.map((c) => DropdownMenuItem(
+                      value: c['value'] as String,
+                      child: Text(c['label'] as String, style: TextStyle(color: theme.colorScheme.onSurface)),
+                    )).toList(),
+                    onChanged: (v) => setModalState(() => _selectedCategory = v!),
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _noteCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Izoh / Tafsilot',
+                      prefixIcon: Icon(Icons.notes),
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      setModalState(() => submitted = true);
+                      if (formKey.currentState!.validate()) {
+                        _addExpense();
+                      }
+                    },
+                    icon: const Icon(Icons.add),
+                    label: Text('Saqlash', style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.w600)),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                value: _selectedCategory,
-                style: TextStyle(color: theme.colorScheme.onSurface, fontSize: 14, fontWeight: FontWeight.w500),
-                dropdownColor: theme.colorScheme.surface,
-                iconEnabledColor: theme.colorScheme.onSurface,
-                decoration: const InputDecoration(
-                  labelText: 'Kategoriya *',
-                  border: OutlineInputBorder(),
-                ),
-                items: _categories.map((c) => DropdownMenuItem(
-                  value: c['value'] as String,
-                  child: Text(c['label'] as String, style: TextStyle(color: theme.colorScheme.onSurface)),
-                )).toList(),
-                onChanged: (v) => setModalState(() => _selectedCategory = v!),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _noteCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Izoh / Tafsilot',
-                  prefixIcon: Icon(Icons.notes),
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 16),
-              ElevatedButton.icon(
-                onPressed: _addExpense,
-                icon: const Icon(Icons.add),
-                label: Text('Saqlash', style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.w600)),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                ),
-              ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
   }
