@@ -193,7 +193,7 @@ export class AdminService {
         email: dto.email.toLowerCase().trim(),
         passwordHash,
         firstName: dto.firstName.trim(),
-        lastName: dto.lastName.trim(),
+        lastName: dto.lastName?.trim() || '',
         status: UserStatus.ACTIVE,
         userCompanies: {
           create: {

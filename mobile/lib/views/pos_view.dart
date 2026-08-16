@@ -57,9 +57,25 @@ class _PosViewState extends State<PosView> {
       return;
     }
     try {
-      final res = await _apiService.get('/products/pos-products?q=${Uri.encodeComponent(q)}');
+      final res = await _apiService.get('/pos/products?q=${Uri.encodeComponent(q)}');
       if (res.statusCode == 200) {
-        setState(() => _searchResults = res.data['data'] ?? []);
+        final raw = res.data;
+        final list = raw is Map && raw.containsKey('data')
+            ? (raw['data'] is List ? raw['data'] : [])
+            : (raw is List ? raw : []);
+        setState(() => _searchResults = list);
+        return;
+      }
+    } catch (_) {}
+
+    try {
+      final fb = await _apiService.get('/products?search=${Uri.encodeComponent(q)}&limit=20');
+      if (fb.statusCode == 200) {
+        final raw = fb.data;
+        final list = raw is Map && raw.containsKey('data')
+            ? (raw['data'] is List ? raw['data'] : [])
+            : (raw is List ? raw : []);
+        setState(() => _searchResults = list);
       }
     } catch (_) {}
   }
@@ -68,12 +84,14 @@ class _PosViewState extends State<PosView> {
     setState(() {
       final existingIndex = _cart.indexWhere((item) => item['product']['id'] == product['id']);
       if (existingIndex >= 0) {
-        _cart[existingIndex]['quantity'] += 1;
+        _cart[existingIndex]['quantity'] += 1.0;
       } else {
+        final rawPrice = product['salePriceUzs'] ?? product['priceUzs'] ?? product['salePrice'] ?? '0';
+        final price = double.tryParse(rawPrice.toString()) ?? 0.0;
         _cart.add({
           'product': product,
           'quantity': 1.0,
-          'salePrice': double.parse(product['salePriceUzs']?.toString() ?? '0.0'),
+          'salePrice': price,
         });
       }
       _searchResults = [];

@@ -49,6 +49,12 @@ export class ProductsController {
     return this.productsService.search(user.companyId!, query);
   }
 
+  @Get('pos-products')
+  @RequirePermissions('products.view')
+  posProductsAlias(@CurrentUser() user: JwtPayload, @Query() query: PosProductsQueryDto) {
+    return this.productsService.posProducts(user.companyId!, query);
+  }
+
   @Post('import/preview')
   @RequirePermissions('products.create')
   importPreview(@CurrentUser() user: JwtPayload, @Body() dto: ProductImportRequestDto) {

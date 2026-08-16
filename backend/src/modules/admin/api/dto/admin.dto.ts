@@ -39,8 +39,9 @@ export class CreateAdminUserDto {
   @IsString()
   firstName!: string;
 
+  @IsOptional()
   @IsString()
-  lastName!: string;
+  lastName?: string;
 
   @IsString()
   roleId!: string;

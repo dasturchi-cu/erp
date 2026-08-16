@@ -66,44 +66,49 @@ class _InventoryViewState extends State<InventoryView> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setModalState) => Padding(
-          padding: EdgeInsets.only(
-            left: 20,
-            right: 20,
-            top: 20,
-            bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                'Yangi Ombor Yaratish',
-                style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _warehouseNameCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Ombor Nomi *',
-                  prefixIcon: Icon(Icons.warehouse_outlined),
-                  border: OutlineInputBorder(),
+        builder: (ctx, setModalState) {
+          final theme = Theme.of(context);
+          return Padding(
+            padding: EdgeInsets.only(
+              left: 20,
+              right: 20,
+              top: 20,
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Yangi Ombor Yaratish',
+                  style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
-              ),
-              const SizedBox(height: 12),
-              if (_branches.isNotEmpty)
-                DropdownButtonFormField<String>(
-                  value: selectedBranchId,
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _warehouseNameCtrl,
                   decoration: const InputDecoration(
-                    labelText: 'Filial *',
+                    labelText: 'Ombor Nomi *',
+                    prefixIcon: Icon(Icons.warehouse_outlined),
                     border: OutlineInputBorder(),
                   ),
-                  items: _branches.map((b) => DropdownMenuItem<String>(
-                    value: b['id'] as String,
-                    child: Text(b['name'] ?? 'Filial'),
-                  )).toList(),
-                  onChanged: (val) => setModalState(() => selectedBranchId = val),
                 ),
+                const SizedBox(height: 12),
+                if (_branches.isNotEmpty)
+                  DropdownButtonFormField<String>(
+                    value: selectedBranchId,
+                    style: TextStyle(color: theme.colorScheme.onSurface, fontSize: 14, fontWeight: FontWeight.w500),
+                    dropdownColor: theme.colorScheme.surface,
+                    iconEnabledColor: theme.colorScheme.onSurface,
+                    decoration: const InputDecoration(
+                      labelText: 'Filial *',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: _branches.map((b) => DropdownMenuItem<String>(
+                      value: b['id'] as String,
+                      child: Text(b['name'] ?? 'Filial', style: TextStyle(color: theme.colorScheme.onSurface)),
+                    )).toList(),
+                    onChanged: (val) => setModalState(() => selectedBranchId = val),
+                  ),
               const SizedBox(height: 16),
               ElevatedButton.icon(
                 icon: const Icon(Icons.add_business),
@@ -153,10 +158,11 @@ class _InventoryViewState extends State<InventoryView> {
               ),
             ],
           ),
-        ),
-      ),
-    );
-  }
+        );
+      },
+    ),
+  );
+}
 
   @override
   Widget build(BuildContext context) {

@@ -41,6 +41,8 @@ class _SalesHistoryViewState extends State<SalesHistoryView> {
       case 'COMPLETED': return Colors.green;
       case 'PENDING': return Colors.orange;
       case 'VOIDED': return Colors.red;
+      case 'PARTIALLY_RETURNED': return Colors.amber;
+      case 'RETURNED': return Colors.purple;
       default: return Colors.blue;
     }
   }
@@ -50,7 +52,9 @@ class _SalesHistoryViewState extends State<SalesHistoryView> {
       case 'COMPLETED': return 'Yakunlangan';
       case 'PENDING': return 'Kutilmoqda';
       case 'VOIDED': return 'Bekor qilingan';
-      default: return status ?? 'COMPLETED';
+      case 'PARTIALLY_RETURNED': return 'Qisman qaytarilgan';
+      case 'RETURNED': return 'Qaytarilgan';
+      default: return status ?? 'Yakunlangan';
     }
   }
 
@@ -58,9 +62,11 @@ class _SalesHistoryViewState extends State<SalesHistoryView> {
     switch (method) {
       case 'CASH': return 'Naqd';
       case 'CARD': return 'Karta';
-      case 'TRANSFER': return 'Transfer';
+      case 'TRANSFER': return 'O\'tkazma';
+      case 'BANK_TRANSFER': return 'O\'tkazma';
       case 'MIXED': return 'Aralash';
-      case 'DEBT': return 'Nasiya';
+      case 'CREDIT': return 'Nasiya (Qarz)';
+      case 'DEBT': return 'Nasiya (Qarz)';
       default: return method ?? 'Naqd';
     }
   }
@@ -80,10 +86,16 @@ class _SalesHistoryViewState extends State<SalesHistoryView> {
   }
 
   void _showSaleDetails(Map<String, dynamic> sale) {
-    final items = sale['items'] is List ? (sale['items'] as List) : [];
-    final customer = sale['customer'];
-    final total = (sale['totalAmount'] ?? sale['total'] ?? 0.0);
+    final theme = Theme.of(context);
+    final items = sale['lineItems'] is List
+        ? (sale['lineItems'] as List)
+        : (sale['items'] is List ? (sale['items'] as List) : []);
+    final customerName = sale['customerName'] ?? sale['customer']?['name'];
+    final rawTotal = sale['totalUzs'] ?? sale['totalAmount'] ?? sale['total'] ?? 0;
+    final total = (rawTotal is num) ? rawTotal.toDouble() : (double.tryParse(rawTotal.toString()) ?? 0.0);
     final dateStr = sale['createdAt'] != null ? DateTime.tryParse(sale['createdAt'].toString()) : null;
+    final saleNumber = sale['number'] ?? sale['saleNumber'] ?? sale['id']?.toString().substring(0, 8);
+    final paymentType = sale['paymentType'] ?? sale['paymentMethod'];
 
     showModalBottomSheet(
       context: context,
@@ -104,36 +116,43 @@ class _SalesHistoryViewState extends State<SalesHistoryView> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('Sotuv Cheki', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold)),
+                  Text('Chek #$saleNumber', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold)),
                   Chip(
                     label: Text(_statusLabel(sale['status'] as String?)),
-                    backgroundColor: _statusColor(sale['status'] as String?).withOpacity(0.15),
+                    backgroundColor: _statusColor(sale['status'] as String?).withValues(alpha: 0.15),
                   ),
                 ],
               ),
               const SizedBox(height: 12),
-              if (customer != null)
-                Text('Mijoz: ${customer['name'] ?? 'Mijoz'}', style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.w600)),
-              Text('To\'lov turi: ${_paymentLabel(sale['paymentMethod'] as String?)}', style: GoogleFonts.outfit(fontSize: 13, color: Colors.grey)),
+              if (customerName != null && customerName.toString().isNotEmpty)
+                Text('Mijoz: $customerName', style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.w600)),
+              Text('To\'lov turi: ${_paymentLabel(paymentType as String?)}', style: GoogleFonts.outfit(fontSize: 13, color: theme.colorScheme.onSurfaceVariant)),
               if (dateStr != null)
-                Text('Sana: ${dateStr.toString().split('.')[0]}', style: GoogleFonts.outfit(fontSize: 13, color: Colors.grey)),
+                Text('Sana: ${dateStr.toString().split('.')[0]}', style: GoogleFonts.outfit(fontSize: 13, color: theme.colorScheme.onSurfaceVariant)),
               const Divider(height: 24),
               Text('Xarid qilingan tovarlar:', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
               if (items.isEmpty)
-                Text('Tovarlar ro\'yxati yo\'q', style: GoogleFonts.outfit(color: Colors.grey))
+                Text('Tovarlar ro\'yxati yo\'q', style: GoogleFonts.outfit(color: theme.colorScheme.onSurfaceVariant))
               else
                 ...items.map((it) {
                   final name = it['productName'] ?? it['product']?['name'] ?? 'Mahsulot';
-                  final qty = it['quantity'] ?? 1;
-                  final price = it['unitPriceUzs'] ?? it['price'] ?? 0;
+                  final rawQty = it['quantity'] ?? 1;
+                  final qty = (rawQty is num) ? rawQty.toDouble() : (double.tryParse(rawQty.toString()) ?? 1.0);
+                  final rawPrice = it['unitPriceUzs'] ?? it['price'] ?? 0;
+                  final price = (rawPrice is num) ? rawPrice.toDouble() : (double.tryParse(rawPrice.toString()) ?? 0.0);
+                  final rawItemTotal = it['totalUzs'];
+                  final itemTotal = rawItemTotal != null
+                      ? ((rawItemTotal is num) ? rawItemTotal.toDouble() : (double.tryParse(rawItemTotal.toString()) ?? (price * qty)))
+                      : (price * qty);
+
                   return Padding(
                     padding: const EdgeInsets.symmetric(vertical: 4),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Expanded(child: Text('$name (x$qty)', style: GoogleFonts.outfit())),
-                        Text('${_formatNumber(price * qty)} so\'m', style: GoogleFonts.outfit(fontWeight: FontWeight.w600)),
+                        Expanded(child: Text('$name (x${qty.toStringAsFixed(qty % 1 == 0 ? 0 : 2)})', style: GoogleFonts.outfit())),
+                        Text('${_formatNumber(itemTotal)} UZS', style: GoogleFonts.outfit(fontWeight: FontWeight.w600)),
                       ],
                     ),
                   );
@@ -145,7 +164,7 @@ class _SalesHistoryViewState extends State<SalesHistoryView> {
                   Text('JAMI SUMMA:', style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold)),
                   Text(
                     '${_formatNumber(total)} UZS',
-                    style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary),
+                    style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: theme.colorScheme.primary),
                   ),
                 ],
               ),
@@ -187,12 +206,16 @@ class _SalesHistoryViewState extends State<SalesHistoryView> {
                       itemCount: _sales.length,
                       itemBuilder: (ctx, i) {
                         final sale = _sales[i];
-                        final total = (sale['totalAmount'] ?? sale['total'] ?? 0.0) as num;
+                        final rawTotal = sale['totalUzs'] ?? sale['totalAmount'] ?? sale['total'] ?? 0;
+                        final total = (rawTotal is num) ? rawTotal.toDouble() : (double.tryParse(rawTotal.toString()) ?? 0.0);
                         final status = sale['status'] as String?;
-                        final payMethod = sale['paymentMethod'] as String?;
-                        final itemCount = (sale['items'] as List?)?.length ?? sale['itemCount'] ?? 0;
+                        final payMethod = sale['paymentType'] ?? sale['paymentMethod'] as String?;
+                        final items = sale['lineItems'] is List
+                            ? (sale['lineItems'] as List)
+                            : (sale['items'] is List ? (sale['items'] as List) : []);
+                        final itemCount = items.isNotEmpty ? items.length : (sale['itemCount'] ?? 0);
                         final date = sale['createdAt'] != null
-                            ? DateTime.tryParse(sale['createdAt'])
+                            ? DateTime.tryParse(sale['createdAt'].toString())
                             : null;
                         return Card(
                           margin: const EdgeInsets.only(bottom: 10),
@@ -204,7 +227,7 @@ class _SalesHistoryViewState extends State<SalesHistoryView> {
                               child: Row(
                                 children: [
                                   CircleAvatar(
-                                    backgroundColor: _statusColor(status).withOpacity(0.15),
+                                    backgroundColor: _statusColor(status).withValues(alpha: 0.15),
                                     child: Icon(Icons.receipt_outlined, color: _statusColor(status)),
                                   ),
                                   const SizedBox(width: 12),
@@ -216,13 +239,13 @@ class _SalesHistoryViewState extends State<SalesHistoryView> {
                                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                           children: [
                                             Text(
-                                              '${_formatNumber(total)} so\'m',
+                                              '${_formatNumber(total)} UZS',
                                               style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 16),
                                             ),
                                             Container(
                                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                                               decoration: BoxDecoration(
-                                                color: _statusColor(status).withOpacity(0.15),
+                                                color: _statusColor(status).withValues(alpha: 0.15),
                                                 borderRadius: BorderRadius.circular(10),
                                               ),
                                               child: Text(
@@ -245,7 +268,7 @@ class _SalesHistoryViewState extends State<SalesHistoryView> {
                                             if (date != null) ...[
                                               const Spacer(),
                                               Text(
-                                                '${date.hour.toString().padLeft(2,'0')}:${date.minute.toString().padLeft(2,'0')}',
+                                                '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}',
                                                 style: GoogleFonts.outfit(fontSize: 12, color: theme.colorScheme.onSurfaceVariant),
                                               ),
                                             ]

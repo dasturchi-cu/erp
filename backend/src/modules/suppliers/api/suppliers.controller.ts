@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -116,6 +117,17 @@ export class SuppliersController {
   @Post(':id/archive')
   @RequirePermissions('suppliers.update')
   archive(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+    @ClientIp() ip?: string,
+    @RequestId() requestId?: string,
+  ) {
+    return this.suppliersService.archive(user.companyId!, id, user.sub, ip, requestId);
+  }
+
+  @Delete(':id')
+  @RequirePermissions('suppliers.update')
+  delete(
     @CurrentUser() user: JwtPayload,
     @Param('id', ParseUUIDPipe) id: string,
     @ClientIp() ip?: string,
