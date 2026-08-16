@@ -9,4 +9,4 @@ WORKDIR /app
 ENV PORT=3000
 COPY --from=builder /app ./
 EXPOSE 3000
-CMD ["sh", "-c", "if [ -f 'dist/src/main.js' ]; then npx prisma migrate deploy && node dist/src/main.js; else cd backend && npx prisma migrate deploy && node dist/src/main.js; fi"]
+CMD ["sh", "-c", "if [ -f 'dist/src/main.js' ]; then npx prisma migrate deploy && npx prisma db seed && node dist/src/main.js; else cd backend && npx prisma migrate deploy && npx prisma db seed && node dist/src/main.js; fi"]
