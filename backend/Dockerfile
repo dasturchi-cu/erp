@@ -1,17 +1,11 @@
 FROM node:22-alpine AS builder
 WORKDIR /app
-COPY package*.json ./
-RUN npm install
 COPY . .
-RUN npx prisma generate
-RUN npm run build
+RUN if [ -f "package.json" ]; then npm install && npx prisma generate && npm run build; else cd backend && npm install && npx prisma generate && npm run build; fi
 
 FROM node:22-alpine
 WORKDIR /app
 ENV PORT=3000
-COPY package*.json ./
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app ./
 EXPOSE 3000
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/src/main.js"]
+CMD ["sh", "-c", "if [ -f 'dist/src/main.js' ]; then npx prisma migrate deploy && node dist/src/main.js; else cd backend && npx prisma migrate deploy && node dist/src/main.js; fi"]
