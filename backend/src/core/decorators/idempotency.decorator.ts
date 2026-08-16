@@ -1,6 +1,6 @@
 import { createParamDecorator, ExecutionContext } from '@nestjs/common';
 import { Request } from 'express';
-import { AppException } from '../exceptions/app.exception';
+import { randomUUID } from 'crypto';
 
 export const IdempotencyKeyHeader = createParamDecorator(
   (_data: unknown, ctx: ExecutionContext): string => {
@@ -8,15 +8,9 @@ export const IdempotencyKeyHeader = createParamDecorator(
     const raw = request.headers['idempotency-key'];
     const key = Array.isArray(raw) ? raw[0] : raw;
     const trimmed = key?.trim();
-    if (!trimmed) {
-      throw AppException.validation('Validation failed', [
-        {
-          field: 'Idempotency-Key',
-          message: 'Idempotency-Key header is required',
-          code: 'MISSING_IDEMPOTENCY_KEY',
-        },
-      ]);
+    if (trimmed && trimmed.length > 0) {
+      return trimmed;
     }
-    return trimmed;
+    return randomUUID();
   },
 );
