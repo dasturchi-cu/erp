@@ -151,6 +151,18 @@ class ApiService {
     return dio.post(path, data: data);
   }
 
+  Future<Response> patch(String path, dynamic data) async {
+    return dio.patch(path, data: data);
+  }
+
+  Future<Response> put(String path, dynamic data) async {
+    return dio.put(path, data: data);
+  }
+
+  Future<Response> delete(String path) async {
+    return dio.delete(path);
+  }
+
   static String parseError(dynamic e) {
     if (e is DioException) {
       final res = e.response;

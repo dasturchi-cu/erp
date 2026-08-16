@@ -16,7 +16,7 @@ class _CustomersViewState extends State<CustomersView> {
   String _searchQuery = '';
   final _searchController = TextEditingController();
 
-  // Form controllers for creating customer
+  // Form controllers for creating / editing customer
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
   final _addressController = TextEditingController();
@@ -98,116 +98,285 @@ class _CustomersViewState extends State<CustomersView> {
           left: 20,
           right: 20,
           top: 20,
-          bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+          bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Yangi Mijoz Qo\'shish',
-                  style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Yangi Mijoz Qo\'shish',
+                    style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _nameController,
+                decoration: const InputDecoration(
+                  labelText: 'Mijoz ismi / Tashkilot *',
+                  prefixIcon: Icon(Icons.person),
+                  border: OutlineInputBorder(),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: () => Navigator.pop(ctx),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _phoneController,
+                keyboardType: TextInputType.phone,
+                decoration: const InputDecoration(
+                  labelText: 'Telefon (+998...) *',
+                  prefixIcon: Icon(Icons.phone),
+                  hintText: '+998901234567',
+                  border: OutlineInputBorder(),
                 ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _nameController,
-              decoration: const InputDecoration(
-                labelText: 'Mijoz ismi / Tashkilot *',
-                prefixIcon: Icon(Icons.person),
-                border: OutlineInputBorder(),
               ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _phoneController,
-              keyboardType: TextInputType.phone,
-              decoration: const InputDecoration(
-                labelText: 'Telefon (+998...) *',
-                prefixIcon: Icon(Icons.phone),
-                hintText: '+998901234567',
-                border: OutlineInputBorder(),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _addressController,
+                decoration: const InputDecoration(
+                  labelText: 'Manzil (ixtiyoriy)',
+                  prefixIcon: Icon(Icons.location_on_outlined),
+                  border: OutlineInputBorder(),
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _addressController,
-              decoration: const InputDecoration(
-                labelText: 'Manzil (ixtiyoriy)',
-                prefixIcon: Icon(Icons.location_on_outlined),
-                border: OutlineInputBorder(),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _notesController,
+                decoration: const InputDecoration(
+                  labelText: 'Izoh / Qayd',
+                  prefixIcon: Icon(Icons.note_outlined),
+                  border: OutlineInputBorder(),
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _notesController,
-              decoration: const InputDecoration(
-                labelText: 'Izoh / Qayd',
-                prefixIcon: Icon(Icons.note_outlined),
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () async {
-                final name = _nameController.text.trim();
-                var phone = _phoneController.text.trim();
-                if (name.isEmpty || phone.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Ism va telefon raqam majburiy!')),
-                  );
-                  return;
-                }
-                if (!phone.startsWith('+')) {
-                  phone = '+$phone';
-                }
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () async {
+                  final name = _nameController.text.trim();
+                  var phone = _phoneController.text.trim();
+                  if (name.isEmpty || phone.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Ism va telefon raqam majburiy!')),
+                    );
+                    return;
+                  }
+                  if (!phone.startsWith('+')) {
+                    phone = '+$phone';
+                  }
 
-                try {
-                  final res = await _apiService.post('/customers', {
-                    'name': name,
-                    'phone': phone,
-                    if (_addressController.text.trim().isNotEmpty)
-                      'address': _addressController.text.trim(),
-                    if (_notesController.text.trim().isNotEmpty)
-                      'notes': _notesController.text.trim(),
-                  });
+                  try {
+                    final res = await _apiService.post('/customers', {
+                      'name': name,
+                      'phone': phone,
+                      if (_addressController.text.trim().isNotEmpty)
+                        'address': _addressController.text.trim(),
+                      if (_notesController.text.trim().isNotEmpty)
+                        'notes': _notesController.text.trim(),
+                    });
 
-                  if (res.statusCode == 200 || res.statusCode == 201) {
+                    if (res.statusCode == 200 || res.statusCode == 201) {
+                      if (mounted) {
+                        Navigator.pop(ctx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Mijoz muvaffaqiyatli qo\'shildi!')),
+                        );
+                        _fetchCustomers(_searchQuery);
+                      }
+                    }
+                  } catch (e) {
                     if (mounted) {
-                      Navigator.pop(ctx);
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Mijoz muvaffaqiyatli qo\'shildi!')),
+                        SnackBar(content: Text('Xatolik: ${ApiService.parseError(e)}')),
                       );
-                      _fetchCustomers();
                     }
                   }
-                } catch (e) {
+                },
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                child: Text(
+                  'Saqlash',
+                  style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showEditCustomerDialog(Map<String, dynamic> c) {
+    _nameController.text = c['name'] ?? '';
+    _phoneController.text = c['phone'] ?? '';
+    _addressController.text = c['address'] ?? '';
+    _notesController.text = c['notes'] ?? '';
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(
+          left: 20,
+          right: 20,
+          top: 20,
+          bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Mijozni Tahrirlash',
+                    style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _nameController,
+                decoration: const InputDecoration(
+                  labelText: 'Mijoz ismi *',
+                  prefixIcon: Icon(Icons.person),
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _phoneController,
+                keyboardType: TextInputType.phone,
+                decoration: const InputDecoration(
+                  labelText: 'Telefon raqam *',
+                  prefixIcon: Icon(Icons.phone),
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _addressController,
+                decoration: const InputDecoration(
+                  labelText: 'Manzil',
+                  prefixIcon: Icon(Icons.location_on_outlined),
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _notesController,
+                decoration: const InputDecoration(
+                  labelText: 'Izoh / Qayd',
+                  prefixIcon: Icon(Icons.note_outlined),
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () async {
+                  final name = _nameController.text.trim();
+                  final phone = _phoneController.text.trim();
+                  if (name.isEmpty || phone.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Ism va telefon raqam majburiy!')),
+                    );
+                    return;
+                  }
+
+                  try {
+                    final res = await _apiService.patch('/customers/${c['id']}', {
+                      'name': name,
+                      'phone': phone,
+                      'address': _addressController.text.trim(),
+                      'notes': _notesController.text.trim(),
+                    });
+
+                    if (res.statusCode == 200 || res.statusCode == 204) {
+                      if (mounted) {
+                        Navigator.pop(ctx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Mijoz ma\'lumotlari yangilandi!')),
+                        );
+                        _fetchCustomers(_searchQuery);
+                      }
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Xatolik: ${ApiService.parseError(e)}')),
+                      );
+                    }
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                child: Text(
+                  'O\'zgarishlarni Saqlash',
+                  style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _confirmDeleteCustomer(Map<String, dynamic> c) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Mijozni o\'chirish'),
+        content: Text('Haqiqatan ham "${c['name']}" mijozini arxivlamoqchimisiz (o\'chirmoqchimisiz)?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Bekor qilish'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              try {
+                final res = await _apiService.delete('/customers/${c['id']}');
+                if (res.statusCode == 200 || res.statusCode == 204) {
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Xatolik: ${ApiService.parseError(e)}')),
+                      const SnackBar(content: Text('Mijoz muvaffaqiyatli o\'chirildi / arxivlandi!')),
                     );
+                    _fetchCustomers(_searchQuery);
                   }
                 }
-              },
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-              child: Text(
-                'Saqlash',
-                style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-            ),
-          ],
-        ),
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Xatolik: ${ApiService.parseError(e)}')),
+                  );
+                }
+              }
+            },
+            child: const Text('O\'chirish'),
+          ),
+        ],
       ),
     );
   }
@@ -215,7 +384,6 @@ class _CustomersViewState extends State<CustomersView> {
   void _showCustomerDetail(Map<String, dynamic> c) {
     final theme = Theme.of(context);
     final debtUzs = _parseAmount(c['debtUzs'] ?? c['totalDebtUzs'] ?? c['debt']);
-    final debtUsd = _parseAmount(c['debtUsd'] ?? c['totalDebtUsd']);
     final purchases = _parseAmount(c['totalPurchasesUzs']);
 
     final payAmountController = TextEditingController(text: debtUzs > 0 ? debtUzs.toStringAsFixed(0) : '');
@@ -233,190 +401,221 @@ class _CustomersViewState extends State<CustomersView> {
             left: 20,
             right: 20,
             top: 20,
-            bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  CircleAvatar(
-                    radius: 24,
-                    backgroundColor: theme.colorScheme.primaryContainer,
-                    child: Icon(Icons.person, color: theme.colorScheme.onPrimaryContainer, size: 28),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          c['name'] ?? '',
-                          style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold),
-                        ),
-                        Text(
-                          c['phone'] ?? 'Telefon ko\'rsatilmagan',
-                          style: GoogleFonts.outfit(color: theme.colorScheme.onSurfaceVariant),
-                        ),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.pop(ctx),
-                  ),
-                ],
-              ),
-              const Divider(height: 24),
-              // Financial Info Cards
-              Row(
-                children: [
-                  Expanded(
-                    child: Card(
-                      color: debtUzs > 0 ? Colors.red.withOpacity(0.1) : Colors.green.withOpacity(0.1),
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Qarz (UZS)',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: debtUzs > 0 ? Colors.red : Colors.green,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              _formatCurrency(debtUzs),
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: debtUzs > 0 ? Colors.red : Colors.green,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Card(
-                      color: theme.colorScheme.surfaceContainerHighest,
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text('Jami Xaridlar', style: TextStyle(fontSize: 12)),
-                            const SizedBox(height: 4),
-                            Text(
-                              _formatCurrency(purchases),
-                              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              if (c['address'] != null && c['address'].toString().isNotEmpty)
-                ListTile(
-                  dense: true,
-                  leading: const Icon(Icons.location_on_outlined),
-                  title: Text(c['address']),
-                  subtitle: const Text('Manzil'),
-                ),
-              if (c['notes'] != null && c['notes'].toString().isNotEmpty)
-                ListTile(
-                  dense: true,
-                  leading: const Icon(Icons.note_outlined),
-                  title: Text(c['notes']),
-                  subtitle: const Text('Izoh'),
-                ),
-              const SizedBox(height: 16),
-              // Debt Payment Section
-              if (debtUzs > 0) ...[
-                Text(
-                  'Qarz To\'lovini Qabul Qilish',
-                  style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 15),
-                ),
-                const SizedBox(height: 8),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
                 Row(
                   children: [
+                    CircleAvatar(
+                      radius: 24,
+                      backgroundColor: theme.colorScheme.primaryContainer,
+                      child: Icon(Icons.person, color: theme.colorScheme.onPrimaryContainer, size: 28),
+                    ),
+                    const SizedBox(width: 12),
                     Expanded(
-                      child: TextField(
-                        controller: payAmountController,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: 'To\'lov summasi',
-                          border: OutlineInputBorder(),
-                          isDense: true,
-                        ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            c['name'] ?? '',
+                            style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold),
+                          ),
+                          Text(
+                            c['phone'] ?? 'Telefon ko\'rsatilmagan',
+                            style: GoogleFonts.outfit(color: theme.colorScheme.onSurfaceVariant),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    DropdownButton<String>(
-                      value: payMethod,
-                      items: const [
-                        DropdownMenuItem(value: 'CASH', child: Text('Naqd')),
-                        DropdownMenuItem(value: 'CARD', child: Text('Karta')),
-                        DropdownMenuItem(value: 'BANK_TRANSFER', child: Text('O\'tkazma')),
-                      ],
-                      onChanged: (val) {
-                        if (val != null) setModalState(() => payMethod = val);
-                      },
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.pop(ctx),
                     ),
                   ],
                 ),
                 const SizedBox(height: 12),
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.payments_outlined),
-                  label: const Text('To\'lovni Saqlash'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                  onPressed: () async {
-                    final payAmt = payAmountController.text.trim();
-                    if (payAmt.isEmpty) return;
-                    // FULL if the payment clears the whole debt, otherwise PARTIAL.
-                    final payNum = double.tryParse(payAmt) ?? 0;
-                    final paymentType = payNum >= debtUzs ? 'FULL' : 'PARTIAL';
-                    try {
-                      final res = await _apiService.post('/debt-payments', {
-                        'customerId': c['id'],
-                        'amount': payAmt,
-                        'currency': 'UZS',
-                        'paymentMethod': payMethod,
-                        'paymentType': paymentType,
-                        'notes': 'Mobil ilovadan qarz to\'lovi',
-                      });
-                      if (res.statusCode == 200 || res.statusCode == 201) {
-                        if (mounted) {
+                // Action Buttons: Edit & Delete
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.edit, size: 18),
+                        label: const Text('Tahrirlash'),
+                        onPressed: () {
                           Navigator.pop(ctx);
+                          _showEditCustomerDialog(c);
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
+                        label: const Text('O\'chirish', style: TextStyle(color: Colors.red)),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: Colors.red),
+                        ),
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          _confirmDeleteCustomer(c);
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const Divider(height: 24),
+                // Financial Info Cards
+                Row(
+                  children: [
+                    Expanded(
+                      child: Card(
+                        color: debtUzs > 0 ? Colors.red.withOpacity(0.1) : Colors.green.withOpacity(0.1),
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Qarz (UZS)',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: debtUzs > 0 ? Colors.red : Colors.green,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                _formatCurrency(debtUzs),
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: debtUzs > 0 ? Colors.red : Colors.green,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Card(
+                        color: theme.colorScheme.surfaceContainerHighest,
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('Jami Xaridlar', style: TextStyle(fontSize: 12)),
+                              const SizedBox(height: 4),
+                              Text(
+                                _formatCurrency(purchases),
+                                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                if (c['address'] != null && c['address'].toString().isNotEmpty)
+                  ListTile(
+                    dense: true,
+                    leading: const Icon(Icons.location_on_outlined),
+                    title: Text(c['address']),
+                    subtitle: const Text('Manzil'),
+                  ),
+                if (c['notes'] != null && c['notes'].toString().isNotEmpty)
+                  ListTile(
+                    dense: true,
+                    leading: const Icon(Icons.note_outlined),
+                    title: Text(c['notes']),
+                    subtitle: const Text('Izoh'),
+                  ),
+                const SizedBox(height: 16),
+                // Debt Payment Section
+                if (debtUzs > 0) ...[
+                  Text(
+                    'Qarz To\'lovini Qabul Qilish',
+                    style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 15),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: payAmountController,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            labelText: 'To\'lov summasi',
+                            border: OutlineInputBorder(),
+                            isDense: true,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      DropdownButton<String>(
+                        value: payMethod,
+                        items: const [
+                          DropdownMenuItem(value: 'CASH', child: Text('Naqd')),
+                          DropdownMenuItem(value: 'CARD', child: Text('Karta')),
+                          DropdownMenuItem(value: 'BANK_TRANSFER', child: Text('O\'tkazma')),
+                        ],
+                        onChanged: (val) {
+                          if (val != null) setModalState(() => payMethod = val);
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.payments_outlined),
+                    label: const Text('To\'lovni Saqlash'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    onPressed: () async {
+                      final payAmt = payAmountController.text.trim();
+                      if (payAmt.isEmpty) return;
+                      final payNum = double.tryParse(payAmt) ?? 0;
+                      final paymentType = payNum >= debtUzs ? 'FULL' : 'PARTIAL';
+                      try {
+                        final res = await _apiService.post('/debt-payments', {
+                          'customerId': c['id'],
+                          'amount': payAmt,
+                          'currency': 'UZS',
+                          'paymentMethod': payMethod,
+                          'paymentType': paymentType,
+                          'notes': 'Mobil ilovadan qarz to\'lovi',
+                        });
+                        if (res.statusCode == 200 || res.statusCode == 201) {
+                          if (mounted) {
+                            Navigator.pop(ctx);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Qarz to\'lovi qabul qilindi!')),
+                            );
+                            _fetchCustomers(_searchQuery);
+                          }
+                        }
+                      } catch (e) {
+                        if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Qarz to\'lovi qabul qilindi!')),
+                            SnackBar(content: Text('Xatolik: ${ApiService.parseError(e)}')),
                           );
-                          _fetchCustomers(_searchQuery);
                         }
                       }
-                    } catch (e) {
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Xatolik: ${ApiService.parseError(e)}')),
-                        );
-                      }
-                    }
-                  },
-                ),
+                    },
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),
@@ -507,24 +706,62 @@ class _CustomersViewState extends State<CustomersView> {
                                 ),
                                 title: Text(c['name'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold)),
                                 subtitle: Text(c['phone'] ?? '+998 (--) --- -- --'),
-                                trailing: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Text(
-                                      'Qarz:',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        color: theme.colorScheme.onSurfaceVariant,
-                                      ),
+                                    Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      crossAxisAlignment: CrossAxisAlignment.end,
+                                      children: [
+                                        Text(
+                                          'Qarz:',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: theme.colorScheme.onSurfaceVariant,
+                                          ),
+                                        ),
+                                        Text(
+                                          _formatCurrency(debtUzs),
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 13,
+                                            color: debtUzs > 0 ? Colors.red : Colors.green,
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                    Text(
-                                      _formatCurrency(debtUzs),
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 13,
-                                        color: debtUzs > 0 ? Colors.red : Colors.green,
-                                      ),
+                                    const SizedBox(width: 4),
+                                    PopupMenuButton<String>(
+                                      icon: const Icon(Icons.more_vert),
+                                      onSelected: (val) {
+                                        if (val == 'edit') {
+                                          _showEditCustomerDialog(c);
+                                        } else if (val == 'delete') {
+                                          _confirmDeleteCustomer(c);
+                                        }
+                                      },
+                                      itemBuilder: (ctx) => [
+                                        const PopupMenuItem(
+                                          value: 'edit',
+                                          child: Row(
+                                            children: [
+                                              Icon(Icons.edit, size: 18),
+                                              SizedBox(width: 8),
+                                              Text('Tahrirlash'),
+                                            ],
+                                          ),
+                                        ),
+                                        const PopupMenuItem(
+                                          value: 'delete',
+                                          child: Row(
+                                            children: [
+                                              Icon(Icons.delete_outline, color: Colors.red, size: 18),
+                                              SizedBox(width: 8),
+                                              Text('O\'chirish', style: TextStyle(color: Colors.red)),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ],
                                 ),

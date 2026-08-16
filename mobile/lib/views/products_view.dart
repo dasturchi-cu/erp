@@ -22,7 +22,7 @@ class _ProductsViewState extends State<ProductsView> {
 
   static const List<String> _units = ['dona', 'kg', 'litr', 'metr', 'quti', 'to\'plam'];
 
-  // Add Product form controllers
+  // Add/Edit Product form controllers
   final _skuController = TextEditingController();
   final _nameController = TextEditingController();
   final _barcodeController = TextEditingController();
@@ -445,6 +445,220 @@ class _ProductsViewState extends State<ProductsView> {
     );
   }
 
+  void _showEditProductDialog(Map<String, dynamic> p) {
+    _skuController.text = p['sku'] ?? '';
+    _nameController.text = p['name'] ?? '';
+    _barcodeController.text = p['barcode'] ?? '';
+    _purchasePriceController.text = (p['purchasePriceUzs'] ?? '').toString();
+    _salePriceController.text = (p['salePriceUzs'] ?? '').toString();
+    _selectedCategoryId = p['categoryId']?.toString();
+    _selectedUnit = p['unitOfMeasure'] ?? 'dona';
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) {
+          final validCategories = _categories.where((c) => c is Map && c['id'] != null).toList();
+
+          return Padding(
+            padding: EdgeInsets.only(
+              left: 20,
+              right: 20,
+              top: 20,
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Mahsulotni Tahrirlash',
+                    style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _skuController,
+                          decoration: const InputDecoration(
+                            labelText: 'SKU kodi *',
+                            border: OutlineInputBorder(),
+                            isDense: true,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextField(
+                          controller: _barcodeController,
+                          decoration: const InputDecoration(
+                            labelText: 'Barkod',
+                            border: OutlineInputBorder(),
+                            isDense: true,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _nameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Mahsulot Nomi *',
+                      prefixIcon: Icon(Icons.inventory_2_outlined),
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  if (validCategories.isNotEmpty)
+                    DropdownButtonFormField<String>(
+                      value: validCategories.any((c) => c['id'].toString() == _selectedCategoryId)
+                          ? _selectedCategoryId
+                          : validCategories.first['id'].toString(),
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Kategoriya',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: validCategories.map((cat) => DropdownMenuItem<String>(
+                        value: cat['id'].toString(),
+                        child: Text((cat['name'] ?? 'Kategoriya').toString(), overflow: TextOverflow.ellipsis),
+                      )).toList(),
+                      onChanged: (val) => setModalState(() => _selectedCategoryId = val),
+                    ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _purchasePriceController,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            labelText: 'Tannarx (UZS)',
+                            border: OutlineInputBorder(),
+                            isDense: true,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextField(
+                          controller: _salePriceController,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            labelText: 'Sotish Narxi (UZS) *',
+                            border: OutlineInputBorder(),
+                            isDense: true,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () async {
+                      final name = _nameController.text.trim();
+                      final sku = _skuController.text.trim();
+                      final saleRaw = _salePriceController.text.trim();
+                      final purchaseRaw = _purchasePriceController.text.trim();
+
+                      if (name.isEmpty || sku.isEmpty || saleRaw.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Nomi, SKU va sotish narxi majburiy!')),
+                        );
+                        return;
+                      }
+
+                      try {
+                        final res = await _apiService.patch('/products/${p['id']}', {
+                          'name': name,
+                          'sku': sku,
+                          'salePriceUzs': saleRaw,
+                          if (purchaseRaw.isNotEmpty) 'purchasePriceUzs': purchaseRaw,
+                          if (_barcodeController.text.trim().isNotEmpty) 'barcode': _barcodeController.text.trim(),
+                          if (_selectedCategoryId != null) 'categoryId': _selectedCategoryId,
+                        });
+
+                        if (res.statusCode == 200 || res.statusCode == 204) {
+                          if (mounted) {
+                            Navigator.pop(ctx);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Mahsulot yangilandi!')),
+                            );
+                            _fetchProducts();
+                          }
+                        }
+                      } catch (e) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Xatolik: ${ApiService.parseError(e)}')),
+                          );
+                        }
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    child: Text(
+                      'O\'zgarishlarni Saqlash',
+                      style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  void _confirmDeleteProduct(Map<String, dynamic> p) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Mahsulotni o\'chirish'),
+        content: Text('Haqiqatan ham "${p['name']}" mahsulotini arxivlamoqchimisiz (o\'chirmoqchimisiz)?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Bekor qilish'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              try {
+                final res = await _apiService.delete('/products/${p['id']}');
+                if (res.statusCode == 200 || res.statusCode == 204) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Mahsulot muvaffaqiyatli o\'chirildi / arxivlandi!')),
+                    );
+                    _fetchProducts();
+                  }
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Xatolik: ${ApiService.parseError(e)}')),
+                  );
+                }
+              }
+            },
+            child: const Text('O\'chirish'),
+          ),
+        ],
+      ),
+    );
+  }
+
   String _formatNumber(dynamic val) {
     if (val == null) return '0';
     final n = (val is num) ? val.toDouble() : (double.tryParse(val.toString()) ?? 0.0);
@@ -543,12 +757,50 @@ class _ProductsViewState extends State<ProductsView> {
                                   'SKU: $sku | Qoldiq: $stock ${p['unitOfMeasure'] ?? 'dona'}',
                                   style: GoogleFonts.outfit(fontSize: 12),
                                 ),
-                                trailing: Text(
-                                  '${_formatNumber(salePrice)} so\'m',
-                                  style: GoogleFonts.outfit(
-                                    fontWeight: FontWeight.bold,
-                                    color: theme.colorScheme.primary,
-                                  ),
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      '${_formatNumber(salePrice)} so\'m',
+                                      style: GoogleFonts.outfit(
+                                        fontWeight: FontWeight.bold,
+                                        color: theme.colorScheme.primary,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    PopupMenuButton<String>(
+                                      icon: const Icon(Icons.more_vert),
+                                      onSelected: (val) {
+                                        if (val == 'edit') {
+                                          _showEditProductDialog(p);
+                                        } else if (val == 'delete') {
+                                          _confirmDeleteProduct(p);
+                                        }
+                                      },
+                                      itemBuilder: (ctx) => [
+                                        const PopupMenuItem(
+                                          value: 'edit',
+                                          child: Row(
+                                            children: [
+                                              Icon(Icons.edit, size: 18),
+                                              SizedBox(width: 8),
+                                              Text('Tahrirlash'),
+                                            ],
+                                          ),
+                                        ),
+                                        const PopupMenuItem(
+                                          value: 'delete',
+                                          child: Row(
+                                            children: [
+                                              Icon(Icons.delete_outline, color: Colors.red, size: 18),
+                                              SizedBox(width: 8),
+                                              Text('O\'chirish', style: TextStyle(color: Colors.red)),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
                                 ),
                               ),
                             );

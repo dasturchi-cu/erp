@@ -190,6 +190,55 @@ class _UsersViewState extends State<UsersView> {
     );
   }
 
+  void _toggleUserStatus(Map<String, dynamic> u) {
+    final currentStatus = (u['status'] ?? 'ACTIVE').toString().toUpperCase();
+    final newStatus = currentStatus == 'ACTIVE' ? 'BLOCKED' : 'ACTIVE';
+    final actionName = newStatus == 'BLOCKED' ? 'bloklash' : 'faollashtirish';
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Xodimni $actionName'),
+        content: Text('Haqiqatan ham "${u['firstName']} ${u['lastName']}" hisobini $actionName istaysizmi?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Bekor qilish'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: newStatus == 'BLOCKED' ? Colors.red : Colors.green,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              try {
+                final res = await _api.patch('/admin/users/${u['id']}/status', {
+                  'status': newStatus,
+                });
+                if (res.statusCode == 200 || res.statusCode == 204) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Xodim holati $newStatus ga o\'zgartirildi!')),
+                    );
+                    _load();
+                  }
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Xatolik: ${ApiService.parseError(e)}')),
+                  );
+                }
+              }
+            },
+            child: Text(newStatus == 'BLOCKED' ? 'Bloklash' : 'Faollashtirish'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -226,6 +275,7 @@ class _UsersViewState extends State<UsersView> {
                       itemBuilder: (ctx, i) {
                         final u = _users[i];
                         final name = '${u['firstName'] ?? ''} ${u['lastName'] ?? ''}'.trim();
+                        final status = (u['status'] ?? 'ACTIVE').toString().toUpperCase();
                         return Card(
                           margin: const EdgeInsets.only(bottom: 8),
                           child: ListTile(
@@ -238,9 +288,42 @@ class _UsersViewState extends State<UsersView> {
                             ),
                             title: Text(name.isNotEmpty ? name : (u['email'] ?? ''), style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
                             subtitle: Text(u['email'] ?? ''),
-                            trailing: Chip(
-                              label: Text(u['status'] ?? 'ACTIVE', style: const TextStyle(fontSize: 11)),
-                              backgroundColor: u['status'] == 'ACTIVE' ? Colors.green.withOpacity(0.15) : Colors.red.withOpacity(0.15),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Chip(
+                                  label: Text(status, style: const TextStyle(fontSize: 11)),
+                                  backgroundColor: status == 'ACTIVE' ? Colors.green.withValues(alpha: 0.15) : Colors.red.withValues(alpha: 0.15),
+                                ),
+                                const SizedBox(width: 4),
+                                PopupMenuButton<String>(
+                                  icon: const Icon(Icons.more_vert),
+                                  onSelected: (val) {
+                                    if (val == 'toggle') {
+                                      _toggleUserStatus(u);
+                                    }
+                                  },
+                                  itemBuilder: (ctx) => [
+                                    PopupMenuItem(
+                                      value: 'toggle',
+                                      child: Row(
+                                        children: [
+                                          Icon(
+                                            status == 'ACTIVE' ? Icons.block : Icons.check_circle,
+                                            size: 18,
+                                            color: status == 'ACTIVE' ? Colors.red : Colors.green,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            status == 'ACTIVE' ? 'Bloklash' : 'Faollashtirish',
+                                            style: TextStyle(color: status == 'ACTIVE' ? Colors.red : Colors.green),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ),
                           ),
                         );

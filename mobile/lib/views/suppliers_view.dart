@@ -17,7 +17,7 @@ class _SuppliersViewState extends State<SuppliersView> {
   String _searchQuery = '';
   final _searchCtrl = TextEditingController();
 
-  // Create Supplier Form
+  // Create & Edit Supplier Form
   final _nameCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
   final _contactCtrl = TextEditingController();
@@ -77,90 +77,237 @@ class _SuppliersViewState extends State<SuppliersView> {
       builder: (ctx) => Padding(
         padding: EdgeInsets.only(
           left: 20, right: 20, top: 20,
-          bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+          bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text('Yangi Ta\'minotchi Qo\'shish', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _nameCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Ta\'minotchi Nomi / Firma *',
-                prefixIcon: Icon(Icons.store),
-                border: OutlineInputBorder(),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('Yangi Ta\'minotchi Qo\'shish', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _nameCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Ta\'minotchi Nomi / Firma *',
+                  prefixIcon: Icon(Icons.store),
+                  border: OutlineInputBorder(),
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _phoneCtrl,
-              keyboardType: TextInputType.phone,
-              decoration: const InputDecoration(
-                labelText: 'Telefon Raqam *',
-                prefixIcon: Icon(Icons.phone),
-                border: OutlineInputBorder(),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _phoneCtrl,
+                keyboardType: TextInputType.phone,
+                decoration: const InputDecoration(
+                  labelText: 'Telefon Raqam *',
+                  prefixIcon: Icon(Icons.phone),
+                  border: OutlineInputBorder(),
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _contactCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Mas\'ul Shaxs (Kontakt)',
-                prefixIcon: Icon(Icons.person_outline),
-                border: OutlineInputBorder(),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _contactCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Mas\'ul Shaxs (Kontakt)',
+                  prefixIcon: Icon(Icons.person_outline),
+                  border: OutlineInputBorder(),
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _notesCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Izoh / Qayd',
-                prefixIcon: Icon(Icons.notes),
-                border: OutlineInputBorder(),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _notesCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Izoh / Qayd',
+                  prefixIcon: Icon(Icons.notes),
+                  border: OutlineInputBorder(),
+                ),
               ),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () async {
-                final name = _nameCtrl.text.trim();
-                final phone = _phoneCtrl.text.trim();
-                if (name.isEmpty || phone.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Nomi va telefon raqam majburiy!')),
-                  );
-                  return;
-                }
-                try {
-                  final res = await _api.post('/suppliers', {
-                    'name': name,
-                    'phone': phone,
-                    if (_contactCtrl.text.trim().isNotEmpty) 'contactPerson': _contactCtrl.text.trim(),
-                    if (_notesCtrl.text.trim().isNotEmpty) 'notes': _notesCtrl.text.trim(),
-                  });
-                  if (res.statusCode == 200 || res.statusCode == 201) {
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () async {
+                  final name = _nameCtrl.text.trim();
+                  final phone = _phoneCtrl.text.trim();
+                  if (name.isEmpty || phone.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Nomi va telefon raqam majburiy!')),
+                    );
+                    return;
+                  }
+                  try {
+                    final res = await _api.post('/suppliers', {
+                      'name': name,
+                      'phone': phone,
+                      if (_contactCtrl.text.trim().isNotEmpty) 'contactPerson': _contactCtrl.text.trim(),
+                      if (_notesCtrl.text.trim().isNotEmpty) 'notes': _notesCtrl.text.trim(),
+                    });
+                    if (res.statusCode == 200 || res.statusCode == 201) {
+                      if (mounted) {
+                        Navigator.pop(ctx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Ta\'minotchi qo\'shildi!')),
+                        );
+                        _load(_searchQuery);
+                      }
+                    }
+                  } catch (e) {
                     if (mounted) {
-                      Navigator.pop(ctx);
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Ta\'minotchi qo\'shildi!')),
+                        SnackBar(content: Text('Xatolik: ${ApiService.parseError(e)}')),
                       );
-                      _load(_searchQuery);
                     }
                   }
-                } catch (e) {
+                },
+                style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
+                child: Text('Saqlash', style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showEditSupplierDialog(Map<String, dynamic> s) {
+    _nameCtrl.text = s['name'] ?? '';
+    _phoneCtrl.text = s['phone'] ?? '';
+    _contactCtrl.text = s['contactPerson'] ?? '';
+    _notesCtrl.text = s['notes'] ?? '';
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(
+          left: 20, right: 20, top: 20,
+          bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('Ta\'minotchini Tahrirlash', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _nameCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Ta\'minotchi Nomi *',
+                  prefixIcon: Icon(Icons.store),
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _phoneCtrl,
+                keyboardType: TextInputType.phone,
+                decoration: const InputDecoration(
+                  labelText: 'Telefon Raqam *',
+                  prefixIcon: Icon(Icons.phone),
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _contactCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Mas\'ul Shaxs',
+                  prefixIcon: Icon(Icons.person_outline),
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _notesCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Izoh',
+                  prefixIcon: Icon(Icons.notes),
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () async {
+                  final name = _nameCtrl.text.trim();
+                  final phone = _phoneCtrl.text.trim();
+                  if (name.isEmpty || phone.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Nomi va telefon raqam majburiy!')),
+                    );
+                    return;
+                  }
+                  try {
+                    final res = await _api.patch('/suppliers/${s['id']}', {
+                      'name': name,
+                      'phone': phone,
+                      'contactPerson': _contactCtrl.text.trim(),
+                      'notes': _notesCtrl.text.trim(),
+                    });
+                    if (res.statusCode == 200 || res.statusCode == 204) {
+                      if (mounted) {
+                        Navigator.pop(ctx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Ta\'minotchi ma\'lumotlari yangilandi!')),
+                        );
+                        _load(_searchQuery);
+                      }
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Xatolik: ${ApiService.parseError(e)}')),
+                      );
+                    }
+                  }
+                },
+                style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
+                child: Text('O\'zgarishlarni Saqlash', style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _confirmDeleteSupplier(Map<String, dynamic> s) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Ta\'minotchini o\'chirish'),
+        content: Text('Haqiqatan ham "${s['name']}" ta\'minotchisini o\'chirmoqchimisiz (arxivlamoqchimisiz)?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Bekor qilish'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              try {
+                final res = await _api.delete('/suppliers/${s['id']}');
+                if (res.statusCode == 200 || res.statusCode == 204) {
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Xatolik: ${ApiService.parseError(e)}')),
+                      const SnackBar(content: Text('Ta\'minotchi muvaffaqiyatli o\'chirildi!')),
                     );
+                    _load(_searchQuery);
                   }
                 }
-              },
-              style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
-              child: Text('Saqlash', style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold)),
-            ),
-          ],
-        ),
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Xatolik: ${ApiService.parseError(e)}')),
+                  );
+                }
+              }
+            },
+            child: const Text('O\'chirish'),
+          ),
+        ],
       ),
     );
   }
@@ -183,111 +330,149 @@ class _SuppliersViewState extends State<SuppliersView> {
         builder: (ctx, setModalState) => Padding(
           padding: EdgeInsets.only(
             left: 20, right: 20, top: 20,
-            bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  CircleAvatar(
-                    radius: 24,
-                    backgroundColor: theme.colorScheme.primaryContainer,
-                    child: Icon(Icons.store, color: theme.colorScheme.onPrimaryContainer, size: 28),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(s['name'] ?? '', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold)),
-                        Text(s['phone'] ?? '', style: GoogleFonts.outfit(color: theme.colorScheme.onSurfaceVariant)),
-                      ],
-                    ),
-                  ),
-                  IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx)),
-                ],
-              ),
-              const Divider(height: 24),
-              Card(
-                color: debtNum > 0 ? Colors.red.withOpacity(0.1) : Colors.green.withOpacity(0.1),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Qarz balansi', style: TextStyle(color: debtNum > 0 ? Colors.red : Colors.green, fontSize: 12)),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${_formatAmount(debtNum)} UZS',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: debtNum > 0 ? Colors.red : Colors.green),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              if (s['contactPerson'] != null && s['contactPerson'].toString().isNotEmpty)
-                ListTile(
-                  dense: true,
-                  leading: const Icon(Icons.person_outline),
-                  title: Text(s['contactPerson']),
-                  subtitle: const Text('Mas\'ul shaxs'),
-                ),
-              const SizedBox(height: 16),
-              if (debtNum > 0) ...[
-                Text('Ta\'minotchiga To\'lov Qilish', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 15)),
-                const SizedBox(height: 8),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
                 Row(
                   children: [
+                    CircleAvatar(
+                      radius: 24,
+                      backgroundColor: theme.colorScheme.primaryContainer,
+                      child: Icon(Icons.store, color: theme.colorScheme.onPrimaryContainer, size: 28),
+                    ),
+                    const SizedBox(width: 12),
                     Expanded(
-                      child: TextField(
-                        controller: payCtrl,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(labelText: 'Summa (so\'m)', border: OutlineInputBorder(), isDense: true),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(s['name'] ?? '', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold)),
+                          Text(s['phone'] ?? '', style: GoogleFonts.outfit(color: theme.colorScheme.onSurfaceVariant)),
+                        ],
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    DropdownButton<String>(
-                      value: payMethod,
-                      items: const [
-                        DropdownMenuItem(value: 'CASH', child: Text('Naqd')),
-                        DropdownMenuItem(value: 'CARD', child: Text('Karta')),
-                        DropdownMenuItem(value: 'BANK_TRANSFER', child: Text('O\'tkazma')),
-                      ],
-                      onChanged: (v) => setModalState(() => payMethod = v!),
-                    ),
+                    IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx)),
                   ],
                 ),
                 const SizedBox(height: 12),
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.payment),
-                  label: const Text('To\'lovni Amamalga Oshirish'),
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.blue, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 12)),
-                  onPressed: () async {
-                    final payAmt = payCtrl.text.trim();
-                    if (payAmt.isEmpty) return;
-                    try {
-                      final res = await _api.post('/suppliers/${s['id']}/payments', {
-                        'amount': payAmt,
-                        'paymentMethod': payMethod,
-                        'currency': 'UZS',
-                        'notes': 'Mobil ilovadan ta\'minotchi to\'lovi',
-                      });
-                      if (res.statusCode == 200 || res.statusCode == 201) {
-                        if (mounted) {
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.edit, size: 18),
+                        label: const Text('Tahrirlash'),
+                        onPressed: () {
                           Navigator.pop(ctx);
-                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('To\'lov muvaffaqiyatli qilindi!')));
-                          _load(_searchQuery);
-                        }
-                      }
-                    } catch (e) {
-                      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Xatolik: ${ApiService.parseError(e)}')));
-                    }
-                  },
+                          _showEditSupplierDialog(s);
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
+                        label: const Text('O\'chirish', style: TextStyle(color: Colors.red)),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: Colors.red),
+                        ),
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          _confirmDeleteSupplier(s);
+                        },
+                      ),
+                    ),
+                  ],
                 ),
+                const Divider(height: 24),
+                Card(
+                  color: debtNum > 0 ? Colors.red.withOpacity(0.1) : Colors.green.withOpacity(0.1),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Qarz balansi', style: TextStyle(color: debtNum > 0 ? Colors.red : Colors.green, fontSize: 12)),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${_formatAmount(debtNum)} UZS',
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: debtNum > 0 ? Colors.red : Colors.green),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                if (s['contactPerson'] != null && s['contactPerson'].toString().isNotEmpty)
+                  ListTile(
+                    dense: true,
+                    leading: const Icon(Icons.person_outline),
+                    title: Text(s['contactPerson']),
+                    subtitle: const Text('Mas\'ul shaxs'),
+                  ),
+                if (s['notes'] != null && s['notes'].toString().isNotEmpty)
+                  ListTile(
+                    dense: true,
+                    leading: const Icon(Icons.notes),
+                    title: Text(s['notes']),
+                    subtitle: const Text('Izoh'),
+                  ),
+                const SizedBox(height: 16),
+                if (debtNum > 0) ...[
+                  Text('Ta\'minotchiga To\'lov Qilish', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 15)),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: payCtrl,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(labelText: 'Summa (so\'m)', border: OutlineInputBorder(), isDense: true),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      DropdownButton<String>(
+                        value: payMethod,
+                        items: const [
+                          DropdownMenuItem(value: 'CASH', child: Text('Naqd')),
+                          DropdownMenuItem(value: 'CARD', child: Text('Karta')),
+                          DropdownMenuItem(value: 'BANK_TRANSFER', child: Text('O\'tkazma')),
+                        ],
+                        onChanged: (v) => setModalState(() => payMethod = v!),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.payment),
+                    label: const Text('To\'lovni Amalga Oshirish'),
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.blue, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 12)),
+                    onPressed: () async {
+                      final payAmt = payCtrl.text.trim();
+                      if (payAmt.isEmpty) return;
+                      try {
+                        final res = await _api.post('/suppliers/${s['id']}/payments', {
+                          'amount': payAmt,
+                          'paymentMethod': payMethod,
+                          'currency': 'UZS',
+                          'notes': 'Mobil ilovadan ta\'minotchi to\'lovi',
+                        });
+                        if (res.statusCode == 200 || res.statusCode == 201) {
+                          if (mounted) {
+                            Navigator.pop(ctx);
+                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('To\'lov muvaffaqiyatli qilindi!')));
+                            _load(_searchQuery);
+                          }
+                        }
+                      } catch (e) {
+                        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Xatolik: ${ApiService.parseError(e)}')));
+                      }
+                    },
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),
@@ -410,16 +595,54 @@ class _SuppliersViewState extends State<SuppliersView> {
                                     s['phone'] ?? s['contactPerson'] ?? '',
                                     style: GoogleFonts.outfit(fontSize: 13),
                                   ),
-                                  trailing: debtNum != 0
-                                      ? Chip(
-                                          label: Text(
-                                            '${debtNum > 0 ? '-' : '+'}${_formatAmount(debtNum.abs())}',
-                                            style: const TextStyle(fontSize: 12, color: Colors.white),
+                                  trailing: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      debtNum != 0
+                                          ? Chip(
+                                              label: Text(
+                                                '${debtNum > 0 ? '-' : '+'}${_formatAmount(debtNum.abs())}',
+                                                style: const TextStyle(fontSize: 12, color: Colors.white),
+                                              ),
+                                              backgroundColor: debtNum < 0 ? Colors.green : Colors.red,
+                                              padding: EdgeInsets.zero,
+                                            )
+                                          : const Icon(Icons.check_circle_outline, color: Colors.green),
+                                      const SizedBox(width: 4),
+                                      PopupMenuButton<String>(
+                                        icon: const Icon(Icons.more_vert),
+                                        onSelected: (val) {
+                                          if (val == 'edit') {
+                                            _showEditSupplierDialog(s);
+                                          } else if (val == 'delete') {
+                                            _confirmDeleteSupplier(s);
+                                          }
+                                        },
+                                        itemBuilder: (ctx) => [
+                                          const PopupMenuItem(
+                                            value: 'edit',
+                                            child: Row(
+                                              children: [
+                                                Icon(Icons.edit, size: 18),
+                                                SizedBox(width: 8),
+                                                Text('Tahrirlash'),
+                                              ],
+                                            ),
                                           ),
-                                          backgroundColor: debtNum < 0 ? Colors.green : Colors.red,
-                                          padding: EdgeInsets.zero,
-                                        )
-                                      : const Icon(Icons.check_circle_outline, color: Colors.green),
+                                          const PopupMenuItem(
+                                            value: 'delete',
+                                            child: Row(
+                                              children: [
+                                                Icon(Icons.delete_outline, color: Colors.red, size: 18),
+                                                SizedBox(width: 8),
+                                                Text('O\'chirish', style: TextStyle(color: Colors.red)),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               );
                             },
