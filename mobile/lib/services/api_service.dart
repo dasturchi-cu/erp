@@ -9,9 +9,9 @@ class ApiService {
 
   final Dio dio = Dio(BaseOptions(
     baseUrl: 'https://erp-backend-r067.onrender.com/api/v1',
-    connectTimeout: const Duration(seconds: 45),
-    receiveTimeout: const Duration(seconds: 45),
-    sendTimeout: const Duration(seconds: 45),
+    connectTimeout: const Duration(seconds: 30),
+    receiveTimeout: const Duration(seconds: 30),
+    sendTimeout: const Duration(seconds: 30),
   ));
 
   String? _token;
@@ -22,14 +22,20 @@ class ApiService {
     _token = prefs.getString('auth_token');
     _companyId = prefs.getString('company_id');
 
-    dio.options.baseUrl = 'https://erp-backend-r067.onrender.com/api/v1';
+    final savedHost = prefs.getString('api_host');
+    if (savedHost != null && savedHost.isNotEmpty) {
+      dio.options.baseUrl = savedHost;
+    } else {
+      dio.options.baseUrl = 'https://erp-backend-r067.onrender.com/api/v1';
+    }
 
+    dio.interceptors.clear();
     dio.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) {
-        if (_token != null) {
+        if (_token != null && _token!.isNotEmpty) {
           options.headers['Authorization'] = 'Bearer $_token';
         }
-        if (_companyId != null) {
+        if (_companyId != null && _companyId!.isNotEmpty) {
           options.headers['X-Company-Id'] = _companyId;
         }
         if (options.method.toUpperCase() == 'POST' ||
@@ -42,7 +48,6 @@ class ApiService {
       },
       onError: (e, handler) async {
         if (e.response?.statusCode == 401) {
-          // Token expired or invalid - clear session
           await clearSession();
         }
         return handler.next(e);
@@ -81,13 +86,13 @@ class ApiService {
     return uri.host;
   }
 
-  bool get isAuthenticated => _token != null;
+  bool get isAuthenticated => _token != null && _token!.isNotEmpty;
   String? get companyId => _companyId;
 
   Future<String?> login(String email, String password) async {
     try {
       final res = await dio.post('/auth/login', data: {
-        'email': email,
+        'email': email.trim().toLowerCase(),
         'password': password,
         'deviceInfo': {
           'deviceId': 'a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d',
@@ -104,18 +109,15 @@ class ApiService {
         _companyId = company?['id'];
 
         final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('auth_token', _token!);
-        if (_companyId != null) {
-          await prefs.setString('company_id', _companyId!);
-        }
+        if (_token != null) await prefs.setString('auth_token', _token!);
+        if (_companyId != null) await prefs.setString('company_id', _companyId!);
+        if (data['user'] != null) await prefs.setString('user_details', jsonEncode(data['user']));
 
-        await prefs.setString('user_details', jsonEncode(data['user']));
-        return null; // null means success
+        return null;
       }
       return 'Server javobi: ${res.statusCode}';
     } on DioException catch (e) {
-      final serverMsg = e.response?.data?['message'] ?? e.response?.data?['error']?['message'] ?? e.message ?? e.toString();
-      return 'Xatolik: $serverMsg';
+      return parseError(e);
     } catch (e) {
       return 'Xatolik: ${e.toString()}';
     }
@@ -130,25 +132,27 @@ class ApiService {
     await prefs.remove('user_details');
   }
 
-  // Generic HTTP wrappers with offline cache fallback
   Future<Response> get(String path) async {
     try {
       final response = await dio.get(path);
-      // Cache response for offline fallback
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('cache_$path', jsonEncode(response.data));
+      // Clean caching
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('cache_$path', jsonEncode(response.data));
+      } catch (_) {}
       return response;
     } catch (e) {
-      // Load from cache if offline
-      final prefs = await SharedPreferences.getInstance();
-      final cached = prefs.getString('cache_$path');
-      if (cached != null) {
-        return Response(
-          requestOptions: RequestOptions(path: path),
-          data: jsonDecode(cached),
-          statusCode: 200,
-        );
-      }
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final cached = prefs.getString('cache_$path');
+        if (cached != null) {
+          return Response(
+            requestOptions: RequestOptions(path: path),
+            data: jsonDecode(cached),
+            statusCode: 200,
+          );
+        }
+      } catch (_) {}
       rethrow;
     }
   }
@@ -172,19 +176,34 @@ class ApiService {
   static String parseError(dynamic e) {
     if (e is DioException) {
       final res = e.response;
+      if (res?.statusCode == 401) {
+        return 'Sessiya muddati tugadi. Iltimos, qaytadan tizimga kiring.';
+      }
+      if (res?.statusCode == 403) {
+        return 'Sizda ushbu amalni bajarish uchun yetarli ruxsat yo\'q.';
+      }
+      if (res?.statusCode == 404) {
+        return 'So\'ralgan ma\'lumot yoki manzil topilmadi.';
+      }
+      if (res?.statusCode == 409) {
+        return 'Bunday ma\'lumot allaqachon mavjud.';
+      }
       if (res?.data != null && res!.data is Map) {
-        final msg = res.data['message'];
-        if (msg != null) {
-          if (msg is List) return msg.join(', ');
-          return msg.toString();
+        final rawMsg = res.data['message'] ?? res.data['error']?['message'] ?? res.data['error'];
+        if (rawMsg != null) {
+          if (rawMsg is List) return rawMsg.join(', ');
+          return rawMsg.toString();
         }
       }
-      if (e.type == DioExceptionType.connectionTimeout || e.type == DioExceptionType.receiveTimeout) {
-        return 'Server bilan aloqa vaqti tugadi';
+      if (e.type == DioExceptionType.connectionTimeout ||
+          e.type == DioExceptionType.receiveTimeout ||
+          e.type == DioExceptionType.sendTimeout) {
+        return 'Server bilan aloqa vaqti tugadi (Timeout).';
       }
       if (e.type == DioExceptionType.connectionError) {
-        return 'Internet aloqasi mavjud emas';
+        return 'Internet aloqasi mavjud emas yoki server vaqtincha javob bermayapti.';
       }
+      return 'Server xatosi (HTTP ${res?.statusCode ?? 'Noma\'lum'})';
     }
     return e.toString();
   }

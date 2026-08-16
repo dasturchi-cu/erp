@@ -124,19 +124,16 @@ class _InventoryViewState extends State<InventoryView> {
                     selectedBranchId = _branches.first['id'] as String?;
                   }
 
-                  if (selectedBranchId == null) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Filial topilmadi.')),
-                    );
-                    return;
-                  }
-
                   try {
-                    final res = await _apiService.post('/warehouses', {
+                    final payload = <String, dynamic>{
                       'name': name,
-                      'branchId': selectedBranchId,
                       'isDefault': _warehouses.isEmpty,
-                    });
+                    };
+                    if (selectedBranchId != null && selectedBranchId!.isNotEmpty) {
+                      payload['branchId'] = selectedBranchId;
+                    }
+
+                    final res = await _apiService.post('/warehouses', payload);
 
                     if (res.statusCode == 200 || res.statusCode == 201) {
                       if (mounted) {

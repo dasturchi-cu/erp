@@ -1,6 +1,9 @@
+import 'dart:convert';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/api_service.dart';
 import '../services/sync_service.dart';
 import 'pos_view.dart';
@@ -31,6 +34,9 @@ class _DashboardViewState extends State<DashboardView> {
 
   bool _loading = true;
   int _pendingSyncCount = 0;
+  String _userName = 'Admin';
+  String _userEmail = 'admin@erp.uz';
+  String _userRole = 'ADMIN';
   Map<String, dynamic> _stats = {
     'todaySales': 0.0,
     'weeklySales': 0.0,
@@ -50,6 +56,20 @@ class _DashboardViewState extends State<DashboardView> {
     setState(() => _pendingSyncCount = pending);
 
     try {
+      final prefs = await SharedPreferences.getInstance();
+      final userJson = prefs.getString('user_details');
+      if (userJson != null) {
+        final u = jsonDecode(userJson);
+        setState(() {
+          _userName = '${u['firstName'] ?? ''} ${u['lastName'] ?? ''}'.trim();
+          if (_userName.isEmpty) _userName = u['name'] ?? 'Foydalanuvchi';
+          _userEmail = u['email'] ?? 'admin@erp.uz';
+          _userRole = (u['role'] ?? 'ADMIN').toString().toUpperCase();
+        });
+      }
+    } catch (_) {}
+
+    try {
       final res = await _apiService.get('/analytics/dashboard/enterprise');
       if (res.statusCode == 200) {
         setState(() {
@@ -58,7 +78,17 @@ class _DashboardViewState extends State<DashboardView> {
         });
       }
     } catch (e) {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) {
+        setState(() => _loading = false);
+        if (e is DioException && e.response?.statusCode == 401) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Sessiya muddati tugadi. Iltimos, qaytadan tizimga kiring.')),
+          );
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => const LoginView()),
+          );
+        }
+      }
     }
   }
 
@@ -145,8 +175,8 @@ class _DashboardViewState extends State<DashboardView> {
                 backgroundColor: Colors.white24,
                 child: Icon(Icons.person, color: Colors.white, size: 36),
               ),
-              accountName: Text('Super Admin', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 18)),
-              accountEmail: Text('admin@erp.uz', style: GoogleFonts.outfit(color: Colors.white70)),
+              accountName: Text(_userName, style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 18)),
+              accountEmail: Text('$_userEmail • $_userRole', style: GoogleFonts.outfit(color: Colors.white70)),
             ),
             ListTile(
               leading: const Icon(Icons.dashboard_outlined),

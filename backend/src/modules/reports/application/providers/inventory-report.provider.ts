@@ -31,6 +31,7 @@ export class InventoryReportProvider {
     const where: Prisma.InventoryBatchWhereInput = {
       companyId: ctx.companyId,
       remainingQty: { gt: 0 },
+      product: { deletedAt: null, status: 'ACTIVE' },
     };
     if (ctx.warehouseId) where.warehouseId = ctx.warehouseId;
     return where;
