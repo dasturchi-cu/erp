@@ -1,5 +1,6 @@
 FROM node:22-alpine AS builder
 WORKDIR /app
+ENV DATABASE_URL="postgresql://postgres:postgres@localhost:5432/erp?schema=public"
 COPY . .
 RUN if [ -f "package.json" ]; then npm install && npx prisma generate && npm run build; else cd backend && npm install && npx prisma generate && npm run build; fi
 
