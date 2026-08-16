@@ -56,6 +56,7 @@ class _UsersViewState extends State<UsersView> {
   }
 
   void _showAddUserDialog() {
+    final theme = Theme.of(context);
     _emailCtrl.clear();
     _firstCtrl.clear();
     _lastCtrl.clear();
@@ -130,13 +131,16 @@ class _UsersViewState extends State<UsersView> {
                 if (_roles.isNotEmpty)
                   DropdownButtonFormField<String>(
                     value: _selectedRoleId,
+                    style: TextStyle(color: theme.colorScheme.onSurface, fontSize: 14, fontWeight: FontWeight.w500),
+                    dropdownColor: theme.colorScheme.surface,
+                    iconEnabledColor: theme.colorScheme.onSurface,
                     decoration: const InputDecoration(
                       labelText: 'Xodim Roli *',
                       border: OutlineInputBorder(),
                     ),
                     items: _roles.map((r) => DropdownMenuItem<String>(
                       value: r['id'] as String,
-                      child: Text(r['name'] ?? 'Rol'),
+                      child: Text(r['name'] ?? 'Rol', style: TextStyle(color: theme.colorScheme.onSurface)),
                     )).toList(),
                     onChanged: (val) => setModalState(() => _selectedRoleId = val),
                   ),

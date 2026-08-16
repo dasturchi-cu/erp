@@ -64,6 +64,7 @@ class _ReturnsViewState extends State<ReturnsView> {
   }
 
   void _showCreateReturnDialog() {
+    final theme = Theme.of(context);
     _reasonCtrl.clear();
     _qtyCtrl.text = '1';
     _selectedSale = _sales.isNotEmpty ? _sales.first as Map<String, dynamic> : null;
@@ -95,6 +96,9 @@ class _ReturnsViewState extends State<ReturnsView> {
                     DropdownButtonFormField<Map<String, dynamic>>(
                       value: _selectedSale,
                       isExpanded: true,
+                      style: TextStyle(color: theme.colorScheme.onSurface, fontSize: 14, fontWeight: FontWeight.w500),
+                      dropdownColor: theme.colorScheme.surface,
+                      iconEnabledColor: theme.colorScheme.onSurface,
                       decoration: const InputDecoration(
                         labelText: 'Savdo (Chek) *',
                         border: OutlineInputBorder(),
@@ -106,7 +110,7 @@ class _ReturnsViewState extends State<ReturnsView> {
                         final total = sale['totalUzs'] ?? '0';
                         return DropdownMenuItem(
                           value: sale,
-                          child: Text('#$number · $customer · $total UZS', overflow: TextOverflow.ellipsis),
+                          child: Text('#$number · $customer · $total UZS', style: TextStyle(color: theme.colorScheme.onSurface), overflow: TextOverflow.ellipsis),
                         );
                       }).toList(),
                       onChanged: (val) => setModalState(() {
@@ -126,6 +130,9 @@ class _ReturnsViewState extends State<ReturnsView> {
                     DropdownButtonFormField<Map<String, dynamic>>(
                       value: _selectedLineItem,
                       isExpanded: true,
+                      style: TextStyle(color: theme.colorScheme.onSurface, fontSize: 14, fontWeight: FontWeight.w500),
+                      dropdownColor: theme.colorScheme.surface,
+                      iconEnabledColor: theme.colorScheme.onSurface,
                       decoration: const InputDecoration(
                         labelText: 'Qaytarilayotgan Mahsulot *',
                         border: OutlineInputBorder(),
@@ -136,7 +143,7 @@ class _ReturnsViewState extends State<ReturnsView> {
                         final qty = item['quantity'] ?? '';
                         return DropdownMenuItem(
                           value: item,
-                          child: Text('$name (sotilgan: $qty)', overflow: TextOverflow.ellipsis),
+                          child: Text('$name (sotilgan: $qty)', style: TextStyle(color: theme.colorScheme.onSurface), overflow: TextOverflow.ellipsis),
                         );
                       }).toList(),
                       onChanged: (val) => setModalState(() {

@@ -32,6 +32,12 @@ class ApiService {
         if (_companyId != null) {
           options.headers['X-Company-Id'] = _companyId;
         }
+        if (options.method.toUpperCase() == 'POST' ||
+            options.method.toUpperCase() == 'PUT' ||
+            options.method.toUpperCase() == 'PATCH') {
+          final time = DateTime.now().microsecondsSinceEpoch;
+          options.headers['Idempotency-Key'] = 'm_${time}_${options.path.hashCode.abs()}';
+        }
         return handler.next(options);
       },
       onError: (e, handler) async {

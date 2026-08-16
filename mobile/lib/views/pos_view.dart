@@ -344,16 +344,19 @@ class _PosViewState extends State<PosView> {
                       Expanded(
                         child: DropdownButtonFormField<String>(
                           value: _paymentType,
+                          style: TextStyle(color: theme.colorScheme.onSurface, fontSize: 14, fontWeight: FontWeight.w500),
+                          dropdownColor: theme.colorScheme.surface,
+                          iconEnabledColor: theme.colorScheme.onSurface,
                           decoration: const InputDecoration(
                             labelText: 'To\'lov turi',
                             isDense: true,
                             border: OutlineInputBorder(),
                           ),
-                          items: const [
-                            DropdownMenuItem(value: 'CASH', child: Text('Naqd')),
-                            DropdownMenuItem(value: 'CARD', child: Text('Karta')),
-                            DropdownMenuItem(value: 'TRANSFER', child: Text('O\'tkazma')),
-                            DropdownMenuItem(value: 'DEBT', child: Text('Nasiya (Qarz)')),
+                          items: [
+                            DropdownMenuItem(value: 'CASH', child: Text('Naqd', style: TextStyle(color: theme.colorScheme.onSurface))),
+                            DropdownMenuItem(value: 'CARD', child: Text('Karta', style: TextStyle(color: theme.colorScheme.onSurface))),
+                            DropdownMenuItem(value: 'TRANSFER', child: Text('O\'tkazma', style: TextStyle(color: theme.colorScheme.onSurface))),
+                            DropdownMenuItem(value: 'DEBT', child: Text('Nasiya (Qarz)', style: TextStyle(color: theme.colorScheme.onSurface))),
                           ],
                           onChanged: (val) {
                             if (val != null) setState(() => _paymentType = val);
@@ -365,16 +368,19 @@ class _PosViewState extends State<PosView> {
                         child: DropdownButtonFormField<Map<String, dynamic>>(
                           value: _selectedCustomer,
                           isExpanded: true,
+                          style: TextStyle(color: theme.colorScheme.onSurface, fontSize: 14, fontWeight: FontWeight.w500),
+                          dropdownColor: theme.colorScheme.surface,
+                          iconEnabledColor: theme.colorScheme.onSurface,
                           decoration: InputDecoration(
                             labelText: _paymentType == 'DEBT' ? 'Mijoz *' : 'Mijoz (ixtiyoriy)',
                             isDense: true,
                             border: const OutlineInputBorder(),
                           ),
                           items: [
-                            const DropdownMenuItem(value: null, child: Text('Mijozsiz sotuv')),
+                            DropdownMenuItem(value: null, child: Text('Mijozsiz sotuv', style: TextStyle(color: theme.colorScheme.onSurface))),
                             ..._customers.map((c) => DropdownMenuItem(
                                   value: c as Map<String, dynamic>,
-                                  child: Text(c['name'] ?? '', overflow: TextOverflow.ellipsis),
+                                  child: Text(c['name'] ?? '', style: TextStyle(color: theme.colorScheme.onSurface), overflow: TextOverflow.ellipsis),
                                 )),
                           ],
                           onChanged: (val) {

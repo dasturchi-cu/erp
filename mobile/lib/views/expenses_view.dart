@@ -109,6 +109,7 @@ class _ExpensesViewState extends State<ExpensesView> {
   }
 
   void _showAddExpenseDialog() {
+    final theme = Theme.of(context);
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -139,13 +140,16 @@ class _ExpensesViewState extends State<ExpensesView> {
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 value: _selectedCategory,
+                style: TextStyle(color: theme.colorScheme.onSurface, fontSize: 14, fontWeight: FontWeight.w500),
+                dropdownColor: theme.colorScheme.surface,
+                iconEnabledColor: theme.colorScheme.onSurface,
                 decoration: const InputDecoration(
                   labelText: 'Kategoriya *',
                   border: OutlineInputBorder(),
                 ),
                 items: _categories.map((c) => DropdownMenuItem(
                   value: c['value'] as String,
-                  child: Text(c['label'] as String),
+                  child: Text(c['label'] as String, style: TextStyle(color: theme.colorScheme.onSurface)),
                 )).toList(),
                 onChanged: (v) => setModalState(() => _selectedCategory = v!),
               ),

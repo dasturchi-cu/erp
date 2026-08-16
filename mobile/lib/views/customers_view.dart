@@ -550,7 +550,8 @@ class _CustomersViewState extends State<CustomersView> {
                       Expanded(
                         child: TextField(
                           controller: payAmountController,
-                          keyboardType: TextInputType.number,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          style: TextStyle(color: theme.colorScheme.onSurface, fontWeight: FontWeight.bold),
                           decoration: const InputDecoration(
                             labelText: 'To\'lov summasi',
                             border: OutlineInputBorder(),
@@ -561,10 +562,13 @@ class _CustomersViewState extends State<CustomersView> {
                       const SizedBox(width: 8),
                       DropdownButton<String>(
                         value: payMethod,
-                        items: const [
-                          DropdownMenuItem(value: 'CASH', child: Text('Naqd')),
-                          DropdownMenuItem(value: 'CARD', child: Text('Karta')),
-                          DropdownMenuItem(value: 'BANK_TRANSFER', child: Text('O\'tkazma')),
+                        dropdownColor: theme.colorScheme.surface,
+                        style: TextStyle(color: theme.colorScheme.onSurface, fontSize: 14, fontWeight: FontWeight.w500),
+                        iconEnabledColor: theme.colorScheme.onSurface,
+                        items: [
+                          DropdownMenuItem(value: 'CASH', child: Text('Naqd', style: TextStyle(color: theme.colorScheme.onSurface))),
+                          DropdownMenuItem(value: 'CARD', child: Text('Karta', style: TextStyle(color: theme.colorScheme.onSurface))),
+                          DropdownMenuItem(value: 'BANK_TRANSFER', child: Text('O\'tkazma', style: TextStyle(color: theme.colorScheme.onSurface))),
                         ],
                         onChanged: (val) {
                           if (val != null) setModalState(() => payMethod = val);
@@ -585,11 +589,17 @@ class _CustomersViewState extends State<CustomersView> {
                       final payAmt = payAmountController.text.trim();
                       if (payAmt.isEmpty) return;
                       final payNum = double.tryParse(payAmt) ?? 0;
+                      if (payNum <= 0) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('To\'lov summasi 0 dan katta bo\'lishi kerak!')),
+                        );
+                        return;
+                      }
                       final paymentType = payNum >= debtUzs ? 'FULL' : 'PARTIAL';
                       try {
                         final res = await _apiService.post('/debt-payments', {
                           'customerId': c['id'],
-                          'amount': payAmt,
+                          'amount': payNum.toStringAsFixed(0),
                           'currency': 'UZS',
                           'paymentMethod': payMethod,
                           'paymentType': paymentType,
@@ -599,7 +609,7 @@ class _CustomersViewState extends State<CustomersView> {
                           if (mounted) {
                             Navigator.pop(ctx);
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Qarz to\'lovi qabul qilindi!')),
+                              const SnackBar(backgroundColor: Colors.green, content: Text('Qarz to\'lovi qabul qilindi!')),
                             );
                             _fetchCustomers(_searchQuery);
                           }
@@ -607,7 +617,7 @@ class _CustomersViewState extends State<CustomersView> {
                       } catch (e) {
                         if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Xatolik: ${ApiService.parseError(e)}')),
+                            SnackBar(backgroundColor: Colors.red, content: Text('Xatolik: ${ApiService.parseError(e)}')),
                           );
                         }
                       }

@@ -161,6 +161,7 @@ class _ProductsViewState extends State<ProductsView> {
       ),
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setModalState) {
+          final theme = Theme.of(context);
           final validCategories = _categories.where((c) => c is Map && c['id'] != null).toList();
           String? currentCategoryVal = _selectedCategoryId;
           if (validCategories.isNotEmpty) {
@@ -228,13 +229,16 @@ class _ProductsViewState extends State<ProductsView> {
                     DropdownButtonFormField<String>(
                       value: currentCategoryVal,
                       isExpanded: true,
+                      style: TextStyle(color: theme.colorScheme.onSurface, fontSize: 14, fontWeight: FontWeight.w500),
+                      dropdownColor: theme.colorScheme.surface,
+                      iconEnabledColor: theme.colorScheme.onSurface,
                       decoration: const InputDecoration(
                         labelText: 'Kategoriya *',
                         border: OutlineInputBorder(),
                       ),
                       items: validCategories.map((cat) => DropdownMenuItem<String>(
                         value: cat['id'].toString(),
-                        child: Text((cat['name'] ?? 'Kategoriya').toString(), overflow: TextOverflow.ellipsis),
+                        child: Text((cat['name'] ?? 'Kategoriya').toString(), style: TextStyle(color: theme.colorScheme.onSurface), overflow: TextOverflow.ellipsis),
                       )).toList(),
                       onChanged: (val) {
                         setModalState(() => _selectedCategoryId = val);
@@ -275,12 +279,15 @@ class _ProductsViewState extends State<ProductsView> {
                         child: DropdownButtonFormField<String>(
                           value: _selectedUnit,
                           isExpanded: true,
+                          style: TextStyle(color: theme.colorScheme.onSurface, fontSize: 14, fontWeight: FontWeight.w500),
+                          dropdownColor: theme.colorScheme.surface,
+                          iconEnabledColor: theme.colorScheme.onSurface,
                           decoration: const InputDecoration(
                             labelText: 'O\'lchov birligi',
                             border: OutlineInputBorder(),
                             isDense: true,
                           ),
-                          items: _units.map((u) => DropdownMenuItem(value: u, child: Text(u))).toList(),
+                          items: _units.map((u) => DropdownMenuItem(value: u, child: Text(u, style: TextStyle(color: theme.colorScheme.onSurface)))).toList(),
                           onChanged: (val) => setModalState(() => _selectedUnit = val ?? 'dona'),
                         ),
                       ),
@@ -334,6 +341,9 @@ class _ProductsViewState extends State<ProductsView> {
                           ? _selectedWarehouseId
                           : null,
                       isExpanded: true,
+                      style: TextStyle(color: theme.colorScheme.onSurface, fontSize: 14, fontWeight: FontWeight.w500),
+                      dropdownColor: theme.colorScheme.surface,
+                      iconEnabledColor: theme.colorScheme.onSurface,
                       decoration: const InputDecoration(
                         labelText: 'Ombor (qoldiq kiritilsa majburiy)',
                         border: OutlineInputBorder(),
@@ -343,7 +353,7 @@ class _ProductsViewState extends State<ProductsView> {
                           .whereType<Map>()
                           .map((w) => DropdownMenuItem(
                                 value: w['id'].toString(),
-                                child: Text((w['name'] ?? 'Ombor').toString(), overflow: TextOverflow.ellipsis),
+                                child: Text((w['name'] ?? 'Ombor').toString(), style: TextStyle(color: theme.colorScheme.onSurface), overflow: TextOverflow.ellipsis),
                               ))
                           .toList(),
                       onChanged: (val) => setModalState(() => _selectedWarehouseId = val),
@@ -462,6 +472,7 @@ class _ProductsViewState extends State<ProductsView> {
       ),
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setModalState) {
+          final theme = Theme.of(context);
           final validCategories = _categories.where((c) => c is Map && c['id'] != null).toList();
 
           return Padding(
@@ -522,13 +533,16 @@ class _ProductsViewState extends State<ProductsView> {
                           ? _selectedCategoryId
                           : validCategories.first['id'].toString(),
                       isExpanded: true,
+                      style: TextStyle(color: theme.colorScheme.onSurface, fontSize: 14, fontWeight: FontWeight.w500),
+                      dropdownColor: theme.colorScheme.surface,
+                      iconEnabledColor: theme.colorScheme.onSurface,
                       decoration: const InputDecoration(
                         labelText: 'Kategoriya',
                         border: OutlineInputBorder(),
                       ),
                       items: validCategories.map((cat) => DropdownMenuItem<String>(
                         value: cat['id'].toString(),
-                        child: Text((cat['name'] ?? 'Kategoriya').toString(), overflow: TextOverflow.ellipsis),
+                        child: Text((cat['name'] ?? 'Kategoriya').toString(), style: TextStyle(color: theme.colorScheme.onSurface), overflow: TextOverflow.ellipsis),
                       )).toList(),
                       onChanged: (val) => setModalState(() => _selectedCategoryId = val),
                     ),

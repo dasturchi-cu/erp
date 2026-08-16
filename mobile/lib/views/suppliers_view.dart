@@ -427,17 +427,21 @@ class _SuppliersViewState extends State<SuppliersView> {
                       Expanded(
                         child: TextField(
                           controller: payCtrl,
-                          keyboardType: TextInputType.number,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          style: TextStyle(color: theme.colorScheme.onSurface, fontWeight: FontWeight.bold),
                           decoration: const InputDecoration(labelText: 'Summa (so\'m)', border: OutlineInputBorder(), isDense: true),
                         ),
                       ),
                       const SizedBox(width: 8),
                       DropdownButton<String>(
                         value: payMethod,
-                        items: const [
-                          DropdownMenuItem(value: 'CASH', child: Text('Naqd')),
-                          DropdownMenuItem(value: 'CARD', child: Text('Karta')),
-                          DropdownMenuItem(value: 'BANK_TRANSFER', child: Text('O\'tkazma')),
+                        dropdownColor: theme.colorScheme.surface,
+                        style: TextStyle(color: theme.colorScheme.onSurface, fontSize: 14, fontWeight: FontWeight.w500),
+                        iconEnabledColor: theme.colorScheme.onSurface,
+                        items: [
+                          DropdownMenuItem(value: 'CASH', child: Text('Naqd', style: TextStyle(color: theme.colorScheme.onSurface))),
+                          DropdownMenuItem(value: 'CARD', child: Text('Karta', style: TextStyle(color: theme.colorScheme.onSurface))),
+                          DropdownMenuItem(value: 'BANK_TRANSFER', child: Text('O\'tkazma', style: TextStyle(color: theme.colorScheme.onSurface))),
                         ],
                         onChanged: (v) => setModalState(() => payMethod = v!),
                       ),
