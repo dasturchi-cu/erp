@@ -3,7 +3,9 @@ import 'package:google_fonts/google_fonts.dart';
 import '../services/api_service.dart';
 
 class InventoryReceiveView extends StatefulWidget {
-  const InventoryReceiveView({super.key});
+  final Map<String, dynamic>? initialProduct;
+
+  const InventoryReceiveView({super.key, this.initialProduct});
 
   @override
   State<InventoryReceiveView> createState() => _InventoryReceiveViewState();
@@ -80,6 +82,17 @@ class _InventoryReceiveViewState extends State<InventoryReceiveView> {
           _warehouses = wList;
           _suppliers = sList;
           _branches = bList;
+          if (widget.initialProduct != null) {
+            final match = _products.firstWhere(
+              (p) => p is Map && p['id'] == widget.initialProduct!['id'],
+              orElse: () => widget.initialProduct,
+            );
+            _selectedProduct = match as Map<String, dynamic>?;
+            if (_selectedProduct != null && _selectedProduct!['purchasePriceUzs'] != null) {
+              final cost = double.tryParse(_selectedProduct!['purchasePriceUzs'].toString()) ?? 0;
+              if (cost > 0) _costController.text = cost.toStringAsFixed(0);
+            }
+          }
           if (_warehouses.isNotEmpty) {
             _selectedWarehouse = _warehouses.first as Map<String, dynamic>;
           }

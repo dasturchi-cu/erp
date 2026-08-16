@@ -263,12 +263,14 @@ class _PosViewState extends State<PosView> {
                 itemCount: _searchResults.length,
                 itemBuilder: (context, idx) {
                   final p = _searchResults[idx];
-                  return ListTile(
-                    title: Text(p['name'] ?? ''),
-                    subtitle: Text('${_formatCurrency(double.tryParse(p['salePriceUzs']?.toString() ?? '0') ?? 0)} | SKU: ${p['sku']}'),
-                    trailing: const Icon(Icons.add_circle, color: Colors.green),
-                    onTap: () => _addToCart(p),
-                  );
+                  final rawStk = p['stock'] ?? p['totalStock'] ?? '0';
+                    final stkNum = (rawStk is num) ? rawStk.toDouble() : (double.tryParse(rawStk.toString()) ?? 0.0);
+                    return ListTile(
+                      title: Text(p['name'] ?? ''),
+                      subtitle: Text('${_formatCurrency(double.tryParse(p['salePriceUzs']?.toString() ?? '0') ?? 0)} | Qoldiq: ${stkNum.toStringAsFixed(0)} ${p['unitOfMeasure'] ?? 'dona'} | SKU: ${p['sku']}'),
+                      trailing: Icon(stkNum > 0 ? Icons.add_circle : Icons.add_circle_outline, color: stkNum > 0 ? Colors.green : Colors.grey),
+                      onTap: () => _addToCart(p),
+                    );
                 },
               ),
             ),

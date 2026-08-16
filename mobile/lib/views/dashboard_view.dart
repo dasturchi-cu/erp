@@ -10,6 +10,7 @@ import 'pos_view.dart';
 import 'products_view.dart';
 import 'inventory_view.dart';
 import 'inventory_receive_view.dart';
+import 'inventory_adjust_view.dart';
 import 'customers_view.dart';
 import 'reports_view.dart';
 import 'suppliers_view.dart';
@@ -234,6 +235,14 @@ class _DashboardViewState extends State<DashboardView> {
               onTap: () {
                 Navigator.of(context).pop();
                 Navigator.of(context).push(MaterialPageRoute(builder: (_) => const InventoryReceiveView()));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.remove_shopping_cart_outlined, color: Colors.red),
+              title: Text('Mahsulot Chiqim (Tuzatish)', style: GoogleFonts.outfit()),
+              onTap: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const InventoryAdjustView()));
               },
             ),
             ListTile(

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/api_service.dart';
+import 'inventory_receive_view.dart';
+import 'inventory_adjust_view.dart';
 
 class InventoryView extends StatefulWidget {
   const InventoryView({super.key});
@@ -201,6 +203,52 @@ class _InventoryViewState extends State<InventoryView> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Quick Actions (Kirim & Chiqim)
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            icon: const Icon(Icons.add_shopping_cart, color: Colors.white, size: 20),
+                            label: Text('Kirim Qilish', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
+                            onPressed: () async {
+                              await Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (_) => const InventoryReceiveView()),
+                              );
+                              _loadData();
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            icon: const Icon(Icons.remove_shopping_cart_outlined, color: Colors.white, size: 20),
+                            label: Text('Chiqim Qilish', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
+                            onPressed: () async {
+                              await Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (_) => const InventoryAdjustView()),
+                              );
+                              _loadData();
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+
                     // Warehouses list header
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -340,7 +388,7 @@ class _InventoryViewState extends State<InventoryView> {
                                     crossAxisAlignment: CrossAxisAlignment.end,
                                     children: [
                                       Text(
-                                        '${b['remainingQty']} dona',
+                                        '${(double.tryParse(b['remainingQty']?.toString() ?? '0') ?? 0).toStringAsFixed(0)} dona',
                                         style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14),
                                       ),
                                       if (b['expiresAt'] != null)

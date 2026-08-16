@@ -1042,6 +1042,7 @@ export class ProductsService {
       salePriceUzs: formatMoney(product.prices?.salePriceUzs),
       salePriceUsd: formatMoney(product.prices?.salePriceUsd),
       stock: formatMoney(stock),
+      totalStock: formatMoney(stock),
       wholesalePriceUzs: formatMoney(product.prices?.wholesalePriceUzs ?? new Decimal(0)),
       wholesalePriceUsd: formatMoney(product.prices?.wholesalePriceUsd ?? new Decimal(0)),
       recommendedPriceUzs: formatMoney(product.prices?.recommendedPriceUzs ?? new Decimal(0)),

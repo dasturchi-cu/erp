@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/api_service.dart';
+import 'inventory_receive_view.dart';
+import 'inventory_adjust_view.dart';
 
 class ProductsView extends StatefulWidget {
   const ProductsView({super.key});
@@ -779,20 +781,22 @@ class _ProductsViewState extends State<ProductsView> {
                           padding: const EdgeInsets.symmetric(horizontal: 16),
                           itemCount: _products.length,
                           itemBuilder: (context, index) {
-                            final p = _products[index];
+                            final p = _products[index] as Map<String, dynamic>;
                             final sku = p['sku'] ?? 'N/A';
                             final name = p['name'] ?? 'Nomi yo\'q';
                             final salePrice = p['salePriceUzs'] ?? 0;
-                            final stock = p['totalStock'] ?? 0;
+                            final rawStock = p['stock'] ?? p['totalStock'] ?? 0;
+                            final stockNum = (rawStock is num) ? rawStock.toDouble() : (double.tryParse(rawStock.toString()) ?? 0.0);
+                            final hasStock = stockNum > 0;
 
                             return Card(
                               margin: const EdgeInsets.only(bottom: 8),
                               child: ListTile(
                                 leading: CircleAvatar(
-                                  backgroundColor: theme.colorScheme.primaryContainer,
+                                  backgroundColor: hasStock ? Colors.green.withOpacity(0.15) : Colors.red.withOpacity(0.15),
                                   child: Icon(
                                     Icons.inventory_2,
-                                    color: theme.colorScheme.onPrimaryContainer,
+                                    color: hasStock ? Colors.green : Colors.red,
                                     size: 20,
                                   ),
                                 ),
@@ -800,9 +804,31 @@ class _ProductsViewState extends State<ProductsView> {
                                   name,
                                   style: GoogleFonts.outfit(fontWeight: FontWeight.w600),
                                 ),
-                                subtitle: Text(
-                                  'SKU: $sku | Qoldiq: $stock ${p['unitOfMeasure'] ?? 'dona'}',
-                                  style: GoogleFonts.outfit(fontSize: 12),
+                                subtitle: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text('SKU: $sku', style: GoogleFonts.outfit(fontSize: 12)),
+                                    const SizedBox(height: 2),
+                                    Row(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: hasStock ? Colors.green.withOpacity(0.12) : Colors.red.withOpacity(0.12),
+                                            borderRadius: BorderRadius.circular(4),
+                                          ),
+                                          child: Text(
+                                            'Qoldiq: ${_formatNumber(stockNum)} ${p['unitOfMeasure'] ?? 'dona'}',
+                                            style: GoogleFonts.outfit(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.bold,
+                                              color: hasStock ? Colors.green : Colors.red,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
                                 ),
                                 trailing: Row(
                                   mainAxisSize: MainAxisSize.min,
@@ -817,14 +843,50 @@ class _ProductsViewState extends State<ProductsView> {
                                     const SizedBox(width: 4),
                                     PopupMenuButton<String>(
                                       icon: const Icon(Icons.more_vert),
-                                      onSelected: (val) {
-                                        if (val == 'edit') {
+                                      onSelected: (val) async {
+                                        if (val == 'receive') {
+                                          await Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (_) => InventoryReceiveView(initialProduct: p),
+                                            ),
+                                          );
+                                          _fetchProducts();
+                                        } else if (val == 'adjust') {
+                                          await Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (_) => InventoryAdjustView(initialProduct: p),
+                                            ),
+                                          );
+                                          _fetchProducts();
+                                        } else if (val == 'edit') {
                                           _showEditProductDialog(p);
                                         } else if (val == 'delete') {
                                           _confirmDeleteProduct(p);
                                         }
                                       },
                                       itemBuilder: (ctx) => [
+                                        const PopupMenuItem(
+                                          value: 'receive',
+                                          child: Row(
+                                            children: [
+                                              Icon(Icons.add_shopping_cart, color: Colors.green, size: 18),
+                                              SizedBox(width: 8),
+                                              Text('Kirim qilish', style: TextStyle(color: Colors.green)),
+                                            ],
+                                          ),
+                                        ),
+                                        const PopupMenuItem(
+                                          value: 'adjust',
+                                          child: Row(
+                                            children: [
+                                              Icon(Icons.remove_shopping_cart_outlined, color: Colors.orange, size: 18),
+                                              SizedBox(width: 8),
+                                              Text('Chiqim / Tuzatish', style: TextStyle(color: Colors.orange)),
+                                            ],
+                                          ),
+                                        ),
                                         const PopupMenuItem(
                                           value: 'edit',
                                           child: Row(
