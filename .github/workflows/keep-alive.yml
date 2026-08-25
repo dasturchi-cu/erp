@@ -14,7 +14,8 @@ jobs:
       - name: Health Check Ping
         run: |
           echo "Pinging Render server at $(date)..."
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 https://erp-backend-r067.onrender.com/api/v1/health)
+          # 90s so a cold-start (server waking from sleep) still completes and warms it.
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 90 https://erp-backend-r067.onrender.com/api/v1/health)
           echo "Response status: $STATUS"
           if [ "$STATUS" -eq 200 ]; then
             echo "✅ Server is alive!"

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/api_service.dart';
+import 'inventory_receive_view.dart';
+import 'inventory_adjust_view.dart';
 
 class InventoryView extends StatefulWidget {
   const InventoryView({super.key});
@@ -35,8 +37,8 @@ class _InventoryViewState extends State<InventoryView> {
     setState(() => _loading = true);
     try {
       final bRes = await _apiService.get('/inventory/batches?limit=100');
-      final wRes = await _apiService.get('/inventory/warehouses');
-      final brRes = await _apiService.get('/inventory/branches');
+      final wRes = await _apiService.get('/warehouses');
+      final brRes = await _apiService.get('/branches');
 
       if (mounted) {
         final rawB = bRes.data;
@@ -66,97 +68,112 @@ class _InventoryViewState extends State<InventoryView> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setModalState) => Padding(
-          padding: EdgeInsets.only(
-            left: 20,
-            right: 20,
-            top: 20,
-            bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                'Yangi Ombor Yaratish',
-                style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _warehouseNameCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Ombor Nomi *',
-                  prefixIcon: Icon(Icons.warehouse_outlined),
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              if (_branches.isNotEmpty)
-                DropdownButtonFormField<String>(
-                  value: selectedBranchId,
-                  decoration: const InputDecoration(
-                    labelText: 'Filial *',
-                    border: OutlineInputBorder(),
+        builder: (ctx, setModalState) {
+          final theme = Theme.of(context);
+          final formKey = GlobalKey<FormState>();
+          bool submitted = false;
+
+          return Padding(
+            padding: EdgeInsets.only(
+              left: 20,
+              right: 20,
+              top: 20,
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+            ),
+            child: Form(
+              key: formKey,
+              autovalidateMode: submitted ? AutovalidateMode.always : AutovalidateMode.disabled,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Yangi Ombor Yaratish',
+                    style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
-                  items: _branches.map((b) => DropdownMenuItem<String>(
-                    value: b['id'] as String,
-                    child: Text(b['name'] ?? 'Filial'),
-                  )).toList(),
-                  onChanged: (val) => setModalState(() => selectedBranchId = val),
-                ),
-              const SizedBox(height: 16),
-              ElevatedButton.icon(
-                icon: const Icon(Icons.add_business),
-                label: Text('Saqlash', style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold)),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                ),
-                onPressed: () async {
-                  final name = _warehouseNameCtrl.text.trim();
-                  if (name.isEmpty) return;
-
-                  if (selectedBranchId == null && _branches.isNotEmpty) {
-                    selectedBranchId = _branches.first['id'] as String?;
-                  }
-
-                  if (selectedBranchId == null) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Filial topilmadi.')),
-                    );
-                    return;
-                  }
-
-                  try {
-                    final res = await _apiService.post('/inventory/warehouses', {
-                      'name': name,
-                      'branchId': selectedBranchId,
-                      'isDefault': _warehouses.isEmpty,
-                    });
-
-                    if (res.statusCode == 200 || res.statusCode == 201) {
-                      if (mounted) {
-                        Navigator.pop(ctx);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Yangi ombor yaratildi!')),
-                        );
-                        _loadData();
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _warehouseNameCtrl,
+                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Ombor nomi majburiy!' : null,
+                    decoration: const InputDecoration(
+                      labelText: 'Ombor Nomi *',
+                      prefixIcon: Icon(Icons.warehouse_outlined),
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  if (_branches.isNotEmpty)
+                    DropdownButtonFormField<String>(
+                      value: selectedBranchId,
+                      style: TextStyle(color: theme.colorScheme.onSurface, fontSize: 14, fontWeight: FontWeight.w500),
+                      dropdownColor: theme.colorScheme.surface,
+                      iconEnabledColor: theme.colorScheme.onSurface,
+                      decoration: const InputDecoration(
+                        labelText: 'Filial',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: _branches.map((b) => DropdownMenuItem<String>(
+                        value: b['id'] as String,
+                        child: Text(b['name'] ?? 'Filial', style: TextStyle(color: theme.colorScheme.onSurface)),
+                      )).toList(),
+                      onChanged: (val) => setModalState(() => selectedBranchId = val),
+                    ),
+                  const SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.add_business),
+                    label: Text('Saqlash', style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold)),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    onPressed: () async {
+                      setModalState(() => submitted = true);
+                      if (!formKey.currentState!.validate()) {
+                        return;
                       }
-                    }
-                  } catch (e) {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Xatolik: ${ApiService.parseError(e)}')),
-                      );
-                    }
-                  }
-                },
+
+                      final name = _warehouseNameCtrl.text.trim();
+
+                      if (selectedBranchId == null && _branches.isNotEmpty) {
+                        selectedBranchId = _branches.first['id'] as String?;
+                      }
+
+                      try {
+                        final payload = <String, dynamic>{
+                          'name': name,
+                          'isDefault': _warehouses.isEmpty,
+                        };
+                        if (selectedBranchId != null && selectedBranchId!.isNotEmpty) {
+                          payload['branchId'] = selectedBranchId;
+                        }
+
+                        final res = await _apiService.post('/warehouses', payload);
+
+                        if (res.statusCode == 200 || res.statusCode == 201) {
+                          if (mounted) {
+                            Navigator.pop(ctx);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Yangi ombor muvaffaqiyatli yaratildi!')),
+                            );
+                            _loadData();
+                          }
+                        }
+                      } catch (e) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Xatolik: ${ApiService.parseError(e)}')),
+                          );
+                        }
+                      }
+                    },
+                  ),
+                ],
               ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
-    );
-  }
+  );
+}
 
   @override
   Widget build(BuildContext context) {
@@ -186,6 +203,52 @@ class _InventoryViewState extends State<InventoryView> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Quick Actions (Kirim & Chiqim)
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            icon: const Icon(Icons.add_shopping_cart, color: Colors.white, size: 20),
+                            label: Text('Kirim Qilish', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
+                            onPressed: () async {
+                              await Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (_) => const InventoryReceiveView()),
+                              );
+                              _loadData();
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            icon: const Icon(Icons.remove_shopping_cart_outlined, color: Colors.white, size: 20),
+                            label: Text('Chiqim Qilish', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
+                            onPressed: () async {
+                              await Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (_) => const InventoryAdjustView()),
+                              );
+                              _loadData();
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+
                     // Warehouses list header
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -325,7 +388,7 @@ class _InventoryViewState extends State<InventoryView> {
                                     crossAxisAlignment: CrossAxisAlignment.end,
                                     children: [
                                       Text(
-                                        '${b['remainingQty']} dona',
+                                        '${(double.tryParse(b['remainingQty']?.toString() ?? '0') ?? 0).toStringAsFixed(0)} dona',
                                         style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14),
                                       ),
                                       if (b['expiresAt'] != null)

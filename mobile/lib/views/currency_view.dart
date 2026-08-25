@@ -75,8 +75,7 @@ class _CurrencyViewState extends State<CurrencyView> {
 
     try {
       final res = await _api.post('/currency/rates', {
-        'rateUzs': rateStr,
-        'effectiveAt': DateTime.now().toIso8601String(),
+        'rate': rateStr,
       });
 
       if (res.statusCode == 200 || res.statusCode == 201) {

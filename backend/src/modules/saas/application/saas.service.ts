@@ -196,7 +196,7 @@ export class SaasService {
           finishedAt: dto.status === 'SUCCESS' || dto.status === 'FAILED' || dto.status === 'ROLLED_BACK' ? new Date() : undefined,
           durationMs: dto.durationMs,
           failureReason: dto.failureReason,
-          rollbackAt: dto.status === 'ROLLLED_BACK' ? new Date() : undefined,
+          rollbackAt: dto.status === 'ROLLED_BACK' ? new Date() : undefined,
         },
       });
     } else {
@@ -392,6 +392,37 @@ export class SaasService {
         console.error('Failed to cleanup temp folder:', e);
       }
     }
+  }
+
+  // 4b. Store heartbeat ingestion (client telemetry -> SaaS monitoring)
+  async recordHeartbeat(companyId: string, dto: any) {
+    const num = (v: any, fallback = 0) => {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : fallback;
+    };
+    const bool = (v: any, fallback = false) =>
+      typeof v === 'boolean' ? v : v === undefined || v === null ? fallback : Boolean(v);
+
+    return this.prisma.companyHeartbeat.create({
+      data: {
+        companyId,
+        deviceId: dto.deviceId ? String(dto.deviceId) : 'unknown-device',
+        cpuUsage: num(dto.cpuUsage),
+        ramUsage: num(dto.ramUsage),
+        diskFreeBytes: BigInt(Math.max(0, Math.trunc(num(dto.diskFreeBytes)))),
+        os: dto.os ? String(dto.os) : 'unknown',
+        uptime: Math.trunc(num(dto.uptime)),
+        desktopVersion: dto.desktopVersion ? String(dto.desktopVersion) : '0.0.0',
+        backendVersion: dto.backendVersion ? String(dto.backendVersion) : '0.0.0',
+        databaseVersion: dto.databaseVersion ? String(dto.databaseVersion) : 'unknown',
+        printerOnline: bool(dto.printerOnline, true),
+        scannerConnected: bool(dto.scannerConnected, true),
+        upsOnline: bool(dto.upsOnline, true),
+        offlineQueueSize: Math.trunc(num(dto.offlineQueueSize)),
+        errorsCount: Math.trunc(num(dto.errorsCount)),
+        responseTimeMs: Math.trunc(num(dto.responseTimeMs)),
+      },
+    });
   }
 
   // 5. System Monitoring & Health Checks

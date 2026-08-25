@@ -4,6 +4,7 @@ import { AppThemeProvider } from '@/theme/ThemeProvider';
 import { AuthBootstrap } from '@/app/AuthBootstrap';
 import { CurrencyBootstrap } from '@/app/CurrencyBootstrap';
 import { DataBootstrap } from '@/app/DataBootstrap';
+import { HeartbeatBootstrap } from '@/app/HeartbeatBootstrap';
 import { NotificationProvider } from '@/components/feedback/NotificationProvider';
 import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 
@@ -15,7 +16,9 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
           <NotificationProvider>
             <AuthBootstrap>
               <CurrencyBootstrap>
-                <DataBootstrap>{children}</DataBootstrap>
+                <DataBootstrap>
+                  <HeartbeatBootstrap>{children}</HeartbeatBootstrap>
+                </DataBootstrap>
               </CurrencyBootstrap>
             </AuthBootstrap>
           </NotificationProvider>

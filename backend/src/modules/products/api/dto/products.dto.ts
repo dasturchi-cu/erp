@@ -384,6 +384,7 @@ export class ProductResponseDto {
   salePriceUzs!: string;
   salePriceUsd!: string;
   stock!: string;
+  totalStock?: string;
   wholesalePriceUzs?: string;
   wholesalePriceUsd?: string;
   recommendedPriceUzs?: string;

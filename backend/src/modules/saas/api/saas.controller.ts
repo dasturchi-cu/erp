@@ -133,4 +133,12 @@ export class SaasController {
   getSystemMonitoring() {
     return this.saasService.getSystemMonitoring();
   }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @Post('heartbeat')
+  @ApiOperation({ summary: 'Report store client heartbeat telemetry to SaaS' })
+  recordHeartbeat(@CurrentUser() user: any, @Body() dto: any) {
+    return this.saasService.recordHeartbeat(user.companyId, dto);
+  }
 }

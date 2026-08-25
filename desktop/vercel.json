@@ -1,8 +1,13 @@
 {
+  "build": {
+    "env": {
+      "VITE_DEFAULT_PORTAL": "saas"
+    }
+  },
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "https://erp-backend-xxxx.onrender.com/api/$1"
+      "destination": "https://erp-backend-production-e88a.up.railway.app/api/$1"
     },
     {
       "source": "/(.*)",

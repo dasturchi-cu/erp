@@ -76,7 +76,7 @@ export const usePosCartStore = create<PosCartState>((set, get) => ({
             quantity: qty,
             saleUnit: defaultUnit,
             unitPriceUzs: product.unitOfMeasure === 'box'
-              ? product.priceUzs / Math.max(1, product.unitsPerBox)
+              ? Math.round((product.priceUzs / Math.max(1, product.unitsPerBox)) * 100) / 100
               : product.priceUzs
           },
         ],

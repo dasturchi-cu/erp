@@ -126,11 +126,12 @@ export class DebtService {
     if (params.currency === OriginalCurrency.UZS) {
       amountUzs = params.amount;
       amountUsd = uzsToUsd(params.amount, params.exchangeRate);
-      newDebtUzs = Decimal.max(0, customer.totalDebtUzs.sub(params.amount));
+      newDebtUzs = customer.totalDebtUzs.sub(params.amount);
     } else {
       amountUsd = params.amount;
+      amountUsd = params.amount;
       amountUzs = usdToUzs(params.amount, params.exchangeRate);
-      newDebtUzs = Decimal.max(0, customer.totalDebtUzs.sub(amountUzs));
+      newDebtUzs = customer.totalDebtUzs.sub(amountUzs);
     }
 
     const newDebtUsd = uzsToUsd(newDebtUzs, params.exchangeRate);

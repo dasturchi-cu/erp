@@ -57,9 +57,25 @@ class _PosViewState extends State<PosView> {
       return;
     }
     try {
-      final res = await _apiService.get('/products/pos-products?q=${Uri.encodeComponent(q)}');
+      final res = await _apiService.get('/pos/products?q=${Uri.encodeComponent(q)}');
       if (res.statusCode == 200) {
-        setState(() => _searchResults = res.data['data'] ?? []);
+        final raw = res.data;
+        final list = raw is Map && raw.containsKey('data')
+            ? (raw['data'] is List ? raw['data'] : [])
+            : (raw is List ? raw : []);
+        setState(() => _searchResults = list);
+        return;
+      }
+    } catch (_) {}
+
+    try {
+      final fb = await _apiService.get('/products?search=${Uri.encodeComponent(q)}&limit=20');
+      if (fb.statusCode == 200) {
+        final raw = fb.data;
+        final list = raw is Map && raw.containsKey('data')
+            ? (raw['data'] is List ? raw['data'] : [])
+            : (raw is List ? raw : []);
+        setState(() => _searchResults = list);
       }
     } catch (_) {}
   }
@@ -68,12 +84,14 @@ class _PosViewState extends State<PosView> {
     setState(() {
       final existingIndex = _cart.indexWhere((item) => item['product']['id'] == product['id']);
       if (existingIndex >= 0) {
-        _cart[existingIndex]['quantity'] += 1;
+        _cart[existingIndex]['quantity'] += 1.0;
       } else {
+        final rawPrice = product['salePriceUzs'] ?? product['priceUzs'] ?? product['salePrice'] ?? '0';
+        final price = double.tryParse(rawPrice.toString()) ?? 0.0;
         _cart.add({
           'product': product,
           'quantity': 1.0,
-          'salePrice': double.parse(product['salePriceUzs']?.toString() ?? '0.0'),
+          'salePrice': price,
         });
       }
       _searchResults = [];
@@ -138,16 +156,23 @@ class _PosViewState extends State<PosView> {
       if (proceed != true) return;
     }
 
+    // Backend SalePaymentType supports only CASH / CREDIT / MIXED.
+    // "Nasiya (Qarz)" is a credit sale; cash/card/transfer are paid in full now.
+    final bool isCredit = _paymentType == 'DEBT';
+    final String backendPaymentType = isCredit ? 'CREDIT' : 'CASH';
+    // A credit sale is unpaid up front; a cash/card/transfer sale is paid in full.
+    final String amountPaid = isCredit ? '0.0000' : _totalAmount.toStringAsFixed(4);
+
     final salePayload = {
       'originalCurrency': 'UZS',
-      'paymentType': _paymentType,
-      'amountPaidUzs': _totalAmount.toStringAsFixed(4),
+      'paymentType': backendPaymentType,
+      'amountPaidUzs': amountPaid,
       if (_selectedCustomer != null) 'customerId': _selectedCustomer!['id'],
       'lineItems': _cart
           .map((item) => {
                 'productId': item['product']['id'],
                 'quantity': item['quantity'].toStringAsFixed(4),
-                'customPrice': item['salePrice'].toStringAsFixed(4),
+                'unitPriceUzs': item['salePrice'].toStringAsFixed(4),
               })
           .toList(),
     };
@@ -238,12 +263,14 @@ class _PosViewState extends State<PosView> {
                 itemCount: _searchResults.length,
                 itemBuilder: (context, idx) {
                   final p = _searchResults[idx];
-                  return ListTile(
-                    title: Text(p['name'] ?? ''),
-                    subtitle: Text('${_formatCurrency(double.tryParse(p['salePriceUzs']?.toString() ?? '0') ?? 0)} | SKU: ${p['sku']}'),
-                    trailing: const Icon(Icons.add_circle, color: Colors.green),
-                    onTap: () => _addToCart(p),
-                  );
+                  final rawStk = p['stock'] ?? p['totalStock'] ?? '0';
+                    final stkNum = (rawStk is num) ? rawStk.toDouble() : (double.tryParse(rawStk.toString()) ?? 0.0);
+                    return ListTile(
+                      title: Text(p['name'] ?? ''),
+                      subtitle: Text('${_formatCurrency(double.tryParse(p['salePriceUzs']?.toString() ?? '0') ?? 0)} | Qoldiq: ${stkNum.toStringAsFixed(0)} ${p['unitOfMeasure'] ?? 'dona'} | SKU: ${p['sku']}'),
+                      trailing: Icon(stkNum > 0 ? Icons.add_circle : Icons.add_circle_outline, color: stkNum > 0 ? Colors.green : Colors.grey),
+                      onTap: () => _addToCart(p),
+                    );
                 },
               ),
             ),
@@ -337,16 +364,19 @@ class _PosViewState extends State<PosView> {
                       Expanded(
                         child: DropdownButtonFormField<String>(
                           value: _paymentType,
+                          style: TextStyle(color: theme.colorScheme.onSurface, fontSize: 14, fontWeight: FontWeight.w500),
+                          dropdownColor: theme.colorScheme.surface,
+                          iconEnabledColor: theme.colorScheme.onSurface,
                           decoration: const InputDecoration(
                             labelText: 'To\'lov turi',
                             isDense: true,
                             border: OutlineInputBorder(),
                           ),
-                          items: const [
-                            DropdownMenuItem(value: 'CASH', child: Text('Naqd')),
-                            DropdownMenuItem(value: 'CARD', child: Text('Karta')),
-                            DropdownMenuItem(value: 'TRANSFER', child: Text('O\'tkazma')),
-                            DropdownMenuItem(value: 'DEBT', child: Text('Nasiya (Qarz)')),
+                          items: [
+                            DropdownMenuItem(value: 'CASH', child: Text('Naqd', style: TextStyle(color: theme.colorScheme.onSurface))),
+                            DropdownMenuItem(value: 'CARD', child: Text('Karta', style: TextStyle(color: theme.colorScheme.onSurface))),
+                            DropdownMenuItem(value: 'TRANSFER', child: Text('O\'tkazma', style: TextStyle(color: theme.colorScheme.onSurface))),
+                            DropdownMenuItem(value: 'DEBT', child: Text('Nasiya (Qarz)', style: TextStyle(color: theme.colorScheme.onSurface))),
                           ],
                           onChanged: (val) {
                             if (val != null) setState(() => _paymentType = val);
@@ -358,16 +388,19 @@ class _PosViewState extends State<PosView> {
                         child: DropdownButtonFormField<Map<String, dynamic>>(
                           value: _selectedCustomer,
                           isExpanded: true,
+                          style: TextStyle(color: theme.colorScheme.onSurface, fontSize: 14, fontWeight: FontWeight.w500),
+                          dropdownColor: theme.colorScheme.surface,
+                          iconEnabledColor: theme.colorScheme.onSurface,
                           decoration: InputDecoration(
                             labelText: _paymentType == 'DEBT' ? 'Mijoz *' : 'Mijoz (ixtiyoriy)',
                             isDense: true,
                             border: const OutlineInputBorder(),
                           ),
                           items: [
-                            const DropdownMenuItem(value: null, child: Text('Mijozsiz sotuv')),
+                            DropdownMenuItem(value: null, child: Text('Mijozsiz sotuv', style: TextStyle(color: theme.colorScheme.onSurface))),
                             ..._customers.map((c) => DropdownMenuItem(
                                   value: c as Map<String, dynamic>,
-                                  child: Text(c['name'] ?? '', overflow: TextOverflow.ellipsis),
+                                  child: Text(c['name'] ?? '', style: TextStyle(color: theme.colorScheme.onSurface), overflow: TextOverflow.ellipsis),
                                 )),
                           ],
                           onChanged: (val) {
