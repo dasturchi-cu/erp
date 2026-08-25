@@ -124,6 +124,21 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
 };
 
 async function main() {
+  console.log('Truncating tables for clean production seed...');
+  try {
+    await prisma.$executeRawUnsafe(`TRUNCATE TABLE 
+      customers, debt_history, debt_payments, expenses, inventory_batches, 
+      inventory_movements, notifications, product_aliases, product_barcodes, 
+      product_categories, product_images, product_price_histories, product_prices, 
+      product_reservations, product_serials, product_unit_conversions, products, 
+      sale_fifo_allocations, sale_items, sale_number_sequences, sale_return_items, 
+      sale_returns, sales, supplier_debt_history, supplier_payments, 
+      supplier_price_histories, supplier_receipts, suppliers, audit_logs
+      CASCADE;`);
+  } catch (e) {
+    console.error('Truncate table error (ignoring for fresh DB):', e);
+  }
+
   for (const perm of PERMISSIONS) {
     await prisma.permission.upsert({
       where: { code: perm.code },
@@ -143,12 +158,14 @@ async function main() {
   const company = await prisma.company.upsert({
     where: { code: 'MKT-TAS' },
     create: {
-      name: 'Market — Tashkent',
+      name: 'Xitoy Tavar',
       code: 'MKT-TAS',
       status: CompanyStatus.ACTIVE,
       settings: {},
     },
-    update: {},
+    update: {
+      name: 'Xitoy Tavar',
+    },
   });
 
   const branch = await prisma.branch.upsert({
@@ -313,214 +330,8 @@ async function main() {
     });
   }
 
-  const expenseCount = await prisma.expense.count({ where: { companyId: company.id } });
-  if (expenseCount === 0) {
-    const now = new Date();
-    await prisma.expense.createMany({
-      data: [
-        {
-          companyId: company.id,
-          branchId: branch.id,
-          category: 'RENT',
-          description: 'Ofis ijarasi',
-          amountUzs: 15_000_000,
-          amountUsd: 0,
-          expenseDate: new Date(now.getFullYear(), now.getMonth(), 1),
-          recordedBy: admin.id,
-        },
-        {
-          companyId: company.id,
-          branchId: branch.id,
-          category: 'SALARY',
-          description: 'Xodimlar maoshi',
-          amountUzs: 45_000_000,
-          amountUsd: 0,
-          expenseDate: new Date(now.getFullYear(), now.getMonth(), 5),
-          recordedBy: admin.id,
-        },
-        {
-          companyId: company.id,
-          branchId: branch.id,
-          category: 'UTILITIES',
-          description: 'Kommunal xizmatlar',
-          amountUzs: 2_500_000,
-          amountUsd: 0,
-          expenseDate: new Date(now.getFullYear(), now.getMonth(), 10),
-          recordedBy: admin.id,
-        },
-      ],
-    });
-  }
+  // Skip demo data seeding for a clean production database
 
-  const notificationCount = await prisma.notification.count({ where: { companyId: company.id } });
-  if (notificationCount === 0) {
-    await prisma.notification.createMany({
-      data: [
-        {
-          companyId: company.id,
-          userId: admin.id,
-          title: 'Past qoldiq ogohlantirishi',
-          body: "Ekran himoyasi zaxirasi tugadi (0 dona)",
-          severity: NotificationSeverity.warning,
-          category: NotificationCategory.LOW_STOCK,
-          read: false,
-        },
-        {
-          companyId: company.id,
-          userId: null,
-          title: "Yangi to'lov qabul qilindi",
-          body: "Aziz Karimov 1 500 000 so'm to'ladi",
-          severity: NotificationSeverity.success,
-          category: NotificationCategory.CUSTOMER_DEBT,
-          read: false,
-        },
-        {
-          companyId: company.id,
-          userId: null,
-          title: 'Valyuta kursi yangilandi',
-          body: "USD kursi 12 620 so'mga o'rnatildi",
-          severity: NotificationSeverity.info,
-          category: NotificationCategory.SYSTEM,
-          read: true,
-          readAt: new Date(),
-        },
-        {
-          companyId: company.id,
-          userId: admin.id,
-          title: "Qaytarish so'rovi",
-          body: "Rustam Aliyev qaytarish so'rovini yubordi",
-          severity: NotificationSeverity.warning,
-          category: NotificationCategory.DEBT_ALERT,
-          read: false,
-        },
-        {
-          companyId: company.id,
-          userId: null,
-          title: 'Zaxira nusxasi muvaffaqiyatli',
-          body: "To'liq zaxira nusxasi yaratildi (2.4 GB)",
-          severity: NotificationSeverity.success,
-          category: NotificationCategory.SYSTEM,
-          read: true,
-          readAt: new Date(),
-        },
-        {
-          companyId: company.id,
-          userId: null,
-          title: "Muddat o'tgan qarz",
-          body: "Sherzod Mirzayev qarzi 30 kundan oshdi",
-          severity: NotificationSeverity.error,
-          category: NotificationCategory.DEBT_ALERT,
-          read: false,
-        },
-      ],
-    });
-  }
-
-  const agingSeedMarker = await prisma.customer.findFirst({
-    where: { companyId: company.id, phone: '+998901000001' },
-  });
-  if (!agingSeedMarker) {
-    const daysAgo = (n: number) => new Date(Date.now() - n * 86400000);
-    const agingCustomers = [
-      { name: 'Aziz Karimov', phone: '+998901000001', debtUzs: 1_500_000, ageDays: 15 },
-      { name: 'Sherzod Mirzayev', phone: '+998901000002', debtUzs: 2_800_000, ageDays: 45 },
-      { name: 'Rustam Aliyev', phone: '+998901000003', debtUzs: 900_000, ageDays: 75 },
-      { name: 'Dilnoza Rahimova', phone: '+998901000004', debtUzs: 3_200_000, ageDays: 100 },
-      { name: 'Jasur Toshmatov', phone: '+998901000005', debtUzs: 5_500_000, ageDays: 150 },
-    ];
-    for (const c of agingCustomers) {
-      const customer = await prisma.customer.create({
-        data: {
-          companyId: company.id,
-          name: c.name,
-          phone: c.phone,
-          totalDebtUzs: c.debtUzs,
-          totalPurchasesUzs: c.debtUzs,
-          lastPurchaseAt: daysAgo(c.ageDays),
-        },
-      });
-      await prisma.debtHistory.create({
-        data: {
-          companyId: company.id,
-          customerId: customer.id,
-          type: DebtHistoryType.sale_credit,
-          amountUzs: c.debtUzs,
-          amountUsd: 0,
-          balanceAfterUzs: c.debtUzs,
-          balanceAfterUsd: 0,
-          referenceLabel: 'Demo aging seed',
-          recordedBy: admin.id,
-          createdAt: daysAgo(c.ageDays),
-        },
-      });
-    }
-
-    const agingSuppliers = [
-      { name: 'TechSupply MCHJ', phone: '+998712000001', debtUzs: 12_000_000, ageDays: 20 },
-      { name: 'Global Import', phone: '+998712000002', debtUzs: 8_500_000, ageDays: 55 },
-      { name: 'Oltin Savdo', phone: '+998712000003', debtUzs: 22_000_000, ageDays: 130 },
-    ];
-    for (const s of agingSuppliers) {
-      const supplier = await prisma.supplier.create({
-        data: {
-          companyId: company.id,
-          name: s.name,
-          phone: s.phone,
-          totalDebtUzs: s.debtUzs,
-        },
-      });
-      await prisma.supplierDebtHistory.create({
-        data: {
-          companyId: company.id,
-          supplierId: supplier.id,
-          type: SupplierDebtHistoryType.receipt_credit,
-          amountUzs: s.debtUzs,
-          balanceAfterUzs: s.debtUzs,
-          reference: 'Demo aging seed',
-          recordedBy: admin.id,
-          createdAt: daysAgo(s.ageDays),
-        },
-      });
-    }
-  }
-
-  const backupCount = await prisma.backupJob.count({ where: { companyId: company.id } });
-  if (backupCount === 0) {
-    await prisma.backupJob.createMany({
-      data: [
-        {
-          companyId: company.id,
-          userId: admin.id,
-          type: BackupType.FULL,
-          trigger: BackupTrigger.AUTOMATIC,
-          status: BackupJobStatus.COMPLETED,
-          fileName: 'backup_full_demo.json.gz',
-          mimeType: 'application/gzip',
-          fileSize: 2516582,
-          completedAt: new Date(Date.now() - 12 * 3600000),
-        },
-        {
-          companyId: company.id,
-          userId: admin.id,
-          type: BackupType.INCREMENTAL,
-          trigger: BackupTrigger.AUTOMATIC,
-          status: BackupJobStatus.COMPLETED,
-          fileName: 'backup_incr_demo.json.gz',
-          mimeType: 'application/gzip',
-          fileSize: 134217728,
-          completedAt: new Date(Date.now() - 24 * 3600000),
-        },
-        {
-          companyId: company.id,
-          type: BackupType.FULL,
-          trigger: BackupTrigger.MANUAL,
-          status: BackupJobStatus.FAILED,
-          errorMessage: 'Disk space insufficient',
-          completedAt: new Date(Date.now() - 8 * 86400000),
-        },
-      ],
-    });
-  }
 
   console.log('Seed complete.');
   console.log('Demo login: admin@erp.uz / Admin123!');

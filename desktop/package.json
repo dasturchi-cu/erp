@@ -47,6 +47,8 @@
   "build": {
     "appId": "com.erp.desktop",
     "productName": "ERP",
+    "afterPack": "./scripts/replace-ffmpeg.cjs",
+    "compression": "normal",
     "directories": {
       "output": "release"
     },
@@ -61,6 +63,20 @@
         "filter": [
           "dist/**/*",
           "node_modules/**/*",
+          "!node_modules/typescript/**/*",
+          "!node_modules/@angular-devkit/**/*",
+          "!node_modules/eslint/**/*",
+          "!node_modules/@typescript-eslint/**/*",
+          "!node_modules/jest/**/*",
+          "!node_modules/@types/**/*",
+          "!node_modules/prettier/**/*",
+          "!node_modules/@nestjs/cli/**/*",
+          "!node_modules/webpack/**/*",
+          "!node_modules/ts-loader/**/*",
+          "!node_modules/ts-node/**/*",
+          "!node_modules/fast-check/**/*",
+          "!node_modules/@swc/**/*",
+          "!node_modules/@babel/**/*",
           ".env"
         ]
       },
@@ -70,7 +86,15 @@
       }
     ],
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "forceCodeSigning": false
+    },
+    "nsis": {
+      "oneClick": true,
+      "allowToChangeInstallationDirectory": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "ERP"
     }
   }
 }

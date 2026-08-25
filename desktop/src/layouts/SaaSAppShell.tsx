@@ -16,7 +16,7 @@ export function SaaSAppShell() {
 
   const handleLogout = () => {
     logout();
-    navigate('/super-admin/login');
+    navigate('/login');
   };
 
   const menuItems = [

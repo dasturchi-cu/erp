@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Card, CardContent, TextField, Button, Typography, Alert, InputAdornment, IconButton, Checkbox, FormControlLabel } from '@mui/material';
-import { useNavigate } from 'react-router-dom';
+import { Box, Card, CardContent, TextField, Button, Typography, Alert, InputAdornment, IconButton, Checkbox, FormControlLabel, Link } from '@mui/material';
+import { useNavigate, Link as RouterLink } from 'react-router-dom';
 import { Visibility, VisibilityOff, Cloud as CloudIcon } from '@mui/icons-material';
 import { useSaaSStore } from '@/stores/saasStore';
 
@@ -117,6 +117,11 @@ export function SaaSLoginPage() {
               </Button>
             </Box>
           </form>
+          <Box sx={{ textAlign: 'center', mt: 3 }}>
+            <Link component={RouterLink} to="/login" underline="hover" variant="body2" color="primary">
+              Do'kon kirish oynasiga o'tish (ERP)
+            </Link>
+          </Box>
         </CardContent>
       </Card>
     </Box>

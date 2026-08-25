@@ -56,18 +56,7 @@ export function LoginPage() {
     clearError();
     setRememberDevice(data.rememberDevice);
 
-    // If logging in as SaaS Super Admin (admin@erp.uz or SaaS credentials)
-    if (data.email.toLowerCase() === 'admin@erp.uz') {
-      try {
-        await useSaaSStore.getState().login(data.email, data.password, data.rememberDevice);
-        if (useSaaSStore.getState().isAuthenticated) {
-          navigate('/super-admin/dashboard');
-          return;
-        }
-      } catch {
-        // Fallback to normal login if SaaS login fails
-      }
-    }
+
 
     await login(data.email, data.password);
 
