@@ -13,55 +13,10 @@ class LoginView extends StatefulWidget {
 class _LoginViewState extends State<LoginView> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _hostController = TextEditingController();
   final _apiService = ApiService();
   bool _loading = false;
   bool _obscurePassword = true;
   String? _errorMessage;
-
-  @override
-  void initState() {
-    super.initState();
-    _hostController.text = 'https://erp-backend-production-e88a.up.railway.app/api/v1';
-  }
-
-  Future<void> _showServerDialog() async {
-    _hostController.text = _apiService.host.isEmpty 
-        ? 'https://erp-backend-production-e88a.up.railway.app/api/v1' 
-        : _apiService.dio.options.baseUrl;
-    await showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Server manzili'),
-        content: TextField(
-          controller: _hostController,
-          decoration: const InputDecoration(
-            labelText: 'API URL',
-            hintText: 'https://erp-backend-production-e88a.up.railway.app/api/v1',
-            border: OutlineInputBorder(),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Bekor qilish'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              await _apiService.updateHost(_hostController.text.trim());
-              if (ctx.mounted) Navigator.pop(ctx);
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Server yangilandi: ${_apiService.dio.options.baseUrl}')),
-                );
-              }
-            },
-            child: const Text('Saqlash'),
-          ),
-        ],
-      ),
-    );
-  }
 
   Future<void> _handleLogin() async {
     setState(() {
@@ -196,15 +151,6 @@ class _LoginViewState extends State<LoginView> {
                             fontWeight: FontWeight.w600,
                           ),
                         ),
-                ),
-                const SizedBox(height: 12),
-                TextButton.icon(
-                  onPressed: _showServerDialog,
-                  icon: const Icon(Icons.settings_outlined, size: 18),
-                  label: Text(
-                    'Server sozlamalari',
-                    style: GoogleFonts.outfit(fontSize: 14),
-                  ),
                 ),
               ],
             ),
