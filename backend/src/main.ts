@@ -12,7 +12,8 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
 
   const config = app.get(ConfigService);
-  const port = config.get<number>('PORT', 3000);
+  const rawPort = config.get<string | number>('PORT', 3000);
+  const port = typeof rawPort === 'string' ? parseInt(rawPort.trim(), 10) || 3000 : rawPort;
   const corsOrigins = config
     .get<string>('CORS_ORIGINS', 'http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173')
     .split(',')
