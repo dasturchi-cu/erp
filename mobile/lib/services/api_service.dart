@@ -8,7 +8,7 @@ class ApiService {
   ApiService._internal();
 
   final Dio dio = Dio(BaseOptions(
-    baseUrl: 'https://erp-backend-r067.onrender.com/api/v1',
+    baseUrl: 'https://erp-backend-production-e88a.up.railway.app/api/v1',
     connectTimeout: const Duration(seconds: 30),
     receiveTimeout: const Duration(seconds: 30),
     sendTimeout: const Duration(seconds: 30),
@@ -26,7 +26,7 @@ class ApiService {
     if (savedHost != null && savedHost.isNotEmpty) {
       dio.options.baseUrl = savedHost;
     } else {
-      dio.options.baseUrl = 'https://erp-backend-r067.onrender.com/api/v1';
+      dio.options.baseUrl = 'https://erp-backend-production-e88a.up.railway.app/api/v1';
     }
 
     dio.interceptors.clear();
@@ -58,7 +58,7 @@ class ApiService {
   Future<void> updateHost(String host) async {
     String input = host.trim();
     if (input.isEmpty) {
-      dio.options.baseUrl = 'https://erp-backend-r067.onrender.com/api/v1';
+      dio.options.baseUrl = 'https://erp-backend-production-e88a.up.railway.app/api/v1';
       return;
     }
 
