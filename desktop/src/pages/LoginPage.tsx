@@ -10,14 +10,13 @@ import {
   FormControlLabel,
   IconButton,
   InputAdornment,
-  Link,
   TextField,
   Typography,
 } from '@mui/material';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import { useState } from 'react';
-import { Link as RouterLink, useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AuthLayout } from '@/layouts/AuthLayout';
 import { AuthCard } from '@/components/molecules/AuthCard';
 import { ConnectionIndicator } from '@/components/molecules/ConnectionIndicator';
@@ -203,31 +202,6 @@ export function LoginPage() {
               'Kirish'
             )}
           </Button>
-
-          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center', mb: 1 }}>
-            Birinchi kirish 30–60 soniya olishi mumkin (server uyg‘onadi).
-          </Typography>
-        </Box>
-
-        <Box sx={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: 1.5, mt: 1 }}>
-          <Link component={RouterLink} to="/forgot-password" underline="hover" variant="body2" color="primary">
-            Parolni unutdingizmi?
-          </Link>
-          <Box sx={{ pt: 1, borderTop: '1px solid', borderColor: 'divider', display: 'flex', flexDirection: 'column', gap: 1 }}>
-            <Button
-              component={RouterLink}
-              to="/download"
-              variant="outlined"
-              size="small"
-              fullWidth
-              sx={{ borderRadius: 2, fontWeight: 700 }}
-            >
-              📥 Dasturlarni Yuklab Olish (Windows / Android)
-            </Button>
-            <Link component={RouterLink} to="/super-admin/login" underline="hover" variant="caption" color="text.secondary">
-              SaaS Cloud Admin Paneliga o'tish →
-            </Link>
-          </Box>
         </Box>
       </AuthCard>
 
