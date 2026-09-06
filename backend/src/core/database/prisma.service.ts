@@ -13,8 +13,8 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
       await this.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS product_barcodes_barcode_trgm_idx ON product_barcodes USING gin (barcode gin_trgm_ops)`);
       await this.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS product_aliases_alias_trgm_idx ON product_aliases USING gin (alias gin_trgm_ops)`);
       await this.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS sales_number_trgm_idx ON sales USING gin (sale_number gin_trgm_ops)`);
-      await this.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS sales_customer_name_trgm_idx ON sales USING gin (customer_name gin_trgm_ops)`);
-      await this.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS sales_cashier_trgm_idx ON sales USING gin (cashier gin_trgm_ops)`);
+      await this.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS customers_name_trgm_idx ON customers USING gin (name gin_trgm_ops)`);
+      await this.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS users_first_name_trgm_idx ON users USING gin (first_name gin_trgm_ops)`);
     } catch (err) {
       console.error('Error creating GIN indexes:', err);
     }
