@@ -43,7 +43,7 @@ export class SaaSAdminService {
     }
 
     const saasSecret = this.config.get<string>('JWT_SAAS_SECRET', 'super-secret-saas-key-123');
-    const expiresIn = dto.rememberMe ? '7d' : '15m';
+    const expiresIn = dto.rememberMe ? '90d' : '30d';
 
     const accessToken = await this.jwtService.signAsync(
       { sub: admin.id, email: admin.email, type: 'saas_access' },

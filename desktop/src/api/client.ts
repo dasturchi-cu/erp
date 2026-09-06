@@ -93,16 +93,14 @@ apiClient.interceptors.response.use(
       !originalConfig._retry &&
       !isAuthEndpoint(originalConfig.url)
     ) {
-      if (code === 'TOKEN_EXPIRED' || code === 'UNAUTHORIZED') {
-        originalConfig._retry = true;
-        const refreshed = await tryRefreshSession();
-        if (refreshed) {
-          const token = useAuthStore.getState().tokens?.accessToken;
-          if (token) {
-            originalConfig.headers.Authorization = `Bearer ${token}`;
-          }
-          return apiClient.request(originalConfig);
+      originalConfig._retry = true;
+      const refreshed = await tryRefreshSession();
+      if (refreshed) {
+        const token = useAuthStore.getState().tokens?.accessToken;
+        if (token) {
+          originalConfig.headers.Authorization = `Bearer ${token}`;
         }
+        return apiClient.request(originalConfig);
       }
       await useAuthStore.getState().logout();
     }

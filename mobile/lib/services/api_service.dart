@@ -15,11 +15,14 @@ class ApiService {
   ));
 
   String? _token;
+  String? _refreshToken;
   String? _companyId;
+  bool _isRefreshing = false;
 
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
     _token = prefs.getString('auth_token');
+    _refreshToken = prefs.getString('refresh_token');
     _companyId = prefs.getString('company_id');
 
     final savedHost = prefs.getString('api_host');
@@ -47,7 +50,37 @@ class ApiService {
         return handler.next(options);
       },
       onError: (e, handler) async {
-        if (e.response?.statusCode == 401) {
+        final isAuthPath = e.requestOptions.path.contains('/auth/login') ||
+            e.requestOptions.path.contains('/auth/refresh') ||
+            e.requestOptions.path.contains('/auth/logout');
+
+        if (e.response?.statusCode == 401 && !isAuthPath && !_isRefreshing) {
+          if (_refreshToken != null && _refreshToken!.isNotEmpty) {
+            _isRefreshing = true;
+            try {
+              final refreshDio = Dio(BaseOptions(baseUrl: dio.options.baseUrl));
+              final res = await refreshDio.post('/auth/refresh', data: {
+                'refreshToken': _refreshToken,
+              });
+              if (res.statusCode == 200 || res.statusCode == 201) {
+                _token = res.data['accessToken'];
+                _refreshToken = res.data['refreshToken'] ?? _refreshToken;
+                final prefs = await SharedPreferences.getInstance();
+                if (_token != null) await prefs.setString('auth_token', _token!);
+                if (_refreshToken != null) await prefs.setString('refresh_token', _refreshToken!);
+
+                final opts = e.requestOptions;
+                opts.headers['Authorization'] = 'Bearer $_token';
+                final cloneReq = await dio.fetch(opts);
+                _isRefreshing = false;
+                return handler.resolve(cloneReq);
+              }
+            } catch (_) {
+              // Refresh failed
+            } finally {
+              _isRefreshing = false;
+            }
+          }
           await clearSession();
         }
         return handler.next(e);
@@ -105,11 +138,13 @@ class ApiService {
       if (res.statusCode == 200 || res.statusCode == 201) {
         final data = res.data;
         _token = data['accessToken'];
+        _refreshToken = data['refreshToken'];
         final company = data['companies']?[0];
         _companyId = company?['id'];
 
         final prefs = await SharedPreferences.getInstance();
         if (_token != null) await prefs.setString('auth_token', _token!);
+        if (_refreshToken != null) await prefs.setString('refresh_token', _refreshToken!);
         if (_companyId != null) await prefs.setString('company_id', _companyId!);
         if (data['user'] != null) await prefs.setString('user_details', jsonEncode(data['user']));
 
@@ -125,9 +160,11 @@ class ApiService {
 
   Future<void> clearSession() async {
     _token = null;
+    _refreshToken = null;
     _companyId = null;
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('auth_token');
+    await prefs.remove('refresh_token');
     await prefs.remove('company_id');
     await prefs.remove('user_details');
   }

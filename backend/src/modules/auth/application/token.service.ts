@@ -14,8 +14,8 @@ export class TokenService {
     private readonly jwtService: JwtService,
     private readonly config: ConfigService,
   ) {
-    this.accessExpiresIn = parseInt(config.get<string>('JWT_ACCESS_EXPIRES_IN', '900'), 10);
-    this.refreshExpiresIn = parseInt(config.get<string>('JWT_REFRESH_EXPIRES_IN', '604800'), 10);
+    this.accessExpiresIn = parseInt(config.get<string>('JWT_ACCESS_EXPIRES_IN', '2592000'), 10); // 30 days
+    this.refreshExpiresIn = parseInt(config.get<string>('JWT_REFRESH_EXPIRES_IN', '7776000'), 10); // 90 days
   }
 
   get accessTtlSeconds(): number {
