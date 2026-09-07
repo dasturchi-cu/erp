@@ -274,6 +274,11 @@ class ApiService {
     return dio.post(path, data: formData);
   }
 
+  /// Downloads a binary response (e.g. a generated report file) as raw bytes.
+  Future<Response<List<int>>> downloadBytes(String path) async {
+    return dio.get<List<int>>(path, options: Options(responseType: ResponseType.bytes));
+  }
+
   Future<Response> patch(String path, dynamic data) async {
     return dio.patch(path, data: data);
   }
