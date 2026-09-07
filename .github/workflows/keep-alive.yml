@@ -1,4 +1,4 @@
-name: Keep Render Server Alive
+name: Keep Railway Server Alive
 
 on:
   schedule:
@@ -8,14 +8,14 @@ on:
 
 jobs:
   ping:
-    name: Ping Render Server
+    name: Ping Railway Server
     runs-on: ubuntu-latest
     steps:
       - name: Health Check Ping
         run: |
-          echo "Pinging Render server at $(date)..."
-          # 90s so a cold-start (server waking from sleep) still completes and warms it.
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 90 https://erp-backend-r067.onrender.com/api/v1/health)
+          echo "Pinging Railway server at $(date)..."
+          # 90s so a cold-start still completes and warms it.
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 90 https://erp-backend-production-e88a.up.railway.app/api/v1/health)
           echo "Response status: $STATUS"
           if [ "$STATUS" -eq 200 ]; then
             echo "✅ Server is alive!"

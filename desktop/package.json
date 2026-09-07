@@ -56,35 +56,6 @@
       "dist/**/*",
       "dist-electron/**/*"
     ],
-    "extraResources": [
-      {
-        "from": "../backend",
-        "to": "backend",
-        "filter": [
-          "dist/**/*",
-          "node_modules/**/*",
-          "!node_modules/typescript/**/*",
-          "!node_modules/@angular-devkit/**/*",
-          "!node_modules/eslint/**/*",
-          "!node_modules/@typescript-eslint/**/*",
-          "!node_modules/jest/**/*",
-          "!node_modules/@types/**/*",
-          "!node_modules/prettier/**/*",
-          "!node_modules/@nestjs/cli/**/*",
-          "!node_modules/webpack/**/*",
-          "!node_modules/ts-loader/**/*",
-          "!node_modules/ts-node/**/*",
-          "!node_modules/fast-check/**/*",
-          "!node_modules/@swc/**/*",
-          "!node_modules/@babel/**/*",
-          ".env"
-        ]
-      },
-      {
-        "from": "../.tools/node-v22.12.0",
-        "to": "node"
-      }
-    ],
     "win": {
       "target": "nsis",
       "forceCodeSigning": false

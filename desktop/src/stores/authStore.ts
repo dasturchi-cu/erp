@@ -80,16 +80,14 @@ export const useAuthStore = create<AuthState>()(
             set({ isLoading: false, error: 'BLOCKED' });
             return;
           }
-          // Render's free tier sleeps after inactivity; the first request wakes it
-          // (cold start) and can exceed the timeout. Show a friendly hint instead
-          // of the raw "timeout of 30000ms exceeded".
+          // Show a friendly hint instead of the raw "timeout of 30000ms exceeded".
           const isTimeout =
             code === 'ECONNABORTED' ||
             /timeout/i.test(rawMessage) ||
             code === 'ERR_NETWORK' ||
             /network error/i.test(rawMessage);
           const message = isTimeout
-            ? 'Server uyqudan uyg\'onmoqda. Iltimos, 30–60 soniyadan so\'ng qayta "Kirish" bosing.'
+            ? 'Server bilan aloqa vaqti tugadi. Internet aloqangizni tekshirib, birozdan so\'ng qayta "Kirish" bosing.'
             : rawMessage;
           set({ isLoading: false, error: message });
         }

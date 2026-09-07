@@ -14,17 +14,22 @@ async function bootstrap() {
   const config = app.get(ConfigService);
   const rawPort = config.get<string | number>('PORT', 3000);
   const port = typeof rawPort === 'string' ? parseInt(rawPort.trim(), 10) || 3000 : rawPort;
+  // CORS_ORIGINS is opt-in: leave it unset to keep reflecting any Origin (needed
+  // today for the Electron desktop app's file:// origin and mobile clients that
+  // send no Origin at all). Set it on Railway to a comma-separated allowlist to
+  // lock this down once every client origin is known.
   const corsOrigins = config
-    .get<string>('CORS_ORIGINS', 'http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173')
+    .get<string>('CORS_ORIGINS', '')
     .split(',')
     .map((o) => o.trim())
     .filter(Boolean);
+  const restrictCorsOrigins = corsOrigins.length > 0;
 
   app.use((req: any, res: any, next: any) => {
     const origin = req.headers.origin;
-    if (origin) {
+    if (origin && (!restrictCorsOrigins || corsOrigins.includes(origin))) {
       res.header('Access-Control-Allow-Origin', origin);
-    } else {
+    } else if (!origin) {
       res.header('Access-Control-Allow-Origin', '*');
     }
     res.header('Access-Control-Allow-Credentials', 'true');

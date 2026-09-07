@@ -13,6 +13,7 @@ import {
   LoginRequestDto,
   RefreshRequestDto,
   SwitchCompanyRequestDto,
+  ChangePasswordRequestDto,
 } from '../api/dto/auth-request.dto';
 import {
   LoginResponseDto,
@@ -65,6 +66,24 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   me(@CurrentUser() user: JwtPayload): Promise<MeResponseDto> {
     return this.authService.me(user.sub, user.companyId, user.sessionId);
+  }
+
+  @Post('change-password')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 10, ttl: 900000 } })
+  async changePassword(
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: ChangePasswordRequestDto,
+    @RequestId() requestId?: string,
+  ): Promise<void> {
+    await this.authService.changePassword(
+      user.sub,
+      user.sessionId,
+      dto.oldPassword,
+      dto.newPassword,
+      requestId,
+    );
   }
 
   @Post('switch-company')

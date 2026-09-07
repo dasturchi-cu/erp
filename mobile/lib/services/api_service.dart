@@ -1,6 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'navigation_service.dart';
+
+const String _kBaseUrl = 'https://erp-backend-production-e88a.up.railway.app/api/v1';
 
 class ApiService {
   static final ApiService _instance = ApiService._internal();
@@ -8,7 +12,7 @@ class ApiService {
   ApiService._internal();
 
   final Dio dio = Dio(BaseOptions(
-    baseUrl: 'https://erp-backend-production-e88a.up.railway.app/api/v1',
+    baseUrl: _kBaseUrl,
     connectTimeout: const Duration(seconds: 30),
     receiveTimeout: const Duration(seconds: 30),
     sendTimeout: const Duration(seconds: 30),
@@ -18,19 +22,14 @@ class ApiService {
   String? _refreshToken;
   String? _companyId;
   bool _isRefreshing = false;
+  final List<Completer<void>> _refreshWaiters = [];
 
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
     _token = prefs.getString('auth_token');
     _refreshToken = prefs.getString('refresh_token');
     _companyId = prefs.getString('company_id');
-
-    final savedHost = prefs.getString('api_host');
-    if (savedHost != null && savedHost.isNotEmpty) {
-      dio.options.baseUrl = savedHost;
-    } else {
-      dio.options.baseUrl = 'https://erp-backend-production-e88a.up.railway.app/api/v1';
-    }
+    dio.options.baseUrl = _kBaseUrl;
 
     dio.interceptors.clear();
     dio.interceptors.add(InterceptorsWrapper(
@@ -54,69 +53,68 @@ class ApiService {
             e.requestOptions.path.contains('/auth/refresh') ||
             e.requestOptions.path.contains('/auth/logout');
 
-        if (e.response?.statusCode == 401 && !isAuthPath && !_isRefreshing) {
-          if (_refreshToken != null && _refreshToken!.isNotEmpty) {
-            _isRefreshing = true;
-            try {
-              final refreshDio = Dio(BaseOptions(baseUrl: dio.options.baseUrl));
-              final res = await refreshDio.post('/auth/refresh', data: {
-                'refreshToken': _refreshToken,
-              });
-              if (res.statusCode == 200 || res.statusCode == 201) {
-                _token = res.data['accessToken'];
-                _refreshToken = res.data['refreshToken'] ?? _refreshToken;
-                final prefs = await SharedPreferences.getInstance();
-                if (_token != null) await prefs.setString('auth_token', _token!);
-                if (_refreshToken != null) await prefs.setString('refresh_token', _refreshToken!);
-
-                final opts = e.requestOptions;
-                opts.headers['Authorization'] = 'Bearer $_token';
-                final cloneReq = await dio.fetch(opts);
-                _isRefreshing = false;
-                return handler.resolve(cloneReq);
-              }
-            } catch (_) {
-              // Refresh failed
-            } finally {
-              _isRefreshing = false;
-            }
-          }
-          await clearSession();
+        if (e.response?.statusCode != 401 || isAuthPath) {
+          return handler.next(e);
         }
+
+        // A refresh is already in flight (triggered by a concurrent request):
+        // wait for it instead of failing/logging out immediately, then retry
+        // this request with whatever token the refresh produced.
+        if (_isRefreshing) {
+          final waiter = Completer<void>();
+          _refreshWaiters.add(waiter);
+          try {
+            await waiter.future;
+            final opts = e.requestOptions;
+            opts.headers['Authorization'] = 'Bearer $_token';
+            final cloneReq = await dio.fetch(opts);
+            return handler.resolve(cloneReq);
+          } catch (_) {
+            return handler.next(e);
+          }
+        }
+
+        if (_refreshToken != null && _refreshToken!.isNotEmpty) {
+          _isRefreshing = true;
+          try {
+            final refreshDio = Dio(BaseOptions(baseUrl: dio.options.baseUrl));
+            final res = await refreshDio.post('/auth/refresh', data: {
+              'refreshToken': _refreshToken,
+            });
+            if (res.statusCode == 200 || res.statusCode == 201) {
+              _token = res.data['accessToken'];
+              _refreshToken = res.data['refreshToken'] ?? _refreshToken;
+              final prefs = await SharedPreferences.getInstance();
+              if (_token != null) await prefs.setString('auth_token', _token!);
+              if (_refreshToken != null) await prefs.setString('refresh_token', _refreshToken!);
+
+              for (final w in _refreshWaiters) {
+                if (!w.isCompleted) w.complete();
+              }
+              _refreshWaiters.clear();
+
+              final opts = e.requestOptions;
+              opts.headers['Authorization'] = 'Bearer $_token';
+              final cloneReq = await dio.fetch(opts);
+              return handler.resolve(cloneReq);
+            }
+          } catch (_) {
+            // Refresh failed
+          } finally {
+            _isRefreshing = false;
+          }
+        }
+
+        for (final w in _refreshWaiters) {
+          if (!w.isCompleted) w.completeError('refresh-failed');
+        }
+        _refreshWaiters.clear();
+
+        await clearSession();
+        NavigationService.redirectToLogin();
         return handler.next(e);
       },
     ));
-  }
-
-  Future<void> updateHost(String host) async {
-    String input = host.trim();
-    if (input.isEmpty) {
-      dio.options.baseUrl = 'https://erp-backend-production-e88a.up.railway.app/api/v1';
-      return;
-    }
-
-    String formattedUrl = input;
-    if (!formattedUrl.startsWith('http://') && !formattedUrl.startsWith('https://')) {
-      if (formattedUrl.contains('onrender.com') || formattedUrl.contains('koyeb.app') || formattedUrl.contains('vercel.app')) {
-        formattedUrl = 'https://$formattedUrl';
-      } else {
-        final hostWithPort = formattedUrl.contains(':') ? formattedUrl : '$formattedUrl:3000';
-        formattedUrl = 'http://$hostWithPort';
-      }
-    }
-
-    if (!formattedUrl.endsWith('/api/v1')) {
-      formattedUrl = '$formattedUrl/api/v1';
-    }
-
-    dio.options.baseUrl = formattedUrl;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('api_host', formattedUrl);
-  }
-
-  String get host {
-    final uri = Uri.parse(dio.options.baseUrl);
-    return uri.host;
   }
 
   bool get isAuthenticated => _token != null && _token!.isNotEmpty;

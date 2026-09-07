@@ -2,6 +2,7 @@ import { Injectable, CanActivate, ExecutionContext, UnauthorizedException, Forbi
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../../core/database/prisma.service';
+import { getSaasJwtSecret } from '../../../core/utils/saas-secret.util';
 
 @Injectable()
 export class SaasJwtGuard implements CanActivate {
@@ -22,7 +23,7 @@ export class SaasJwtGuard implements CanActivate {
 
     const token = authHeader.split(' ')[1];
     try {
-      const secret = this.config.get<string>('JWT_SAAS_SECRET', 'super-secret-saas-key-123');
+      const secret = getSaasJwtSecret(this.config);
       const payload = await this.jwtService.verifyAsync(token, { secret });
       
       if (payload.type !== 'saas_access') {

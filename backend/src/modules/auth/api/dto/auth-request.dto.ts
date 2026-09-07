@@ -58,3 +58,13 @@ export class SwitchCompanyRequestDto {
   @IsUUID()
   companyId!: string;
 }
+
+export class ChangePasswordRequestDto {
+  @IsString()
+  @IsNotEmpty()
+  oldPassword!: string;
+
+  @IsString()
+  @MinLength(8)
+  newPassword!: string;
+}

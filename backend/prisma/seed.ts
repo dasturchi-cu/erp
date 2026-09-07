@@ -124,20 +124,7 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
 };
 
 async function main() {
-  console.log('Truncating tables for clean production seed...');
-  try {
-    await prisma.$executeRawUnsafe(`TRUNCATE TABLE 
-      customers, debt_history, debt_payments, expenses, inventory_batches, 
-      inventory_movements, notifications, product_aliases, product_barcodes, 
-      product_categories, product_images, product_price_histories, product_prices, 
-      product_reservations, product_serials, product_unit_conversions, products, 
-      sale_fifo_allocations, sale_items, sale_number_sequences, sale_return_items, 
-      sale_returns, sales, supplier_debt_history, supplier_payments, 
-      supplier_price_histories, supplier_receipts, suppliers, audit_logs
-      CASCADE;`);
-  } catch (e) {
-    console.error('Truncate table error (ignoring for fresh DB):', e);
-  }
+  console.log('Seeding baseline reference data (idempotent, no data is deleted)...');
 
   for (const perm of PERMISSIONS) {
     await prisma.permission.upsert({
@@ -234,7 +221,7 @@ async function main() {
       lastName: 'Admin',
       status: UserStatus.ACTIVE,
     },
-    update: { passwordHash },
+    update: {},
   });
 
   await prisma.saaSAdmin.upsert({
@@ -243,7 +230,7 @@ async function main() {
       email: 'admin@erp.uz',
       passwordHash,
     },
-    update: { passwordHash },
+    update: {},
   });
 
   await prisma.userCompany.upsert({

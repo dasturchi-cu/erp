@@ -48,7 +48,12 @@ class _PosViewState extends State<PosView> {
           }
         });
       }
-    } catch (_) {}
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Mijozlar ro\'yxati yuklanmadi: ${ApiService.parseError(e)}')),
+      );
+    }
   }
 
   Future<void> _searchProducts(String q) async {
@@ -66,10 +71,12 @@ class _PosViewState extends State<PosView> {
         setState(() => _searchResults = list);
         return;
       }
-    } catch (_) {}
+    } catch (_) {
+      // Fall through to the /products fallback below before reporting an error.
+    }
 
     try {
-      final fb = await _apiService.get('/products?search=${Uri.encodeComponent(q)}&limit=20');
+      final fb = await _apiService.get('/products?q=${Uri.encodeComponent(q)}&limit=20');
       if (fb.statusCode == 200) {
         final raw = fb.data;
         final list = raw is Map && raw.containsKey('data')
@@ -77,7 +84,12 @@ class _PosViewState extends State<PosView> {
             : (raw is List ? raw : []);
         setState(() => _searchResults = list);
       }
-    } catch (_) {}
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Qidiruvda xatolik: ${ApiService.parseError(e)}')),
+      );
+    }
   }
 
   void _addToCart(dynamic product) {

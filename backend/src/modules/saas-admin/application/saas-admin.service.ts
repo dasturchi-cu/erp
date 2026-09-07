@@ -17,6 +17,7 @@ import {
   SaasSubscriptionStatusDto
 } from '../api/dto/saas-admin.dto';
 import * as os from 'os';
+import { getSaasJwtSecret } from '../../../core/utils/saas-secret.util';
 
 @Injectable()
 export class SaaSAdminService {
@@ -42,7 +43,7 @@ export class SaaSAdminService {
       throw new UnauthorizedException('Email yoki parol noto\'g\'ri');
     }
 
-    const saasSecret = this.config.get<string>('JWT_SAAS_SECRET', 'super-secret-saas-key-123');
+    const saasSecret = getSaasJwtSecret(this.config);
     const expiresIn = dto.rememberMe ? '90d' : '30d';
 
     const accessToken = await this.jwtService.signAsync(
@@ -66,7 +67,7 @@ export class SaaSAdminService {
   }
 
   async refresh(token: string) {
-    const saasSecret = this.config.get<string>('JWT_SAAS_SECRET', 'super-secret-saas-key-123');
+    const saasSecret = getSaasJwtSecret(this.config);
     try {
       const payload = await this.jwtService.verifyAsync(token, { secret: saasSecret });
       if (payload.type !== 'saas_refresh') {

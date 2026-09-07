@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'services/api_service.dart';
+import 'services/navigation_service.dart';
 import 'theme/app_theme.dart';
 import 'views/login_view.dart';
 import 'views/dashboard_view.dart';
@@ -25,6 +26,7 @@ class MyApp extends StatelessWidget {
     final apiService = ApiService();
 
     return MaterialApp(
+      navigatorKey: navigatorKey,
       title: 'ERP Mobile',
       debugShowCheckedModeBanner: false,
       themeMode: ThemeMode.system,

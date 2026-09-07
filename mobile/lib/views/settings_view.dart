@@ -43,7 +43,12 @@ class _SettingsViewState extends State<SettingsView> {
         });
       }
     } catch (e) {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) {
+        setState(() => _loading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Profil yuklanmadi: ${ApiService.parseError(e)}')),
+        );
+      }
     }
   }
 
@@ -231,7 +236,7 @@ class _SettingsViewState extends State<SettingsView> {
                       ListTile(
                         leading: const Icon(Icons.cloud_outlined),
                         title: Text('Server', style: GoogleFonts.outfit()),
-                        trailing: Text('Render Cloud', style: GoogleFonts.outfit(
+                        trailing: Text('Railway Cloud', style: GoogleFonts.outfit(
                           color: Colors.green,
                           fontSize: 13,
                         )),

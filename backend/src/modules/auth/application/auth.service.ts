@@ -249,6 +249,45 @@ export class AuthService {
     };
   }
 
+  async changePassword(
+    userId: string,
+    sessionId: string,
+    oldPassword: string,
+    newPassword: string,
+    requestId?: string,
+  ): Promise<void> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw AppException.notFound('user', userId);
+    }
+
+    const valid = await this.tokens.comparePassword(oldPassword, user.passwordHash);
+    if (!valid) {
+      throw AppException.unauthorized('UNAUTHORIZED', 'Old password is incorrect');
+    }
+
+    const passwordHash = await this.tokens.hashPassword(newPassword);
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash },
+    });
+
+    // Revoke every other active session so a leaked old password stops working elsewhere.
+    await this.prisma.session.updateMany({
+      where: { userId, id: { not: sessionId }, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+
+    await this.audit.log({
+      companyId: null,
+      userId,
+      action: 'CHANGE_PASSWORD',
+      entityType: 'user',
+      entityId: userId,
+      requestId: requestId ?? null,
+    });
+  }
+
   async logout(sessionId: string, userId: string, requestId?: string): Promise<void> {
     const session = await this.prisma.session.findFirst({
       where: { id: sessionId, userId, revokedAt: null },
