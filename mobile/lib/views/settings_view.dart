@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/api_service.dart';
+import 'printer_settings_view.dart';
 
 class SettingsView extends StatefulWidget {
   const SettingsView({super.key});
@@ -208,6 +209,15 @@ class _SettingsViewState extends State<SettingsView> {
                         title: Text('Ma\'lumotlarni Yangilash', style: GoogleFonts.outfit()),
                         trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                         onTap: _loadProfile,
+                      ),
+                      const Divider(height: 1, indent: 56),
+                      ListTile(
+                        leading: const Icon(Icons.print_outlined),
+                        title: Text('Chek printer', style: GoogleFonts.outfit()),
+                        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(builder: (_) => const PrinterSettingsView()),
+                        ),
                       ),
                     ],
                   ),

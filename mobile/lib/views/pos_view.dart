@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/api_service.dart';
+import '../services/printer_service.dart';
 import '../services/sync_service.dart';
 
 class PosView extends StatefulWidget {
@@ -14,6 +15,7 @@ class PosView extends StatefulWidget {
 class _PosViewState extends State<PosView> {
   final _apiService = ApiService();
   final _syncService = SyncService();
+  final _printer = PrinterService();
   final _searchController = TextEditingController();
 
   List<dynamic> _searchResults = [];
@@ -190,10 +192,32 @@ class _PosViewState extends State<PosView> {
           .toList(),
     };
 
+    // Snapshot the cart for the receipt before it's cleared on success.
+    final receiptItems = _cart
+        .map((item) => ReceiptItem(
+              name: (item['product']['name'] ?? '').toString(),
+              quantity: (item['quantity'] as num).toDouble(),
+              unit: (item['product']['unitOfMeasure'] ?? 'dona').toString(),
+              unitPrice: (item['salePrice'] as num).toDouble(),
+              total: (item['quantity'] as num).toDouble() * (item['salePrice'] as num).toDouble(),
+            ))
+        .toList();
+    final receiptTotal = _totalAmount;
+    final receiptCustomer = _selectedCustomer?['name']?.toString();
+    final receiptPaymentLabel = isCredit ? 'Nasiya (Qarz)' : 'Naqd';
+
     try {
       final res = await _apiService.post('/sales', salePayload);
       if (res.statusCode == 200 || res.statusCode == 201) {
-        _successCheckout();
+        final saleNumber = (res.data is Map ? res.data['saleNumber'] : null)?.toString() ??
+            DateTime.now().millisecondsSinceEpoch.toString();
+        _successCheckout(
+          saleNumber: saleNumber,
+          items: receiptItems,
+          total: receiptTotal,
+          customerName: receiptCustomer,
+          paymentLabel: receiptPaymentLabel,
+        );
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -224,12 +248,31 @@ class _PosViewState extends State<PosView> {
     }
   }
 
-  void _successCheckout() {
+  void _successCheckout({
+    required String saleNumber,
+    required List<ReceiptItem> items,
+    required double total,
+    String? customerName,
+    required String paymentLabel,
+  }) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Xarid muvaffaqiyatli yakunlandi!'),
+      SnackBar(
+        content: const Text('Xarid muvaffaqiyatli yakunlandi!'),
         backgroundColor: Colors.green,
+        action: _printer.hasSavedPrinter
+            ? SnackBarAction(
+                label: 'Chek chiqarish',
+                textColor: Colors.white,
+                onPressed: () => _printReceipt(
+                  saleNumber: saleNumber,
+                  items: items,
+                  total: total,
+                  customerName: customerName,
+                  paymentLabel: paymentLabel,
+                ),
+              )
+            : null,
       ),
     );
     setState(() {
@@ -237,6 +280,31 @@ class _PosViewState extends State<PosView> {
       _selectedCustomer = null;
       _paymentType = 'CASH';
     });
+  }
+
+  Future<void> _printReceipt({
+    required String saleNumber,
+    required List<ReceiptItem> items,
+    required double total,
+    String? customerName,
+    required String paymentLabel,
+  }) async {
+    final ok = await _printer.printReceipt(
+      companyName: 'ERP',
+      saleNumber: saleNumber,
+      date: DateTime.now(),
+      items: items,
+      totalUzs: total,
+      customerName: customerName,
+      paymentLabel: paymentLabel,
+    );
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(ok ? 'Chek chiqarildi' : 'Chek chiqmadi. Printerni tekshiring'),
+        backgroundColor: ok ? Colors.green : Colors.red,
+      ),
+    );
   }
 
   void _queueOffline(Map<String, dynamic> salePayload) async {

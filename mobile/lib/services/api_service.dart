@@ -266,6 +266,14 @@ class ApiService {
     return dio.post(path, data: data);
   }
 
+  /// Uploads a local file as multipart/form-data (field name `file`).
+  Future<Response> uploadFile(String path, String filePath, {String fieldName = 'file'}) async {
+    final formData = FormData.fromMap({
+      fieldName: await MultipartFile.fromFile(filePath),
+    });
+    return dio.post(path, data: formData);
+  }
+
   Future<Response> patch(String path, dynamic data) async {
     return dio.patch(path, data: data);
   }

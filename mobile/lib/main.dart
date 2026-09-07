@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'services/api_service.dart';
 import 'services/navigation_service.dart';
+import 'services/printer_service.dart';
 import 'theme/app_theme.dart';
 import 'views/login_view.dart';
 import 'views/dashboard_view.dart';
@@ -13,6 +14,12 @@ void main() async {
     await apiService.init().timeout(const Duration(seconds: 50));
   } catch (e) {
     // Timeout or initialization fallback so splash screen never hangs
+  }
+
+  try {
+    await PrinterService().init();
+  } catch (_) {
+    // No saved printer yet / SharedPreferences unavailable — fine, printer is opt-in
   }
 
   runApp(const MyApp());

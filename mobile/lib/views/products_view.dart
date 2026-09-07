@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
 import '../services/api_service.dart';
 import 'inventory_receive_view.dart';
 import 'inventory_adjust_view.dart';
@@ -33,6 +34,18 @@ class _ProductsViewState extends State<ProductsView> {
   final _wholesalePriceController = TextEditingController();
   final _stockController = TextEditingController();
   final _minStockController = TextEditingController();
+  final _purchasePriceUsdController = TextEditingController();
+  final _salePriceUsdController = TextEditingController();
+  final _unitsPerBoxController = TextEditingController();
+  final _recommendedPriceController = TextEditingController();
+  final _minPriceController = TextEditingController();
+  final _newBarcodeController = TextEditingController();
+  final _newAliasController = TextEditingController();
+  final _picker = ImagePicker();
+  List<String> _extraBarcodes = [];
+  List<String> _aliases = [];
+  String? _imageUrl;
+  bool _uploadingImage = false;
 
   @override
   void initState() {
@@ -52,6 +65,13 @@ class _ProductsViewState extends State<ProductsView> {
     _wholesalePriceController.dispose();
     _stockController.dispose();
     _minStockController.dispose();
+    _purchasePriceUsdController.dispose();
+    _salePriceUsdController.dispose();
+    _unitsPerBoxController.dispose();
+    _recommendedPriceController.dispose();
+    _minPriceController.dispose();
+    _newBarcodeController.dispose();
+    _newAliasController.dispose();
     super.dispose();
   }
 
@@ -137,6 +157,165 @@ class _ProductsViewState extends State<ProductsView> {
     return null;
   }
 
+  Future<void> _pickAndUploadImage(StateSetter setModalState) async {
+    final picked = await showModalBottomSheet<XFile?>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Kamera'),
+              onTap: () async {
+                final f = await _picker.pickImage(source: ImageSource.camera, imageQuality: 85);
+                if (ctx.mounted) Navigator.pop(ctx, f);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Galereya'),
+              onTap: () async {
+                final f = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+                if (ctx.mounted) Navigator.pop(ctx, f);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+    if (picked == null) return;
+
+    setModalState(() => _uploadingImage = true);
+    try {
+      final res = await _apiService.uploadFile('/products/image/upload', picked.path);
+      final data = res.data;
+      final fileName = data is Map ? data['fileName']?.toString() : null;
+      if (fileName != null) {
+        setModalState(() {
+          _imageUrl = fileName;
+          _uploadingImage = false;
+        });
+      } else {
+        setModalState(() => _uploadingImage = false);
+      }
+    } catch (e) {
+      setModalState(() => _uploadingImage = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Rasm yuklanmadi: ${ApiService.parseError(e)}')),
+        );
+      }
+    }
+  }
+
+  Widget _buildImagePicker(StateSetter setModalState) {
+    final imageServedUrl = _imageUrl != null
+        ? '${_apiService.dio.options.baseUrl}/products/image/served/thumb/$_imageUrl'
+        : null;
+    return Row(
+      children: [
+        GestureDetector(
+          onTap: _uploadingImage ? null : () => _pickAndUploadImage(setModalState),
+          child: Container(
+            width: 72,
+            height: 72,
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey.shade400),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: _uploadingImage
+                ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
+                : imageServedUrl != null
+                    ? ClipRRect(
+                        borderRadius: BorderRadius.circular(7),
+                        child: Image.network(
+                          imageServedUrl,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_outlined),
+                        ),
+                      )
+                    : const Icon(Icons.add_photo_alternate_outlined, color: Colors.grey),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            _imageUrl != null ? 'Rasm tanlandi' : 'Mahsulot rasmi (ixtiyoriy)',
+            style: GoogleFonts.outfit(fontSize: 13, color: Colors.grey.shade600),
+          ),
+        ),
+        if (_imageUrl != null)
+          IconButton(
+            icon: const Icon(Icons.close, size: 18),
+            onPressed: () => setModalState(() => _imageUrl = null),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildChipListField({
+    required String label,
+    required TextEditingController controller,
+    required List<String> values,
+    required StateSetter setModalState,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: TextFormField(
+                controller: controller,
+                decoration: InputDecoration(
+                  labelText: label,
+                  border: const OutlineInputBorder(),
+                  isDense: true,
+                ),
+                onFieldSubmitted: (_) {
+                  final v = controller.text.trim();
+                  if (v.isNotEmpty) {
+                    setModalState(() {
+                      values.add(v);
+                      controller.clear();
+                    });
+                  }
+                },
+              ),
+            ),
+            const SizedBox(width: 8),
+            IconButton.filled(
+              icon: const Icon(Icons.add),
+              onPressed: () {
+                final v = controller.text.trim();
+                if (v.isNotEmpty) {
+                  setModalState(() {
+                    values.add(v);
+                    controller.clear();
+                  });
+                }
+              },
+            ),
+          ],
+        ),
+        if (values.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: values
+                  .map((v) => Chip(
+                        label: Text(v),
+                        onDeleted: () => setModalState(() => values.remove(v)),
+                      ))
+                  .toList(),
+            ),
+          ),
+      ],
+    );
+  }
+
   void _showAddProductDialog() {
     _skuController.text = 'PRD-${DateTime.now().millisecondsSinceEpoch.toString().substring(6)}';
     _nameController.clear();
@@ -146,6 +325,16 @@ class _ProductsViewState extends State<ProductsView> {
     _wholesalePriceController.clear();
     _stockController.clear();
     _minStockController.clear();
+    _purchasePriceUsdController.clear();
+    _salePriceUsdController.clear();
+    _unitsPerBoxController.clear();
+    _recommendedPriceController.clear();
+    _minPriceController.clear();
+    _newBarcodeController.clear();
+    _newAliasController.clear();
+    _extraBarcodes = [];
+    _aliases = [];
+    _imageUrl = null;
     _selectedUnit = 'dona';
 
     final validCats = _categories.where((c) => c is Map && c['id'] != null).toList();
@@ -381,7 +570,78 @@ class _ProductsViewState extends State<ProductsView> {
                             .toList(),
                         onChanged: (val) => setModalState(() => _selectedWarehouseId = val),
                       ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 12),
+                    _buildImagePicker(setModalState),
+                    Theme(
+                      data: theme.copyWith(dividerColor: Colors.transparent),
+                      child: ExpansionTile(
+                        tilePadding: EdgeInsets.zero,
+                        title: Text('Qo\'shimcha ma\'lumotlar (ixtiyoriy)', style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.w600)),
+                        childrenPadding: const EdgeInsets.only(bottom: 8),
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextFormField(
+                                  controller: _purchasePriceUsdController,
+                                  keyboardType: TextInputType.number,
+                                  decoration: const InputDecoration(labelText: 'Tannarx (USD)', border: OutlineInputBorder(), isDense: true),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: TextFormField(
+                                  controller: _salePriceUsdController,
+                                  keyboardType: TextInputType.number,
+                                  decoration: const InputDecoration(labelText: 'Sotish narxi (USD)', border: OutlineInputBorder(), isDense: true),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextFormField(
+                                  controller: _recommendedPriceController,
+                                  keyboardType: TextInputType.number,
+                                  decoration: const InputDecoration(labelText: 'Tavsiya narx (UZS)', border: OutlineInputBorder(), isDense: true),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: TextFormField(
+                                  controller: _minPriceController,
+                                  keyboardType: TextInputType.number,
+                                  decoration: const InputDecoration(labelText: 'Min. narx (UZS)', border: OutlineInputBorder(), isDense: true),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _unitsPerBoxController,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(labelText: 'Quti/blokdagi soni', border: OutlineInputBorder(), isDense: true),
+                          ),
+                          const SizedBox(height: 12),
+                          _buildChipListField(
+                            label: 'Qo\'shimcha barkod qo\'shish',
+                            controller: _newBarcodeController,
+                            values: _extraBarcodes,
+                            setModalState: setModalState,
+                          ),
+                          const SizedBox(height: 12),
+                          _buildChipListField(
+                            label: 'Qidiruv nomi (alias) qo\'shish',
+                            controller: _newAliasController,
+                            values: _aliases,
+                            setModalState: setModalState,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
                     ElevatedButton(
                       onPressed: () async {
                         setModalState(() => submitted = true);
@@ -422,6 +682,11 @@ class _ProductsViewState extends State<ProductsView> {
 
                         final wholesaleRaw = _wholesalePriceController.text.trim();
                         final minStockRaw = _minStockController.text.trim();
+                        final purchaseUsdRaw = _purchasePriceUsdController.text.trim();
+                        final saleUsdRaw = _salePriceUsdController.text.trim();
+                        final recommendedRaw = _recommendedPriceController.text.trim();
+                        final minPriceRaw = _minPriceController.text.trim();
+                        final unitsPerBoxRaw = _unitsPerBoxController.text.trim();
 
                         try {
                           final res = await _apiService.post('/products', {
@@ -440,6 +705,19 @@ class _ProductsViewState extends State<ProductsView> {
                             if (stockNum > 0) 'initialStock': stockNum.toStringAsFixed(0),
                             if (stockNum > 0 && _selectedWarehouseId != null)
                               'initialWarehouseId': _selectedWarehouseId,
+                            if (purchaseUsdRaw.isNotEmpty && double.tryParse(purchaseUsdRaw) != null)
+                              'purchasePriceUsd': double.parse(purchaseUsdRaw).toStringAsFixed(2),
+                            if (saleUsdRaw.isNotEmpty && double.tryParse(saleUsdRaw) != null)
+                              'salePriceUsd': double.parse(saleUsdRaw).toStringAsFixed(2),
+                            if (recommendedRaw.isNotEmpty && double.tryParse(recommendedRaw) != null)
+                              'recommendedPriceUzs': double.parse(recommendedRaw).toStringAsFixed(0),
+                            if (minPriceRaw.isNotEmpty && double.tryParse(minPriceRaw) != null)
+                              'minPriceUzs': double.parse(minPriceRaw).toStringAsFixed(0),
+                            if (unitsPerBoxRaw.isNotEmpty && int.tryParse(unitsPerBoxRaw) != null)
+                              'unitsPerBox': unitsPerBoxRaw,
+                            if (_extraBarcodes.isNotEmpty) 'barcodes': _extraBarcodes,
+                            if (_aliases.isNotEmpty) 'aliases': _aliases,
+                            if (_imageUrl != null) 'imageUrl': _imageUrl,
                           });
 
                           if (res.statusCode == 200 || res.statusCode == 201) {
@@ -483,6 +761,18 @@ class _ProductsViewState extends State<ProductsView> {
     _barcodeController.text = p['barcode'] ?? '';
     _purchasePriceController.text = (p['purchasePriceUzs'] ?? '').toString();
     _salePriceController.text = (p['salePriceUzs'] ?? '').toString();
+    _wholesalePriceController.text = _zeroToEmpty(p['wholesalePriceUzs']);
+    _minStockController.text = _zeroToEmpty(p['minStockLevel']);
+    _purchasePriceUsdController.text = _zeroToEmpty(p['purchasePriceUsd']);
+    _salePriceUsdController.text = _zeroToEmpty(p['salePriceUsd']);
+    _recommendedPriceController.text = _zeroToEmpty(p['recommendedPriceUzs']);
+    _minPriceController.text = _zeroToEmpty(p['minPriceUzs']);
+    _unitsPerBoxController.text = (p['unitsPerBox']?.toString() == '1') ? '' : (p['unitsPerBox']?.toString() ?? '');
+    _newBarcodeController.clear();
+    _newAliasController.clear();
+    _extraBarcodes = (p['barcodes'] as List?)?.map((e) => e.toString()).toList() ?? [];
+    _aliases = (p['aliases'] as List?)?.map((e) => e.toString()).toList() ?? [];
+    _imageUrl = p['imageUrl']?.toString();
     _selectedCategoryId = p['categoryId']?.toString();
     _selectedUnit = p['unitOfMeasure'] ?? 'dona';
 
@@ -611,7 +901,98 @@ class _ProductsViewState extends State<ProductsView> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 12),
+                    _buildImagePicker(setModalState),
+                    Theme(
+                      data: theme.copyWith(dividerColor: Colors.transparent),
+                      child: ExpansionTile(
+                        tilePadding: EdgeInsets.zero,
+                        title: Text('Qo\'shimcha ma\'lumotlar (ixtiyoriy)', style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.w600)),
+                        childrenPadding: const EdgeInsets.only(bottom: 8),
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextFormField(
+                                  controller: _purchasePriceUsdController,
+                                  keyboardType: TextInputType.number,
+                                  decoration: const InputDecoration(labelText: 'Tannarx (USD)', border: OutlineInputBorder(), isDense: true),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: TextFormField(
+                                  controller: _salePriceUsdController,
+                                  keyboardType: TextInputType.number,
+                                  decoration: const InputDecoration(labelText: 'Sotish narxi (USD)', border: OutlineInputBorder(), isDense: true),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextFormField(
+                                  controller: _wholesalePriceController,
+                                  keyboardType: TextInputType.number,
+                                  decoration: const InputDecoration(labelText: 'Ulgurji narx (UZS)', border: OutlineInputBorder(), isDense: true),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: TextFormField(
+                                  controller: _minStockController,
+                                  keyboardType: TextInputType.number,
+                                  decoration: const InputDecoration(labelText: 'Min. qoldiq', border: OutlineInputBorder(), isDense: true),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextFormField(
+                                  controller: _recommendedPriceController,
+                                  keyboardType: TextInputType.number,
+                                  decoration: const InputDecoration(labelText: 'Tavsiya narx (UZS)', border: OutlineInputBorder(), isDense: true),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: TextFormField(
+                                  controller: _minPriceController,
+                                  keyboardType: TextInputType.number,
+                                  decoration: const InputDecoration(labelText: 'Min. narx (UZS)', border: OutlineInputBorder(), isDense: true),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _unitsPerBoxController,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(labelText: 'Quti/blokdagi soni', border: OutlineInputBorder(), isDense: true),
+                          ),
+                          const SizedBox(height: 12),
+                          _buildChipListField(
+                            label: 'Qo\'shimcha barkod qo\'shish',
+                            controller: _newBarcodeController,
+                            values: _extraBarcodes,
+                            setModalState: setModalState,
+                          ),
+                          const SizedBox(height: 12),
+                          _buildChipListField(
+                            label: 'Qidiruv nomi (alias) qo\'shish',
+                            controller: _newAliasController,
+                            values: _aliases,
+                            setModalState: setModalState,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
                     ElevatedButton(
                       onPressed: () async {
                         setModalState(() => submitted = true);
@@ -623,6 +1004,13 @@ class _ProductsViewState extends State<ProductsView> {
                         final sku = _skuController.text.trim();
                         final saleRaw = _salePriceController.text.trim();
                         final purchaseRaw = _purchasePriceController.text.trim();
+                        final wholesaleRaw = _wholesalePriceController.text.trim();
+                        final minStockRaw = _minStockController.text.trim();
+                        final purchaseUsdRaw = _purchasePriceUsdController.text.trim();
+                        final saleUsdRaw = _salePriceUsdController.text.trim();
+                        final recommendedRaw = _recommendedPriceController.text.trim();
+                        final minPriceRaw = _minPriceController.text.trim();
+                        final unitsPerBoxRaw = _unitsPerBoxController.text.trim();
 
                         try {
                           final res = await _apiService.patch('/products/${p['id']}', {
@@ -632,6 +1020,23 @@ class _ProductsViewState extends State<ProductsView> {
                             if (purchaseRaw.isNotEmpty) 'purchasePriceUzs': purchaseRaw,
                             if (_barcodeController.text.trim().isNotEmpty) 'barcode': _barcodeController.text.trim(),
                             if (_selectedCategoryId != null) 'categoryId': _selectedCategoryId,
+                            if (wholesaleRaw.isNotEmpty && double.tryParse(wholesaleRaw) != null)
+                              'wholesalePriceUzs': double.parse(wholesaleRaw).toStringAsFixed(0),
+                            if (minStockRaw.isNotEmpty && double.tryParse(minStockRaw) != null)
+                              'minStockLevel': double.parse(minStockRaw).toStringAsFixed(0),
+                            if (purchaseUsdRaw.isNotEmpty && double.tryParse(purchaseUsdRaw) != null)
+                              'purchasePriceUsd': double.parse(purchaseUsdRaw).toStringAsFixed(2),
+                            if (saleUsdRaw.isNotEmpty && double.tryParse(saleUsdRaw) != null)
+                              'salePriceUsd': double.parse(saleUsdRaw).toStringAsFixed(2),
+                            if (recommendedRaw.isNotEmpty && double.tryParse(recommendedRaw) != null)
+                              'recommendedPriceUzs': double.parse(recommendedRaw).toStringAsFixed(0),
+                            if (minPriceRaw.isNotEmpty && double.tryParse(minPriceRaw) != null)
+                              'minPriceUzs': double.parse(minPriceRaw).toStringAsFixed(0),
+                            if (unitsPerBoxRaw.isNotEmpty && int.tryParse(unitsPerBoxRaw) != null)
+                              'unitsPerBox': unitsPerBoxRaw,
+                            'barcodes': _extraBarcodes,
+                            'aliases': _aliases,
+                            'imageUrl': _imageUrl,
                           });
 
                         if (res.statusCode == 200 || res.statusCode == 204) {
@@ -707,6 +1112,15 @@ class _ProductsViewState extends State<ProductsView> {
         ],
       ),
     );
+  }
+
+  /// Backend returns "0" for unset optional money fields — show those as
+  /// blank in the form instead of a misleading literal zero.
+  String _zeroToEmpty(dynamic val) {
+    if (val == null) return '';
+    final n = double.tryParse(val.toString());
+    if (n == null || n == 0) return '';
+    return val.toString();
   }
 
   String _formatNumber(dynamic val) {

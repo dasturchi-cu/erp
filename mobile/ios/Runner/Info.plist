@@ -26,6 +26,14 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Chek printerga ulanish uchun Bluetooth ruxsati kerak</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>Chek printer bilan ishlash uchun Bluetooth ruxsati kerak</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Mahsulot rasmini olish uchun kamera ruxsati kerak</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Mahsulot rasmini tanlash uchun galereya ruxsati kerak</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
