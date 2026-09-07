@@ -22,9 +22,11 @@ import { useInventoryStore } from '@/stores/inventoryStore';
 import { useNotification } from '@/components/feedback/NotificationProvider';
 import type { Warehouse } from '@/types/entities';
 import { formatUzs } from '@/utils/format';
+import { usePermissions } from '@/hooks/usePermissions';
 
 export function WarehousesPage() {
   const navigate = useNavigate();
+  const { can } = usePermissions();
   const warehouses = useInventoryStore((s) => s.warehouses);
   const branches = useInventoryStore((s) => s.branches);
   const fetchWarehouses = useInventoryStore((s) => s.fetchWarehouses);
@@ -110,10 +112,14 @@ export function WarehousesPage() {
       <PageHeader
         title="Omborxonalar"
         subtitle="Filial va ombor manzillari ro'yxati"
-        primaryAction={{
-          label: 'Yangi ombor',
-          onClick: () => setOpen(true),
-        }}
+        primaryAction={
+          can('warehouses.manage')
+            ? {
+                label: 'Yangi ombor',
+                onClick: () => setOpen(true),
+              }
+            : undefined
+        }
       />
 
       <FilterBar search={{ value: search, onChange: setSearch, placeholder: 'Ombor yoki filial…' }} />

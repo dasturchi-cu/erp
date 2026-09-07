@@ -296,11 +296,15 @@ export function ProductsPage() {
         primaryAction={can('products.create') ? { label: 'Yangi mahsulot', onClick: () => navigate('/products/new') } : undefined}
         secondaryActions={
           <>
-            <Button variant="outlined" onClick={() => setImportOpen(true)}>Import Excel</Button>
-            <Button variant="outlined" component="label" disabled={zipUploading}>
-              {zipUploading ? 'ZIP yuklanmoqda…' : 'ZIP Import'}
-              <input type="file" accept=".zip" onChange={handleZipImport} hidden />
-            </Button>
+            {can('products.create') && (
+              <>
+                <Button variant="outlined" onClick={() => setImportOpen(true)}>Import Excel</Button>
+                <Button variant="outlined" component="label" disabled={zipUploading}>
+                  {zipUploading ? 'ZIP yuklanmoqda…' : 'ZIP Import'}
+                  <input type="file" accept=".zip" onChange={handleZipImport} hidden />
+                </Button>
+              </>
+            )}
             <FormControl size="small" sx={{ minWidth: 90 }}>
               <InputLabel>Format</InputLabel>
               <Select value={exportFormat} label="Format" onChange={(e) => setExportFormat(e.target.value as ExportFormat)}>

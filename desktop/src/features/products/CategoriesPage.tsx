@@ -8,9 +8,11 @@ import { useListState, useDisclosure } from '@/hooks/useListState';
 import { useNotification } from '@/components/feedback/NotificationProvider';
 import { categoriesApi } from '@/api/services';
 import type { Category } from '@/types/entities';
+import { usePermissions } from '@/hooks/usePermissions';
 
 export function CategoriesPage() {
   const { success, error: notifyError } = useNotification();
+  const { can } = usePermissions();
   const [categories, setCategories] = useState<Category[]>([]);
   const [newName, setNewName] = useState('');
   const dialog = useDisclosure();
@@ -79,7 +81,7 @@ export function CategoriesPage() {
       <PageHeader
         title="Kategoriyalar"
         subtitle="Mahsulot kategoriyalarini ko'rish va tashkil etish"
-        primaryAction={{ label: 'Yangi kategoriya', onClick: dialog.onOpen }}
+        primaryAction={can('categories.manage') ? { label: 'Yangi kategoriya', onClick: dialog.onOpen } : undefined}
       />
 
       <FilterBar

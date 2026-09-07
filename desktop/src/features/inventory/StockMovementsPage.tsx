@@ -7,6 +7,7 @@ import { DataTable, StatusChip, type Column } from '@/components/common/DataTabl
 import { useListState } from '@/hooks/useListState';
 import { useInventoryStore } from '@/stores/inventoryStore';
 import type { StockMovement } from '@/types/entities';
+import { usePermissions } from '@/hooks/usePermissions';
 
 const typeLabels: Record<StockMovement['type'], string> = {
   receive: 'Kirim',
@@ -28,6 +29,7 @@ function formatDateTime(iso: string) {
 
 export function StockMovementsPage() {
   const navigate = useNavigate();
+  const { can } = usePermissions();
   const movements = useInventoryStore((s) => s.movements);
   const [typeFilter, setTypeFilter] = useState('all');
 
@@ -80,7 +82,7 @@ export function StockMovementsPage() {
       <PageHeader
         title="Zaxira harakatlari"
         subtitle="Kirim, chiqim va ko'chirishlar jurnali"
-        primaryAction={{ label: 'Zaxira qabul qilish', onClick: () => navigate('/inventory/receive') }}
+        primaryAction={can('inventory.receive') ? { label: 'Zaxira qabul qilish', onClick: () => navigate('/inventory/receive') } : undefined}
       />
 
       <FilterBar
