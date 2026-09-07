@@ -713,7 +713,7 @@ class _ProductsViewState extends State<ProductsView> {
                               'recommendedPriceUzs': double.parse(recommendedRaw).toStringAsFixed(0),
                             if (minPriceRaw.isNotEmpty && double.tryParse(minPriceRaw) != null)
                               'minPriceUzs': double.parse(minPriceRaw).toStringAsFixed(0),
-                            if (unitsPerBoxRaw.isNotEmpty && int.tryParse(unitsPerBoxRaw) != null)
+                            if (unitsPerBoxRaw.isNotEmpty && RegExp(r'^\d+$').hasMatch(unitsPerBoxRaw))
                               'unitsPerBox': unitsPerBoxRaw,
                             if (_extraBarcodes.isNotEmpty) 'barcodes': _extraBarcodes,
                             if (_aliases.isNotEmpty) 'aliases': _aliases,
@@ -850,9 +850,16 @@ class _ProductsViewState extends State<ProductsView> {
                     const SizedBox(height: 12),
                     if (validCategories.isNotEmpty)
                       DropdownButtonFormField<String>(
-                        value: validCategories.any((c) => c['id'].toString() == _selectedCategoryId)
-                            ? _selectedCategoryId
-                            : validCategories.first['id'].toString(),
+                        value: (() {
+                          final hasMatch = validCategories.any((c) => c['id'].toString() == _selectedCategoryId);
+                          if (!hasMatch) {
+                            // The product's stored category no longer exists (e.g. deleted) —
+                            // fall back to the first category and keep _selectedCategoryId in
+                            // sync with what's actually shown, so submit sends the same id.
+                            _selectedCategoryId = validCategories.first['id'].toString();
+                          }
+                          return _selectedCategoryId;
+                        })(),
                         isExpanded: true,
                         style: TextStyle(color: theme.colorScheme.onSurface, fontSize: 14, fontWeight: FontWeight.w500),
                         dropdownColor: theme.colorScheme.surface,
@@ -875,6 +882,10 @@ class _ProductsViewState extends State<ProductsView> {
                           child: TextFormField(
                             controller: _purchasePriceController,
                             keyboardType: TextInputType.number,
+                            validator: (v) {
+                              if (v == null || v.trim().isEmpty) return null;
+                              return double.tryParse(v.trim()) == null ? 'Faqat raqam!' : null;
+                            },
                             decoration: const InputDecoration(
                               labelText: 'Tannarx (UZS)',
                               border: OutlineInputBorder(),
@@ -1012,28 +1023,34 @@ class _ProductsViewState extends State<ProductsView> {
                         final minPriceRaw = _minPriceController.text.trim();
                         final unitsPerBoxRaw = _unitsPerBoxController.text.trim();
 
+                        // These fields are genuinely optional/nullable on the backend, where "0"
+                        // (or, for barcode, an explicit empty string) is the documented "unset"
+                        // sentinel — so they're always sent, blank or not, unlike purchasePriceUzs
+                        // (required business data; blank there means "leave unchanged").
+                        String moneyOrZero(String raw) =>
+                            (raw.isNotEmpty && double.tryParse(raw) != null) ? double.parse(raw).toStringAsFixed(0) : '0';
+                        String usdOrZero(String raw) =>
+                            (raw.isNotEmpty && double.tryParse(raw) != null) ? double.parse(raw).toStringAsFixed(2) : '0';
+
                         try {
                           final res = await _apiService.patch('/products/${p['id']}', {
                             'name': name,
                             'sku': sku,
                             'salePriceUzs': saleRaw,
-                            if (purchaseRaw.isNotEmpty) 'purchasePriceUzs': purchaseRaw,
-                            if (_barcodeController.text.trim().isNotEmpty) 'barcode': _barcodeController.text.trim(),
+                            if (purchaseRaw.isNotEmpty && double.tryParse(purchaseRaw) != null)
+                              'purchasePriceUzs': double.parse(purchaseRaw).toStringAsFixed(4),
+                            'barcode': _barcodeController.text.trim(),
                             if (_selectedCategoryId != null) 'categoryId': _selectedCategoryId,
-                            if (wholesaleRaw.isNotEmpty && double.tryParse(wholesaleRaw) != null)
-                              'wholesalePriceUzs': double.parse(wholesaleRaw).toStringAsFixed(0),
-                            if (minStockRaw.isNotEmpty && double.tryParse(minStockRaw) != null)
-                              'minStockLevel': double.parse(minStockRaw).toStringAsFixed(0),
-                            if (purchaseUsdRaw.isNotEmpty && double.tryParse(purchaseUsdRaw) != null)
-                              'purchasePriceUsd': double.parse(purchaseUsdRaw).toStringAsFixed(2),
-                            if (saleUsdRaw.isNotEmpty && double.tryParse(saleUsdRaw) != null)
-                              'salePriceUsd': double.parse(saleUsdRaw).toStringAsFixed(2),
-                            if (recommendedRaw.isNotEmpty && double.tryParse(recommendedRaw) != null)
-                              'recommendedPriceUzs': double.parse(recommendedRaw).toStringAsFixed(0),
-                            if (minPriceRaw.isNotEmpty && double.tryParse(minPriceRaw) != null)
-                              'minPriceUzs': double.parse(minPriceRaw).toStringAsFixed(0),
-                            if (unitsPerBoxRaw.isNotEmpty && int.tryParse(unitsPerBoxRaw) != null)
-                              'unitsPerBox': unitsPerBoxRaw,
+                            'wholesalePriceUzs': moneyOrZero(wholesaleRaw),
+                            'minStockLevel': moneyOrZero(minStockRaw),
+                            'purchasePriceUsd': usdOrZero(purchaseUsdRaw),
+                            'salePriceUsd': usdOrZero(saleUsdRaw),
+                            'recommendedPriceUzs': moneyOrZero(recommendedRaw),
+                            'minPriceUzs': moneyOrZero(minPriceRaw),
+                            if (unitsPerBoxRaw.isNotEmpty && RegExp(r'^\d+$').hasMatch(unitsPerBoxRaw))
+                              'unitsPerBox': unitsPerBoxRaw
+                            else if (unitsPerBoxRaw.isEmpty)
+                              'unitsPerBox': '1',
                             'barcodes': _extraBarcodes,
                             'aliases': _aliases,
                             'imageUrl': _imageUrl,

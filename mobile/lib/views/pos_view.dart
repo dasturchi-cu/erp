@@ -22,9 +22,10 @@ class _PosViewState extends State<PosView> {
   final List<Map<String, dynamic>> _cart = [];
 
   // Checkout Options
-  String _paymentType = 'CASH'; // CASH, CARD, TRANSFER, DEBT
+  String _paymentType = 'CASH'; // CASH, CARD, TRANSFER, DEBT, MIXED
   Map<String, dynamic>? _selectedCustomer;
   List<dynamic> _customers = [];
+  final _paidNowController = TextEditingController();
 
   @override
   void initState() {
@@ -35,6 +36,7 @@ class _PosViewState extends State<PosView> {
   @override
   void dispose() {
     _searchController.dispose();
+    _paidNowController.dispose();
     super.dispose();
   }
 
@@ -133,11 +135,24 @@ class _PosViewState extends State<PosView> {
   Future<void> _handleCheckout() async {
     if (_cart.isEmpty) return;
 
-    if (_paymentType == 'DEBT' && _selectedCustomer == null) {
+    if ((_paymentType == 'DEBT' || _paymentType == 'MIXED') && _selectedCustomer == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Nasiya sotuv uchun mijozni tanlash majburiy!')),
+        SnackBar(content: Text(_paymentType == 'MIXED'
+            ? 'Aralash to\'lov uchun mijozni tanlash majburiy!'
+            : 'Nasiya sotuv uchun mijozni tanlash majburiy!')),
       );
       return;
+    }
+
+    double? paidNow;
+    if (_paymentType == 'MIXED') {
+      paidNow = double.tryParse(_paidNowController.text.trim());
+      if (paidNow == null || paidNow <= 0 || paidNow >= _totalAmount) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Aralash to\'lovda naqd qism 0 dan katta va jami summadan kam bo\'lishi kerak!')),
+        );
+        return;
+      }
     }
 
     // Check if any items are sold below cost
@@ -172,11 +187,16 @@ class _PosViewState extends State<PosView> {
     }
 
     // Backend SalePaymentType supports only CASH / CREDIT / MIXED.
-    // "Nasiya (Qarz)" is a credit sale; cash/card/transfer are paid in full now.
+    // "Nasiya (Qarz)" is fully unpaid credit; "Aralash" is part-cash/part-credit;
+    // cash/card/transfer (no split) are paid in full now.
     final bool isCredit = _paymentType == 'DEBT';
-    final String backendPaymentType = isCredit ? 'CREDIT' : 'CASH';
-    // A credit sale is unpaid up front; a cash/card/transfer sale is paid in full.
-    final String amountPaid = isCredit ? '0.0000' : _totalAmount.toStringAsFixed(4);
+    final bool isMixed = _paymentType == 'MIXED';
+    final String backendPaymentType = isCredit ? 'CREDIT' : (isMixed ? 'MIXED' : 'CASH');
+    final String amountPaid = isCredit
+        ? '0.0000'
+        : isMixed
+            ? paidNow!.toStringAsFixed(4)
+            : _totalAmount.toStringAsFixed(4);
 
     final salePayload = {
       'originalCurrency': 'UZS',
@@ -204,7 +224,15 @@ class _PosViewState extends State<PosView> {
         .toList();
     final receiptTotal = _totalAmount;
     final receiptCustomer = _selectedCustomer?['name']?.toString();
-    final receiptPaymentLabel = isCredit ? 'Nasiya (Qarz)' : 'Naqd';
+    final receiptPaymentLabel = isCredit
+        ? 'Nasiya (Qarz)'
+        : isMixed
+            ? 'Aralash (naqd ${_formatCurrency(paidNow!)}, qarz ${_formatCurrency(_totalAmount - paidNow)})'
+            : _paymentType == 'CARD'
+                ? 'Karta'
+                : _paymentType == 'TRANSFER'
+                    ? 'O\'tkazma'
+                    : 'Naqd';
 
     try {
       final res = await _apiService.post('/sales', salePayload);
@@ -279,6 +307,7 @@ class _PosViewState extends State<PosView> {
       _cart.clear();
       _selectedCustomer = null;
       _paymentType = 'CASH';
+      _paidNowController.clear();
     });
   }
 
@@ -289,15 +318,20 @@ class _PosViewState extends State<PosView> {
     String? customerName,
     required String paymentLabel,
   }) async {
-    final ok = await _printer.printReceipt(
-      companyName: 'ERP',
-      saleNumber: saleNumber,
-      date: DateTime.now(),
-      items: items,
-      totalUzs: total,
-      customerName: customerName,
-      paymentLabel: paymentLabel,
-    );
+    bool ok = false;
+    try {
+      ok = await _printer.printReceipt(
+        companyName: 'ERP',
+        saleNumber: saleNumber,
+        date: DateTime.now(),
+        items: items,
+        totalUzs: total,
+        customerName: customerName,
+        paymentLabel: paymentLabel,
+      );
+    } catch (_) {
+      ok = false;
+    }
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -320,6 +354,7 @@ class _PosViewState extends State<PosView> {
       _cart.clear();
       _selectedCustomer = null;
       _paymentType = 'CASH';
+      _paidNowController.clear();
     });
   }
 
@@ -486,9 +521,17 @@ class _PosViewState extends State<PosView> {
                             DropdownMenuItem(value: 'CARD', child: Text('Karta', style: TextStyle(color: theme.colorScheme.onSurface))),
                             DropdownMenuItem(value: 'TRANSFER', child: Text('O\'tkazma', style: TextStyle(color: theme.colorScheme.onSurface))),
                             DropdownMenuItem(value: 'DEBT', child: Text('Nasiya (Qarz)', style: TextStyle(color: theme.colorScheme.onSurface))),
+                            DropdownMenuItem(value: 'MIXED', child: Text('Aralash (qisman)', style: TextStyle(color: theme.colorScheme.onSurface))),
                           ],
                           onChanged: (val) {
-                            if (val != null) setState(() => _paymentType = val);
+                            if (val != null) {
+                              setState(() {
+                                _paymentType = val;
+                                if (val == 'MIXED' && _paidNowController.text.trim().isEmpty) {
+                                  _paidNowController.text = (_totalAmount / 2).toStringAsFixed(0);
+                                }
+                              });
+                            }
                           },
                         ),
                       ),
@@ -501,7 +544,7 @@ class _PosViewState extends State<PosView> {
                           dropdownColor: theme.colorScheme.surface,
                           iconEnabledColor: theme.colorScheme.onSurface,
                           decoration: InputDecoration(
-                            labelText: _paymentType == 'DEBT' ? 'Mijoz *' : 'Mijoz (ixtiyoriy)',
+                            labelText: (_paymentType == 'DEBT' || _paymentType == 'MIXED') ? 'Mijoz *' : 'Mijoz (ixtiyoriy)',
                             isDense: true,
                             border: const OutlineInputBorder(),
                           ),
@@ -519,6 +562,21 @@ class _PosViewState extends State<PosView> {
                       ),
                     ],
                   ),
+                  if (_paymentType == 'MIXED') ...[
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _paidNowController,
+                      keyboardType: TextInputType.number,
+                      onChanged: (_) => setState(() {}),
+                      decoration: InputDecoration(
+                        labelText: 'Hozir to\'lanadigan (naqd) summa',
+                        helperText: 'Qolgani mijoz qarziga yoziladi: '
+                            '${_formatCurrency((_totalAmount - (double.tryParse(_paidNowController.text.trim()) ?? 0)).clamp(0, _totalAmount))}',
+                        border: const OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 12),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,

@@ -58,16 +58,21 @@ class _PrinterSettingsViewState extends State<PrinterSettingsView> {
   }
 
   Future<void> _testPrint() async {
-    final ok = await _printer.printReceipt(
-      companyName: 'ERP',
-      saleNumber: 'TEST-0001',
-      date: DateTime.now(),
-      items: [
-        ReceiptItem(name: 'Test mahsulot', quantity: 1, unit: 'dona', unitPrice: 10000, total: 10000),
-      ],
-      totalUzs: 10000,
-      paymentLabel: 'Naqd',
-    );
+    bool ok = false;
+    try {
+      ok = await _printer.printReceipt(
+        companyName: 'ERP',
+        saleNumber: 'TEST-0001',
+        date: DateTime.now(),
+        items: [
+          ReceiptItem(name: 'Test mahsulot', quantity: 1, unit: 'dona', unitPrice: 10000, total: 10000),
+        ],
+        totalUzs: 10000,
+        paymentLabel: 'Naqd',
+      );
+    } catch (_) {
+      ok = false;
+    }
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

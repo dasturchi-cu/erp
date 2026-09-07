@@ -12,6 +12,7 @@ import { normalizePhoneUz } from '@/utils/phone';
 const schema = z.object({
   name: z.string().min(2, 'F.I.O kamida 2 ta belgi'),
   phone: z.string().min(9, 'Telefon raqamini kiriting'),
+  address: z.string().optional(),
   notes: z.string().optional(),
 });
 
@@ -36,7 +37,7 @@ export function CustomerFormPage() {
     formState: { errors, isSubmitting },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { name: '', phone: '', notes: '' },
+    defaultValues: { name: '', phone: '', address: '', notes: '' },
   });
 
   useEffect(() => {
@@ -44,6 +45,7 @@ export function CustomerFormPage() {
       reset({
         name: customer.name,
         phone: customer.phone,
+        address: customer.address ?? '',
         notes: customer.notes ?? '',
       });
     }
@@ -65,6 +67,7 @@ export function CustomerFormPage() {
       const payload = {
         name: data.name.trim(),
         phone,
+        address: data.address?.trim() || undefined,
         notes: data.notes?.trim() || undefined,
       };
 
@@ -121,6 +124,12 @@ export function CustomerFormPage() {
           helperText={errors.phone?.message ?? '+998 90 123 45 67 yoki 901234567'}
           fullWidth
           placeholder="+998 90 123 45 67"
+        />
+        <TextField
+          label="Manzil"
+          {...register('address')}
+          fullWidth
+          placeholder="Manzil (ixtiyoriy)"
         />
         <TextField
           label="Izoh"

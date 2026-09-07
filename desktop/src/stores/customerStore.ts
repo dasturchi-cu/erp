@@ -6,6 +6,7 @@ import { getRandomUUID } from '../utils/uuid';
 export interface CreateCustomerInput {
   name: string;
   phone: string;
+  address?: string;
   notes?: string;
 }
 
@@ -110,13 +111,17 @@ export const useCustomerStore = create<CustomerState>()((set, get) => ({
   },
 
   recordPayment: async (customerId, input) => {
+    const customer = get().customers.find((c) => c.id === customerId);
+    const currentDebt = customer ? (input.currency === 'UZS' ? customer.debtUzs : customer.debtUsd) : 0;
+    const paymentType = input.amount >= currentDebt ? 'FULL' : 'PARTIAL';
+
     const payment = await debtApi.recordPayment(
       {
         customerId,
         amount: input.amount,
         currency: input.currency,
         paymentMethod: methodToApi(input.method),
-        paymentType: 'PARTIAL',
+        paymentType,
         notes: input.note,
       },
       getRandomUUID(),

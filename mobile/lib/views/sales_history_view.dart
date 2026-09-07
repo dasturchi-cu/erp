@@ -85,6 +85,58 @@ class _SalesHistoryViewState extends State<SalesHistoryView> {
     return '${n < 0 ? '-' : ''}${buffer.toString()}';
   }
 
+  Future<void> _confirmVoidSale(String saleId, void Function() closeSheet) async {
+    final noteController = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Sotuvni bekor qilish'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Haqiqatan ham bu sotuvni bekor qilmoqchimisiz? Bu amalni ortga qaytarib bo\'lmaydi.'),
+            const SizedBox(height: 12),
+            TextField(
+              controller: noteController,
+              decoration: const InputDecoration(labelText: 'Sabab (ixtiyoriy)', border: OutlineInputBorder(), isDense: true),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Yo\'q')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Bekor qilish'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    try {
+      final res = await _api.post('/sales/$saleId/void', {
+        if (noteController.text.trim().isNotEmpty) 'note': noteController.text.trim(),
+      });
+      if (res.statusCode == 200 || res.statusCode == 201) {
+        closeSheet();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Sotuv bekor qilindi'), backgroundColor: Colors.green),
+          );
+        }
+        _load();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Xatolik: ${ApiService.parseError(e)}'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
   void _showSaleDetails(Map<String, dynamic> sale) {
     final theme = Theme.of(context);
     final items = sale['lineItems'] is List
@@ -168,6 +220,15 @@ class _SalesHistoryViewState extends State<SalesHistoryView> {
                   ),
                 ],
               ),
+              if (sale['status'] == 'COMPLETED') ...[
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: () => _confirmVoidSale(sale['id'].toString(), () => Navigator.of(ctx).pop()),
+                  style: OutlinedButton.styleFrom(foregroundColor: Colors.red, side: const BorderSide(color: Colors.red)),
+                  icon: const Icon(Icons.cancel_outlined),
+                  label: const Text('Sotuvni bekor qilish'),
+                ),
+              ],
               const SizedBox(height: 16),
             ],
           ),
