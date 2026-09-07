@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://erp-backend-r067.onrender.com/api/v1';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://erp-backend-production-e88a.up.railway.app/api/v1';
 
 export const saasClient = axios.create({
   baseURL: API_BASE_URL,

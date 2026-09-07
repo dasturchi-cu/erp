@@ -7,11 +7,13 @@ class ApiService {
   factory ApiService() => _instance;
   ApiService._internal();
 
+  static const String defaultApiUrl = 'http://10.121.241.34:3000/api/v1';
+
   final Dio dio = Dio(BaseOptions(
-    baseUrl: 'https://erp-backend-production-e88a.up.railway.app/api/v1',
-    connectTimeout: const Duration(seconds: 30),
-    receiveTimeout: const Duration(seconds: 30),
-    sendTimeout: const Duration(seconds: 30),
+    baseUrl: defaultApiUrl,
+    connectTimeout: const Duration(seconds: 15),
+    receiveTimeout: const Duration(seconds: 15),
+    sendTimeout: const Duration(seconds: 15),
   ));
 
   String? _token;
@@ -29,7 +31,7 @@ class ApiService {
     if (savedHost != null && savedHost.isNotEmpty) {
       dio.options.baseUrl = savedHost;
     } else {
-      dio.options.baseUrl = 'https://erp-backend-production-e88a.up.railway.app/api/v1';
+      dio.options.baseUrl = defaultApiUrl;
     }
 
     dio.interceptors.clear();
@@ -128,7 +130,7 @@ class ApiService {
         'email': email.trim().toLowerCase(),
         'password': password,
         'deviceInfo': {
-          'deviceId': 'a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d',
+          'deviceId': '550e8400-e29b-41d4-a716-446655440000',
           'name': 'Flutter Mobile',
           'platform': 'android',
           'osVersion': 'android-14'
@@ -139,13 +141,17 @@ class ApiService {
         final data = res.data;
         _token = data['accessToken'];
         _refreshToken = data['refreshToken'];
-        final company = data['companies']?[0];
-        _companyId = company?['id'];
+        final dynamic currentCo = data['currentCompany'];
+        final dynamic firstCo = (data['companies'] is List && (data['companies'] as List).isNotEmpty) ? data['companies'][0] : null;
+        final company = currentCo ?? firstCo;
+        _companyId = company?['id']?.toString();
 
         final prefs = await SharedPreferences.getInstance();
         if (_token != null) await prefs.setString('auth_token', _token!);
         if (_refreshToken != null) await prefs.setString('refresh_token', _refreshToken!);
         if (_companyId != null) await prefs.setString('company_id', _companyId!);
+        if (company != null) await prefs.setString('active_company', jsonEncode(company));
+        if (data['companies'] != null) await prefs.setString('user_companies', jsonEncode(data['companies']));
         if (data['user'] != null) await prefs.setString('user_details', jsonEncode(data['user']));
 
         return null;
@@ -155,6 +161,28 @@ class ApiService {
       return parseError(e);
     } catch (e) {
       return 'Xatolik: ${e.toString()}';
+    }
+  }
+
+  Future<bool> switchCompany(String newCompanyId) async {
+    try {
+      final res = await dio.post('/auth/switch-company', data: {'companyId': newCompanyId});
+      if (res.statusCode == 200 || res.statusCode == 201) {
+        _companyId = newCompanyId;
+        if (res.data['accessToken'] != null) _token = res.data['accessToken'];
+        if (res.data['refreshToken'] != null) _refreshToken = res.data['refreshToken'];
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('company_id', newCompanyId);
+        if (_token != null) await prefs.setString('auth_token', _token!);
+        if (_refreshToken != null) await prefs.setString('refresh_token', _refreshToken!);
+        if (res.data['activeCompany'] != null) {
+          await prefs.setString('active_company', jsonEncode(res.data['activeCompany']));
+        }
+        return true;
+      }
+      return false;
+    } catch (_) {
+      return false;
     }
   }
 
@@ -213,8 +241,26 @@ class ApiService {
   static String parseError(dynamic e) {
     if (e is DioException) {
       final res = e.response;
+      if (res?.data != null && res!.data is Map) {
+        final rawMsg = res.data['error']?['message'] ?? res.data['message'] ?? res.data['error'];
+        if (rawMsg != null) {
+          if (rawMsg is List) return rawMsg.join(', ');
+          final str = rawMsg.toString();
+          if (str.toLowerCase().contains('invalid email or password')) {
+            return 'Email yoki parol noto\'g\'ri kiritildi!';
+          }
+          if (str.toLowerCase().contains('user account is blocked')) {
+            return 'Foydalanuvchi hisobi bloklangan!';
+          }
+          if (str.toLowerCase().contains('device is blocked')) {
+            return 'Ushbu qurilma bloklangan!';
+          }
+          return str;
+        }
+      }
+
       if (res?.statusCode == 401) {
-        return 'Sessiya muddati tugadi. Iltimos, qaytadan tizimga kiring.';
+        return 'Sessiya muddati tugadi yoki login ma\'lumotlari xato.';
       }
       if (res?.statusCode == 403) {
         return 'Sizda ushbu amalni bajarish uchun yetarli ruxsat yo\'q.';
@@ -225,20 +271,13 @@ class ApiService {
       if (res?.statusCode == 409) {
         return 'Bunday ma\'lumot allaqachon mavjud.';
       }
-      if (res?.data != null && res!.data is Map) {
-        final rawMsg = res.data['message'] ?? res.data['error']?['message'] ?? res.data['error'];
-        if (rawMsg != null) {
-          if (rawMsg is List) return rawMsg.join(', ');
-          return rawMsg.toString();
-        }
-      }
       if (e.type == DioExceptionType.connectionTimeout ||
           e.type == DioExceptionType.receiveTimeout ||
           e.type == DioExceptionType.sendTimeout) {
         return 'Server bilan aloqa vaqti tugadi (Timeout).';
       }
       if (e.type == DioExceptionType.connectionError) {
-        return 'Internet aloqasi mavjud emas yoki server vaqtincha javob bermayapti.';
+        return 'Internet aloqasi mavjud emas yoki serverga ulanib bo\'lmadi.';
       }
       return 'Server xatosi (HTTP ${res?.statusCode ?? 'Noma\'lum'})';
     }

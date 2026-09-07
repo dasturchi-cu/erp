@@ -127,8 +127,9 @@ class _ProductsViewState extends State<ProductsView> {
     // Auto-create a default category if none exists
     try {
       final res = await _apiService.post('/categories', {'name': 'Umumiy'});
-      if (res.data != null && res.data['id'] != null) {
-        final newId = res.data['id'].toString();
+      final data = res.data;
+      final newId = data is Map ? data['id']?.toString() : null;
+      if (newId != null) {
         await _fetchCategories();
         return newId;
       }

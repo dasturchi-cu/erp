@@ -182,17 +182,42 @@ class _PosViewState extends State<PosView> {
       if (res.statusCode == 200 || res.statusCode == 201) {
         _successCheckout();
       } else {
-        _queueOffline(salePayload);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Server xatosi: ${res.statusCode}'),
+              backgroundColor: Colors.red.shade700,
+            ),
+          );
+        }
       }
-    } catch (_) {
-      _queueOffline(salePayload);
+    } catch (e) {
+      if (e is DioException &&
+          (e.type == DioExceptionType.connectionError ||
+              e.type == DioExceptionType.connectionTimeout ||
+              e.type == DioExceptionType.sendTimeout ||
+              e.type == DioExceptionType.receiveTimeout)) {
+        _queueOffline(salePayload);
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Xatolik: ${ApiService.parseError(e)}'),
+              backgroundColor: Colors.red.shade700,
+            ),
+          );
+        }
+      }
     }
   }
 
   void _successCheckout() {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Xarid muvaffaqiyatli yakunlandi!')),
+      const SnackBar(
+        content: Text('Xarid muvaffaqiyatli yakunlandi!'),
+        backgroundColor: Colors.green,
+      ),
     );
     setState(() {
       _cart.clear();
@@ -205,7 +230,10 @@ class _PosViewState extends State<PosView> {
     await _syncService.queueOfflineSale(salePayload);
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Internet aloqasi yo\'q. Sotuv offline saqlandi!')),
+      const SnackBar(
+        content: Text('Internet aloqasi yo\'q. Sotuv offline saqlandi!'),
+        backgroundColor: Colors.orange,
+      ),
     );
     setState(() {
       _cart.clear();

@@ -41,10 +41,112 @@ class _LoginViewState extends State<LoginView> {
     }
   }
 
+  void _showServerDialog() {
+    final hostController = TextEditingController(text: _apiService.dio.options.baseUrl);
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: Text('Server Manzili (SaaS)', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Ulanish uchun serverni tanlang yoki manzil kiriting:',
+                  style: GoogleFonts.outfit(fontSize: 13, color: Colors.grey.shade600),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    ActionChip(
+                      avatar: const Icon(Icons.wifi, size: 16),
+                      label: const Text('Wi-Fi / LAN (10.121.241.34)'),
+                      onPressed: () {
+                        setDialogState(() {
+                          hostController.text = 'http://10.121.241.34:3000/api/v1';
+                        });
+                      },
+                    ),
+                    ActionChip(
+                      avatar: const Icon(Icons.android, size: 16),
+                      label: const Text('Android Emulator (10.0.2.2)'),
+                      onPressed: () {
+                        setDialogState(() {
+                          hostController.text = 'http://10.0.2.2:3000/api/v1';
+                        });
+                      },
+                    ),
+                    ActionChip(
+                      avatar: const Icon(Icons.computer, size: 16),
+                      label: const Text('Localhost (127.0.0.1)'),
+                      onPressed: () {
+                        setDialogState(() {
+                          hostController.text = 'http://127.0.0.1:3000/api/v1';
+                        });
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: hostController,
+                  decoration: const InputDecoration(
+                    labelText: 'Server URL',
+                    hintText: 'http://172.20.10.3:3000/api/v1',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Bekor qilish'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final newHost = hostController.text.trim();
+                await _apiService.updateHost(newHost);
+                if (mounted) {
+                  setState(() {});
+                  Navigator.pop(ctx);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Server manzili saqlandi: ${_apiService.dio.options.baseUrl}'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
+              },
+              child: const Text('Saqlash'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.dns_outlined),
+            tooltip: 'Server sozlamalari',
+            onPressed: _showServerDialog,
+          ),
+        ],
+      ),
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
@@ -151,6 +253,34 @@ class _LoginViewState extends State<LoginView> {
                             fontWeight: FontWeight.w600,
                           ),
                         ),
+                ),
+                const SizedBox(height: 20),
+                InkWell(
+                  onTap: _showServerDialog,
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.dns_outlined, size: 16, color: theme.colorScheme.primary),
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            'Server: ${_apiService.dio.options.baseUrl}',
+                            style: GoogleFonts.outfit(
+                              fontSize: 12,
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(Icons.edit_outlined, size: 14, color: theme.colorScheme.primary),
+                      ],
+                    ),
+                  ),
                 ),
               ],
             ),
