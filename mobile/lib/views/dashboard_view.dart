@@ -11,6 +11,7 @@ import 'products_view.dart';
 import 'inventory_view.dart';
 import 'inventory_receive_view.dart';
 import 'inventory_adjust_view.dart';
+import 'inventory_transfer_view.dart';
 import 'customers_view.dart';
 import 'reports_view.dart';
 import 'suppliers_view.dart';
@@ -21,6 +22,8 @@ import 'users_view.dart';
 import 'currency_view.dart';
 import 'settings_view.dart';
 import 'login_view.dart';
+import 'notifications_view.dart';
+import 'debt_aging_view.dart';
 
 class DashboardView extends StatefulWidget {
   const DashboardView({super.key});
@@ -35,6 +38,7 @@ class _DashboardViewState extends State<DashboardView> {
 
   bool _loading = true;
   int _pendingSyncCount = 0;
+  int _unreadNotifications = 0;
   String _userName = 'Admin';
   String _userEmail = 'admin@erp.uz';
   String _userRole = 'ADMIN';
@@ -49,6 +53,17 @@ class _DashboardViewState extends State<DashboardView> {
   void initState() {
     super.initState();
     _loadDashboardData();
+    _loadUnreadNotifications();
+  }
+
+  Future<void> _loadUnreadNotifications() async {
+    try {
+      final res = await _apiService.get('/notifications/unread-count');
+      final count = res.data is Map ? (res.data['count'] as num?)?.toInt() ?? 0 : 0;
+      if (mounted) setState(() => _unreadNotifications = count);
+    } catch (_) {
+      // Notifications module may be disabled for this company — fine to stay at 0.
+    }
   }
 
   Future<void> _loadDashboardData() async {
@@ -145,6 +160,15 @@ class _DashboardViewState extends State<DashboardView> {
         ),
         elevation: 0,
         actions: [
+          IconButton(
+            icon: _unreadNotifications > 0
+                ? Badge(label: Text('$_unreadNotifications'), child: const Icon(Icons.notifications_outlined))
+                : const Icon(Icons.notifications_outlined),
+            onPressed: () async {
+              await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NotificationsView()));
+              _loadUnreadNotifications();
+            },
+          ),
           if (_pendingSyncCount > 0)
             IconButton(
               icon: Badge(
@@ -253,6 +277,14 @@ class _DashboardViewState extends State<DashboardView> {
                 Navigator.of(context).push(MaterialPageRoute(builder: (_) => const InventoryView()));
               },
             ),
+            ListTile(
+              leading: const Icon(Icons.swap_horiz, color: Colors.cyan),
+              title: Text('Omborlar Orasida Ko\'chirish', style: GoogleFonts.outfit()),
+              onTap: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const InventoryTransferView()));
+              },
+            ),
 
             // --- MOLIYA ---
             Padding(
@@ -273,6 +305,14 @@ class _DashboardViewState extends State<DashboardView> {
               onTap: () {
                 Navigator.of(context).pop();
                 Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CurrencyView()));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.hourglass_bottom, color: Colors.deepOrange),
+              title: Text('Qarz Muddati Tahlili', style: GoogleFonts.outfit()),
+              onTap: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const DebtAgingView()));
               },
             ),
 
