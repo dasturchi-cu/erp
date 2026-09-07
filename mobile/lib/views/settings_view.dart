@@ -213,7 +213,34 @@ class _SettingsViewState extends State<SettingsView> {
                   ),
                 ),
 
-                const SizedBox(height: 16),
+                // SaaS Kompaniya
+                if (_user['activeCompany'] != null || _api.companyId != null) ...[
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Text('SaaS Tashkilot', style: GoogleFonts.outfit(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: theme.colorScheme.primary,
+                    )),
+                  ),
+                  const SizedBox(height: 8),
+                  Card(
+                    margin: const EdgeInsets.symmetric(horizontal: 16),
+                    child: ListTile(
+                      leading: const Icon(Icons.business_outlined),
+                      title: Text(
+                        _user['activeCompany']?['name'] ?? 'Faol Kompaniya',
+                        style: GoogleFonts.outfit(fontWeight: FontWeight.w600),
+                      ),
+                      subtitle: Text(
+                        'ID: ${_api.companyId ?? _user['activeCompany']?['id'] ?? '—'}',
+                        style: GoogleFonts.outfit(fontSize: 12),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Text('Ilova haqida', style: GoogleFonts.outfit(
@@ -230,15 +257,16 @@ class _SettingsViewState extends State<SettingsView> {
                       ListTile(
                         leading: const Icon(Icons.info_outlined),
                         title: Text('Versiya', style: GoogleFonts.outfit()),
-                        trailing: Text('1.0.0', style: GoogleFonts.outfit(color: theme.colorScheme.onSurfaceVariant)),
+                        trailing: Text('1.0.0 (SaaS Edition)', style: GoogleFonts.outfit(color: theme.colorScheme.onSurfaceVariant)),
                       ),
                       const Divider(height: 1, indent: 56),
                       ListTile(
                         leading: const Icon(Icons.cloud_outlined),
                         title: Text('Server', style: GoogleFonts.outfit()),
-                        trailing: Text('Railway Cloud', style: GoogleFonts.outfit(
+                        trailing: Text(_api.host, style: GoogleFonts.outfit(
                           color: Colors.green,
                           fontSize: 13,
+                          fontWeight: FontWeight.w500,
                         )),
                       ),
                     ],

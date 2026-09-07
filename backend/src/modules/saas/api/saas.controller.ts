@@ -2,6 +2,7 @@ import { Controller, Get, Post, Body, Query, UseGuards, Req, Ip, Res, Param } fr
 import { SaasService } from '../application/saas.service';
 import { JwtAuthGuard } from '../../../core/guards/jwt-auth.guard';
 import { CurrentUser } from '../../../core/decorators/current-user.decorator';
+import { Public } from '../../../core/decorators/auth.decorators';
 import { Request, Response } from 'express';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 
@@ -10,6 +11,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 export class SaasController {
   constructor(private readonly saasService: SaasService) {}
 
+  @Public()
   @Post('license/validate')
   @ApiOperation({ summary: 'Validate software license key' })
   validateLicense(@Body('licenseKey') licenseKey: string) {
@@ -59,6 +61,7 @@ export class SaasController {
     return this.saasService.triggerRemoteRestore(user.companyId, backupId, user.sub, ip, reqId);
   }
 
+  @Public()
   @Get('updates/check')
   @ApiOperation({ summary: 'Check remote app bundle updates' })
   checkRemoteUpdate(
@@ -68,18 +71,21 @@ export class SaasController {
     return this.saasService.checkRemoteUpdateForCompany(currentVersion, companyId);
   }
 
+  @Public()
   @Get('updates/download/:filename')
   @ApiOperation({ summary: 'Stream update zip package with Range support' })
   downloadUpdatePackage(@Param('filename') filename: string, @Res() res: Response) {
     return this.saasService.downloadUpdatePackage(filename, res);
   }
 
+  @Public()
   @Get('updates/public-key')
   @ApiOperation({ summary: 'Get RSA public key for signature verification' })
   getPublicKey() {
     return this.saasService.getPublicKey();
   }
 
+  @Public()
   @Post('updates/report')
   @ApiOperation({ summary: 'Report update progress from client device' })
   reportUpdateProgress(

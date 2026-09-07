@@ -4,7 +4,12 @@ import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'navigation_service.dart';
 
-const String _kBaseUrl = 'https://erp-backend-production-e88a.up.railway.app/api/v1';
+// Every device must reach the same backend regardless of network (phone and
+// desktop are not guaranteed to share a Wi-Fi/LAN), so the default is always
+// the live Railway API. A per-device override is still available via
+// updateHost() (wired to the login screen's server-settings dialog) for
+// local development/testing only.
+const String defaultApiUrl = 'https://erp-backend-production-e88a.up.railway.app/api/v1';
 
 class ApiService {
   static final ApiService _instance = ApiService._internal();
@@ -12,7 +17,7 @@ class ApiService {
   ApiService._internal();
 
   final Dio dio = Dio(BaseOptions(
-    baseUrl: _kBaseUrl,
+    baseUrl: defaultApiUrl,
     connectTimeout: const Duration(seconds: 30),
     receiveTimeout: const Duration(seconds: 30),
     sendTimeout: const Duration(seconds: 30),
@@ -29,7 +34,13 @@ class ApiService {
     _token = prefs.getString('auth_token');
     _refreshToken = prefs.getString('refresh_token');
     _companyId = prefs.getString('company_id');
-    dio.options.baseUrl = _kBaseUrl;
+
+    final savedHost = prefs.getString('api_host');
+    if (savedHost != null && savedHost.isNotEmpty) {
+      dio.options.baseUrl = savedHost;
+    } else {
+      dio.options.baseUrl = defaultApiUrl;
+    }
 
     dio.interceptors.clear();
     dio.interceptors.add(InterceptorsWrapper(
@@ -117,6 +128,39 @@ class ApiService {
     ));
   }
 
+  Future<void> updateHost(String host) async {
+    String input = host.trim();
+    if (input.isEmpty) {
+      dio.options.baseUrl = defaultApiUrl;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('api_host');
+      return;
+    }
+
+    String formattedUrl = input;
+    if (!formattedUrl.startsWith('http://') && !formattedUrl.startsWith('https://')) {
+      if (formattedUrl.contains('railway.app') || formattedUrl.contains('onrender.com') || formattedUrl.contains('vercel.app')) {
+        formattedUrl = 'https://$formattedUrl';
+      } else {
+        final hostWithPort = formattedUrl.contains(':') ? formattedUrl : '$formattedUrl:3000';
+        formattedUrl = 'http://$hostWithPort';
+      }
+    }
+
+    if (!formattedUrl.endsWith('/api/v1')) {
+      formattedUrl = '$formattedUrl/api/v1';
+    }
+
+    dio.options.baseUrl = formattedUrl;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('api_host', formattedUrl);
+  }
+
+  String get host {
+    final uri = Uri.parse(dio.options.baseUrl);
+    return uri.host;
+  }
+
   bool get isAuthenticated => _token != null && _token!.isNotEmpty;
   String? get companyId => _companyId;
 
@@ -126,7 +170,7 @@ class ApiService {
         'email': email.trim().toLowerCase(),
         'password': password,
         'deviceInfo': {
-          'deviceId': 'a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d',
+          'deviceId': '550e8400-e29b-41d4-a716-446655440000',
           'name': 'Flutter Mobile',
           'platform': 'android',
           'osVersion': 'android-14'
@@ -137,13 +181,17 @@ class ApiService {
         final data = res.data;
         _token = data['accessToken'];
         _refreshToken = data['refreshToken'];
-        final company = data['companies']?[0];
-        _companyId = company?['id'];
+        final dynamic currentCo = data['currentCompany'];
+        final dynamic firstCo = (data['companies'] is List && (data['companies'] as List).isNotEmpty) ? data['companies'][0] : null;
+        final company = currentCo ?? firstCo;
+        _companyId = company?['id']?.toString();
 
         final prefs = await SharedPreferences.getInstance();
         if (_token != null) await prefs.setString('auth_token', _token!);
         if (_refreshToken != null) await prefs.setString('refresh_token', _refreshToken!);
         if (_companyId != null) await prefs.setString('company_id', _companyId!);
+        if (company != null) await prefs.setString('active_company', jsonEncode(company));
+        if (data['companies'] != null) await prefs.setString('user_companies', jsonEncode(data['companies']));
         if (data['user'] != null) await prefs.setString('user_details', jsonEncode(data['user']));
 
         return null;
@@ -153,6 +201,28 @@ class ApiService {
       return parseError(e);
     } catch (e) {
       return 'Xatolik: ${e.toString()}';
+    }
+  }
+
+  Future<bool> switchCompany(String newCompanyId) async {
+    try {
+      final res = await dio.post('/auth/switch-company', data: {'companyId': newCompanyId});
+      if (res.statusCode == 200 || res.statusCode == 201) {
+        _companyId = newCompanyId;
+        if (res.data['accessToken'] != null) _token = res.data['accessToken'];
+        if (res.data['refreshToken'] != null) _refreshToken = res.data['refreshToken'];
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('company_id', newCompanyId);
+        if (_token != null) await prefs.setString('auth_token', _token!);
+        if (_refreshToken != null) await prefs.setString('refresh_token', _refreshToken!);
+        if (res.data['activeCompany'] != null) {
+          await prefs.setString('active_company', jsonEncode(res.data['activeCompany']));
+        }
+        return true;
+      }
+      return false;
+    } catch (_) {
+      return false;
     }
   }
 
@@ -211,8 +281,26 @@ class ApiService {
   static String parseError(dynamic e) {
     if (e is DioException) {
       final res = e.response;
+      if (res?.data != null && res!.data is Map) {
+        final rawMsg = res.data['error']?['message'] ?? res.data['message'] ?? res.data['error'];
+        if (rawMsg != null) {
+          if (rawMsg is List) return rawMsg.join(', ');
+          final str = rawMsg.toString();
+          if (str.toLowerCase().contains('invalid email or password')) {
+            return 'Email yoki parol noto\'g\'ri kiritildi!';
+          }
+          if (str.toLowerCase().contains('user account is blocked')) {
+            return 'Foydalanuvchi hisobi bloklangan!';
+          }
+          if (str.toLowerCase().contains('device is blocked')) {
+            return 'Ushbu qurilma bloklangan!';
+          }
+          return str;
+        }
+      }
+
       if (res?.statusCode == 401) {
-        return 'Sessiya muddati tugadi. Iltimos, qaytadan tizimga kiring.';
+        return 'Sessiya muddati tugadi yoki login ma\'lumotlari xato.';
       }
       if (res?.statusCode == 403) {
         return 'Sizda ushbu amalni bajarish uchun yetarli ruxsat yo\'q.';
@@ -223,20 +311,13 @@ class ApiService {
       if (res?.statusCode == 409) {
         return 'Bunday ma\'lumot allaqachon mavjud.';
       }
-      if (res?.data != null && res!.data is Map) {
-        final rawMsg = res.data['message'] ?? res.data['error']?['message'] ?? res.data['error'];
-        if (rawMsg != null) {
-          if (rawMsg is List) return rawMsg.join(', ');
-          return rawMsg.toString();
-        }
-      }
       if (e.type == DioExceptionType.connectionTimeout ||
           e.type == DioExceptionType.receiveTimeout ||
           e.type == DioExceptionType.sendTimeout) {
         return 'Server bilan aloqa vaqti tugadi (Timeout).';
       }
       if (e.type == DioExceptionType.connectionError) {
-        return 'Internet aloqasi mavjud emas yoki server vaqtincha javob bermayapti.';
+        return 'Internet aloqasi mavjud emas yoki serverga ulanib bo\'lmadi.';
       }
       return 'Server xatosi (HTTP ${res?.statusCode ?? 'Noma\'lum'})';
     }
