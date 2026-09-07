@@ -10,6 +10,7 @@ const { Jimp } = require('jimp');
 import { PrismaService } from '../../../core/database/prisma.service';
 import { AuditService } from '../../../core/audit/audit.service';
 import { AppException } from '../../../core/exceptions/app.exception';
+import { getStorageRoot } from '../../../core/utils/storage-path.util';
 import {
   formatMoney,
   isNonNegativeMoney,
@@ -242,18 +243,23 @@ export class ProductsService {
   ): Promise<ProductResponseDto> {
     try {
       const product = await this.prisma.$transaction(async (tx) => {
-        return this.createInternal(tx, companyId, userId, dto);
-      });
+        const created = await this.createInternal(tx, companyId, userId, dto);
 
-      await this.audit.log({
-        companyId,
-        userId,
-        action: 'CREATE',
-        entityType: 'product',
-        entityId: product.id,
-        newValue: { sku: product.sku, name: product.name },
-        ipAddress: ip,
-        requestId,
+        await this.audit.log(
+          {
+            companyId,
+            userId,
+            action: 'CREATE',
+            entityType: 'product',
+            entityId: created.id,
+            newValue: { sku: created.sku, name: created.name },
+            ipAddress: ip,
+            requestId,
+          },
+          tx,
+        );
+
+        return created;
       });
 
       return this.toProductResponse(companyId, product);
@@ -581,7 +587,7 @@ export class ProductsService {
           });
         }
 
-        return tx.product.update({
+        const updatedProduct = await tx.product.update({
           where: { id, companyId },
           data: {
             name: dto.name?.trim(),
@@ -628,18 +634,23 @@ export class ProductsService {
           },
           include: { category: true, prices: true, images: true, barcodes: true, unitConversions: true, aliases: true },
         });
-      });
 
-      await this.audit.log({
-        companyId,
-        userId,
-        action: 'UPDATE',
-        entityType: 'product',
-        entityId: id,
-        oldValue: { name: existing.name, status: existing.status },
-        newValue: { name: updated.name, status: updated.status },
-        ipAddress: ip,
-        requestId,
+        await this.audit.log(
+          {
+            companyId,
+            userId,
+            action: 'UPDATE',
+            entityType: 'product',
+            entityId: id,
+            oldValue: { name: existing.name, status: existing.status },
+            newValue: { name: updatedProduct.name, status: updatedProduct.status },
+            ipAddress: ip,
+            requestId,
+          },
+          tx,
+        );
+
+        return updatedProduct;
       });
 
       return this.toProductResponse(companyId, updated);
@@ -846,20 +857,23 @@ export class ProductsService {
         });
       }
 
+      await this.audit.log(
+        {
+          companyId,
+          userId,
+          action: 'IMPORT',
+          entityType: 'product',
+          newValue: { created: imported.length, failed: 0, totalRows: dto.rows.length },
+          ipAddress: ip,
+          requestId,
+        },
+        tx,
+      );
+
       return imported;
     });
 
     const created = results.length;
-
-    await this.audit.log({
-      companyId,
-      userId,
-      action: 'IMPORT',
-      entityType: 'product',
-      newValue: { created, failed: 0, totalRows: dto.rows.length },
-      ipAddress: ip,
-      requestId,
-    });
 
     return {
       success: true,
@@ -1070,7 +1084,7 @@ export class ProductsService {
 
   private deleteImageFiles(filename: string) {
     try {
-      const baseDir = join(process.cwd(), 'storage/products');
+      const baseDir = join(getStorageRoot(), 'storage/products');
       const dirs = ['original', 'medium', 'thumb'];
       for (const d of dirs) {
         const path = join(baseDir, d, filename);
@@ -1127,7 +1141,7 @@ export class ProductsService {
       throw AppException.validation('File signature does not match a valid JPG, PNG, or WEBP image', []);
     }
 
-    const baseDir = join(process.cwd(), 'storage/products');
+    const baseDir = join(getStorageRoot(), 'storage/products');
     const dirs = ['original', 'medium', 'thumb'];
     for (const d of dirs) {
       const path = join(baseDir, d);
@@ -1183,7 +1197,7 @@ export class ProductsService {
       return;
     }
 
-    const baseDir = join(process.cwd(), 'storage/products');
+    const baseDir = join(getStorageRoot(), 'storage/products');
     const sizeDir = join(baseDir, size);
     const filePath = resolve(sizeDir, safeFilename);
 
@@ -1211,7 +1225,7 @@ export class ProductsService {
     const zip = new AdmZip(file.buffer);
     const zipEntries = zip.getEntries();
 
-    const baseDir = join(process.cwd(), 'storage/products');
+    const baseDir = join(getStorageRoot(), 'storage/products');
     const dirs = ['original', 'medium', 'thumb'];
     for (const d of dirs) {
       const path = join(baseDir, d);

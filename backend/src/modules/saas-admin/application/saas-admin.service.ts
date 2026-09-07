@@ -6,6 +6,7 @@ import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
+import { getStorageRoot } from '../../../core/utils/storage-path.util';
 import {
   SaaSLoginDto,
   CreateCompanyDto,
@@ -972,10 +973,10 @@ export class SaaSAdminService {
 }
 
 // Cryptographic signing config
-const KEYS_DIR = path.join(process.cwd(), 'storage', 'keys');
+const KEYS_DIR = path.join(getStorageRoot(), 'storage', 'keys');
 const PRIVATE_KEY_PATH = path.join(KEYS_DIR, 'private.pem');
 const PUBLIC_KEY_PATH = path.join(KEYS_DIR, 'public.pem');
-const UPDATES_DIR = path.join(process.cwd(), 'storage', 'updates');
+const UPDATES_DIR = path.join(getStorageRoot(), 'storage', 'updates');
 
 if (!fs.existsSync(KEYS_DIR)) {
   fs.mkdirSync(KEYS_DIR, { recursive: true });

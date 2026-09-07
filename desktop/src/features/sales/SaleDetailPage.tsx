@@ -16,6 +16,7 @@ import { StatusChip } from '@/components/common/DataTable';
 import { useSalesStore } from '@/stores/salesStore';
 import { useNotification } from '@/components/feedback/NotificationProvider';
 import { formatUzs, formatUsd } from '@/utils/format';
+import { usePermissions } from '@/hooks/usePermissions';
 
 const statusLabels = {
   completed: 'Yakunlangan',
@@ -35,6 +36,7 @@ export function SaleDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { success, error: notifyError } = useNotification();
+  const { can } = usePermissions();
   const sale = useSalesStore((s) => s.getSaleById(id ?? ''));
   const voidSale = useSalesStore((s) => s.voidSale);
   const fetchSaleById = useSalesStore((s) => s.fetchSaleById);
@@ -181,7 +183,7 @@ export function SaleDetailPage() {
             {formatUsd(sale.totalUsd)}
           </Typography>
           <Chip size="small" label={`Kurs: ${sale.exchangeRate.toLocaleString()}`} sx={{ mt: 1 }} />
-          {sale.status === 'completed' && (
+          {sale.status === 'completed' && can('sales.cancel') && (
             <Button
               fullWidth
               color="error"

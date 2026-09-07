@@ -70,23 +70,34 @@ export function RoutePermissionGuard() {
   const role = useAuthStore((s) => s.activeCompany?.role ?? s.user?.role);
 
   const basePath = '/' + location.pathname.split('/').filter(Boolean)[0];
-  let perm =
-    routePermissions[location.pathname] ??
-    routePermissions[basePath];
 
-  if (!perm && location.pathname.endsWith('/edit')) {
+  // Dynamic-segment routes (e.g. /products/:id/edit) must be checked before
+  // falling back to the basePath's generic permission (e.g. products.view) —
+  // otherwise the exact-path miss silently falls through to the weaker
+  // basePath permission and the more specific check below never runs,
+  // letting a view-only role reach an edit screen it shouldn't.
+  let perm: string | undefined;
+
+  if (location.pathname.endsWith('/edit')) {
     if (basePath === '/products') perm = 'products.update';
-    if (basePath === '/customers') perm = 'customers.update';
-    if (basePath === '/suppliers') perm = 'suppliers.update';
+    else if (basePath === '/customers') perm = 'customers.update';
+    else if (basePath === '/suppliers') perm = 'suppliers.update';
   }
 
   if (!perm && location.pathname.endsWith('/payment')) {
     perm = basePath === '/suppliers' ? 'suppliers.payment' : 'debt.payment';
   }
 
+  if (!perm && location.pathname === '/sales/returns/new') {
+    perm = 'sales.return';
+  }
+
+  if (!perm) {
+    perm = routePermissions[location.pathname] ?? routePermissions[basePath];
+  }
+
   if (!perm && basePath === '/suppliers') {
-    if (location.pathname.endsWith('/edit')) perm = 'suppliers.update';
-    else if (location.pathname === '/suppliers/new') perm = 'suppliers.create';
+    if (location.pathname === '/suppliers/new') perm = 'suppliers.create';
     else if (
       location.pathname !== '/suppliers' &&
       location.pathname !== '/suppliers/payments' &&
@@ -94,10 +105,6 @@ export function RoutePermissionGuard() {
     ) {
       perm = 'suppliers.view';
     }
-  }
-
-  if (!perm && location.pathname === '/sales/returns/new') {
-    perm = 'sales.return';
   }
 
   if (perm && !hasPermission(permissions, perm)) {

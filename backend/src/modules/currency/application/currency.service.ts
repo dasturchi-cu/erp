@@ -122,7 +122,7 @@ export class CurrencyService {
         });
       }
 
-      return tx.exchangeRate.create({
+      const rate = await tx.exchangeRate.create({
         data: {
           companyId,
           rate: rateValue,
@@ -132,22 +132,27 @@ export class CurrencyService {
         },
         include: { setter: true },
       });
-    });
 
-    await this.audit.log({
-      companyId,
-      userId,
-      action: 'CREATE',
-      entityType: 'exchange_rate',
-      entityId: created.id,
-      oldValue: undefined,
-      newValue: {
-        rate: formatMoney(created.rate),
-        status: created.status,
-        notes: created.notes,
-      },
-      ipAddress: ip,
-      requestId,
+      await this.audit.log(
+        {
+          companyId,
+          userId,
+          action: 'CREATE',
+          entityType: 'exchange_rate',
+          entityId: rate.id,
+          oldValue: undefined,
+          newValue: {
+            rate: formatMoney(rate.rate),
+            status: rate.status,
+            notes: rate.notes,
+          },
+          ipAddress: ip,
+          requestId,
+        },
+        tx,
+      );
+
+      return rate;
     });
 
     return this.toExchangeRateResponse(created);

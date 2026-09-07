@@ -383,7 +383,7 @@ export class SalesService {
         data: { status: newSaleStatus },
       });
 
-      return tx.saleReturn.update({
+      const updated = await tx.saleReturn.update({
         where: { id: returnId },
         data: {
           status: SaleReturnStatus.APPROVED,
@@ -397,17 +397,22 @@ export class SalesService {
           items: { include: { product: true } },
         },
       });
-    });
 
-    await this.audit.log({
-      companyId,
-      userId,
-      action: 'UPDATE',
-      entityType: 'sale_return',
-      entityId: returnId,
-      newValue: { status: 'APPROVED' },
-      ipAddress: ip,
-      requestId,
+      await this.audit.log(
+        {
+          companyId,
+          userId,
+          action: 'UPDATE',
+          entityType: 'sale_return',
+          entityId: returnId,
+          newValue: { status: 'APPROVED' },
+          ipAddress: ip,
+          requestId,
+        },
+        tx,
+      );
+
+      return updated;
     });
 
     return this.toReturnResponse(ret);
@@ -426,30 +431,37 @@ export class SalesService {
       throw AppException.businessRule('Return is not pending');
     }
 
-    const ret = await this.prisma.saleReturn.update({
-      where: { id: returnId },
-      data: {
-        status: SaleReturnStatus.REJECTED,
-        rejectedBy: userId,
-        decisionNote: dto.note ?? null,
-        decidedAt: new Date(),
-      },
-      include: {
-        sale: true,
-        customer: true,
-        items: { include: { product: true } },
-      },
-    });
+    const ret = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.saleReturn.update({
+        where: { id: returnId },
+        data: {
+          status: SaleReturnStatus.REJECTED,
+          rejectedBy: userId,
+          decisionNote: dto.note ?? null,
+          decidedAt: new Date(),
+        },
+        include: {
+          sale: true,
+          customer: true,
+          items: { include: { product: true } },
+        },
+      });
 
-    await this.audit.log({
-      companyId,
-      userId,
-      action: 'UPDATE',
-      entityType: 'sale_return',
-      entityId: returnId,
-      newValue: { status: 'REJECTED' },
-      ipAddress: ip,
-      requestId,
+      await this.audit.log(
+        {
+          companyId,
+          userId,
+          action: 'UPDATE',
+          entityType: 'sale_return',
+          entityId: returnId,
+          newValue: { status: 'REJECTED' },
+          ipAddress: ip,
+          requestId,
+        },
+        tx,
+      );
+
+      return updated;
     });
 
     return this.toReturnResponse(ret);
@@ -660,18 +672,21 @@ export class SalesService {
         });
       }
 
-      return sale.id;
-    });
+      await this.audit.log(
+        {
+          companyId,
+          userId,
+          action: 'CREATE',
+          entityType: 'sale',
+          entityId: sale.id,
+          newValue: { saleId: sale.id },
+          ipAddress: ip,
+          requestId,
+        },
+        tx,
+      );
 
-    await this.audit.log({
-      companyId,
-      userId,
-      action: 'CREATE',
-      entityType: 'sale',
-      entityId: saleId,
-      newValue: { saleId },
-      ipAddress: ip,
-      requestId,
+      return sale.id;
     });
 
     return this.getById(companyId, saleId);
@@ -761,17 +776,20 @@ export class SalesService {
           voidedBy: userId,
         },
       });
-    });
 
-    await this.audit.log({
-      companyId,
-      userId,
-      action: 'UPDATE',
-      entityType: 'sale_void',
-      entityId: saleId,
-      newValue: { status: 'CANCELLED' },
-      ipAddress: ip,
-      requestId,
+      await this.audit.log(
+        {
+          companyId,
+          userId,
+          action: 'UPDATE',
+          entityType: 'sale_void',
+          entityId: saleId,
+          newValue: { status: 'CANCELLED' },
+          ipAddress: ip,
+          requestId,
+        },
+        tx,
+      );
     });
 
     return this.getById(companyId, saleId);
@@ -868,18 +886,21 @@ export class SalesService {
         },
       });
 
-      return created;
-    });
+      await this.audit.log(
+        {
+          companyId,
+          userId,
+          action: 'CREATE',
+          entityType: 'sale_return',
+          entityId: created.id,
+          newValue: { saleId, status: 'PENDING' },
+          ipAddress: ip,
+          requestId,
+        },
+        tx,
+      );
 
-    await this.audit.log({
-      companyId,
-      userId,
-      action: 'CREATE',
-      entityType: 'sale_return',
-      entityId: ret.id,
-      newValue: { saleId, status: 'PENDING' },
-      ipAddress: ip,
-      requestId,
+      return created;
     });
 
     return this.toReturnResponse(ret);

@@ -18,6 +18,7 @@ import {
 import EditIcon from '@mui/icons-material/Edit';
 import { PageHeader } from '@/components/common/PageHeader';
 import { DataTable, StatusChip, type Column } from '@/components/common/DataTable';
+import { usePermissions } from '@/hooks/usePermissions';
 import { useInventoryStore } from '@/stores/inventoryStore';
 import { useCurrencyStore } from '@/stores/currencyStore';
 import { productUsdFromUzs } from '@/utils/currency';
@@ -38,6 +39,7 @@ const movementTypeLabels: Record<StockMovement['type'], string> = {
 export function ProductDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { can } = usePermissions();
   const product = useInventoryStore((s) => s.getProductById(id ?? ''));
   const getBatchesByProduct = useInventoryStore((s) => s.getBatchesByProduct);
   const getMovementsByProduct = useInventoryStore((s) => s.getMovementsByProduct);
@@ -79,11 +81,15 @@ export function ProductDetailPage() {
       <PageHeader
         title={product.name}
         subtitle={`${product.sku} · Kurs: 1 USD = ${activeRate.toLocaleString()} so'm`}
-        primaryAction={{
-          label: 'Tahrirlash',
-          onClick: () => navigate(`/products/${product.id}/edit`),
-          icon: <EditIcon />,
-        }}
+        primaryAction={
+          can('products.update')
+            ? {
+                label: 'Tahrirlash',
+                onClick: () => navigate(`/products/${product.id}/edit`),
+                icon: <EditIcon />,
+              }
+            : undefined
+        }
       />
 
       <Grid container spacing={2} sx={{ mb: 3 }}>

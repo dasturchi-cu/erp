@@ -5,6 +5,7 @@ import { SaasSubscriptionStatus, BackupType, BackupTrigger } from '@prisma/clien
 import * as os from 'os';
 import * as fs from 'fs';
 import * as path from 'path';
+import { getStorageRoot } from '../../../core/utils/storage-path.util';
 
 @Injectable()
 export class SaasService {
@@ -149,7 +150,7 @@ export class SaasService {
 
   downloadUpdatePackage(filename: string, res: any) {
     const safeFilename = path.basename(filename);
-    const filePath = path.join(process.cwd(), 'storage', 'updates', safeFilename);
+    const filePath = path.join(getStorageRoot(), 'storage', 'updates', safeFilename);
 
     if (!fs.existsSync(filePath)) {
       res.status(404).send('Update package not found');
@@ -171,7 +172,7 @@ export class SaasService {
   }
 
   getPublicKey() {
-    const keyPath = path.join(process.cwd(), 'storage', 'keys', 'public.pem');
+    const keyPath = path.join(getStorageRoot(), 'storage', 'keys', 'public.pem');
     if (!fs.existsSync(keyPath)) {
       throw new NotFoundException('Public key not initialized');
     }
@@ -307,7 +308,7 @@ export class SaasService {
       });
 
       this.updateState.step = 'DOWNLOADING';
-      const tempDir = path.join(process.cwd(), 'storage', 'temp');
+      const tempDir = path.join(getStorageRoot(), 'storage', 'temp');
       if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
 
       for (let p = this.updateState.downloadPercent || 10; p <= 100; p += 10) {
@@ -333,7 +334,7 @@ export class SaasService {
         'update-agent'
       );
       
-      const backupDir = path.join(process.cwd(), 'storage', 'backup', `pre-update-${checkRes.latestVersion}`);
+      const backupDir = path.join(getStorageRoot(), 'storage', 'backup', `pre-update-${checkRes.latestVersion}`);
       if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
       if (fs.existsSync('.env')) {
         fs.copyFileSync('.env', path.join(backupDir, '.env'));
@@ -381,7 +382,7 @@ export class SaasService {
   }
 
   private cleanupOldUpdates() {
-    const tempDir = path.join(process.cwd(), 'storage', 'temp');
+    const tempDir = path.join(getStorageRoot(), 'storage', 'temp');
     if (fs.existsSync(tempDir)) {
       try {
         const files = fs.readdirSync(tempDir);

@@ -14,6 +14,7 @@ import { useSalesStore } from '@/stores/salesStore';
 import { productUsdFromUzs } from '@/utils/currency';
 import { useNotification } from '@/components/feedback/NotificationProvider';
 import { formatUzs, formatUsd } from '@/utils/format';
+import { usePermissions } from '@/hooks/usePermissions';
 import type { DebtHistoryEntry, Payment, Sale } from '@/types/entities';
 import type { SaleDetail } from '@/types/sales';
 
@@ -36,6 +37,7 @@ export function CustomerProfilePage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { success } = useNotification();
+  const { can } = usePermissions();
   const customer = useCustomerStore((s) => s.getCustomerById(id ?? ''));
   const exchangeRate = useCurrencyStore((s) => s.rates.find((r) => r.status === 'active')?.rate ?? 12_620);
   const getPaymentsByCustomer = useCustomerStore((s) => s.getPaymentsByCustomer);
@@ -116,12 +118,16 @@ export function CustomerProfilePage() {
             </Button>
             {customer.status !== 'archived' && (
               <>
-                <Button startIcon={<EditIcon />} onClick={() => navigate(`/customers/${customer.id}/edit`)}>
-                  Tahrirlash
-                </Button>
-                <Button startIcon={<ArchiveIcon />} color="warning" onClick={() => setConfirmArchive(true)}>
-                  Arxivlash
-                </Button>
+                {can('customers.update') && (
+                  <Button startIcon={<EditIcon />} onClick={() => navigate(`/customers/${customer.id}/edit`)}>
+                    Tahrirlash
+                  </Button>
+                )}
+                {can('customers.delete') && (
+                  <Button startIcon={<ArchiveIcon />} color="warning" onClick={() => setConfirmArchive(true)}>
+                    Arxivlash
+                  </Button>
+                )}
               </>
             )}
           </>

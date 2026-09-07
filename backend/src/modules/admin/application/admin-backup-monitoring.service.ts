@@ -13,6 +13,7 @@ import { gzipSync, gunzipSync } from 'zlib';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { RedisService } from '../../../core/redis/redis.service';
 import { AuditService } from '../../../core/audit/audit.service';
+import { getStorageRoot } from '../../../core/utils/storage-path.util';
 import { AppException } from '../../../core/exceptions/app.exception';
 import {
   buildPaginationMeta,
@@ -88,7 +89,7 @@ export class AdminBackupService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
   ) {
-    this.backupDir = path.join(process.cwd(), 'uploads', 'backups');
+    this.backupDir = path.join(getStorageRoot(), 'uploads', 'backups');
     fs.mkdirSync(this.backupDir, { recursive: true });
   }
 
@@ -277,20 +278,23 @@ export class AdminBackupService {
           update: { name: s.name, phone: s.phone ?? '' },
         });
       }
-    });
 
-    await this.audit.log({
-      companyId,
-      userId,
-      action: 'RESTORE',
-      entityType: 'backup',
-      entityId: backupId,
-      newValue: {
-        products: payload.products?.length ?? 0,
-        customers: payload.customers?.length ?? 0,
-      },
-      ipAddress: ip ?? null,
-      requestId: requestId ?? null,
+      await this.audit.log(
+        {
+          companyId,
+          userId,
+          action: 'RESTORE',
+          entityType: 'backup',
+          entityId: backupId,
+          newValue: {
+            products: payload.products?.length ?? 0,
+            customers: payload.customers?.length ?? 0,
+          },
+          ipAddress: ip ?? null,
+          requestId: requestId ?? null,
+        },
+        tx,
+      );
     });
 
     return { ok: true, restoredAt: new Date().toISOString() };
@@ -511,7 +515,7 @@ export class AdminMonitoringService {
     const memoryStatus =
       usedPercent > 90 ? 'critical' : usedPercent > 75 ? 'warning' : 'healthy';
 
-    const uploadsDir = path.join(process.cwd(), 'uploads');
+    const uploadsDir = path.join(getStorageRoot(), 'uploads');
     const uploadsSize = dirSizeBytes(uploadsDir);
     const uploadsLabel = formatBytes(uploadsSize);
     const diskStatus =

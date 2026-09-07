@@ -138,7 +138,7 @@ export class DebtPaymentsService {
         recordedBy: userId,
       });
 
-      return tx.debtPayment.update({
+      const updated = await tx.debtPayment.update({
         where: { id: paymentId, companyId },
         data: {
           reversedAt: new Date(),
@@ -146,17 +146,22 @@ export class DebtPaymentsService {
         },
         include: { customer: true, receiver: true },
       });
-    });
 
-    await this.audit.log({
-      companyId,
-      userId,
-      action: 'UPDATE',
-      entityType: 'debt_payment_reverse',
-      entityId: paymentId,
-      newValue: { reversed: true, reason: dto.reason ?? null },
-      ipAddress: ip,
-      requestId,
+      await this.audit.log(
+        {
+          companyId,
+          userId,
+          action: 'UPDATE',
+          entityType: 'debt_payment_reverse',
+          entityId: paymentId,
+          newValue: { reversed: true, reason: dto.reason ?? null },
+          ipAddress: ip,
+          requestId,
+        },
+        tx,
+      );
+
+      return updated;
     });
 
     return this.toPaymentResponse(payment);
@@ -312,25 +317,30 @@ export class DebtPaymentsService {
         recordedBy: userId,
       });
 
-      return tx.debtPayment.findFirstOrThrow({
+      const withRelations = await tx.debtPayment.findFirstOrThrow({
         where: { id: created.id },
         include: { customer: true, receiver: true },
       });
-    });
 
-    await this.audit.log({
-      companyId,
-      userId,
-      action: 'CREATE',
-      entityType: 'debt_payment',
-      entityId: payment.id,
-      newValue: {
-        customerId: dto.customerId,
-        amount: formatMoney(amount),
-        currency: dto.currency,
-      },
-      ipAddress: ip,
-      requestId,
+      await this.audit.log(
+        {
+          companyId,
+          userId,
+          action: 'CREATE',
+          entityType: 'debt_payment',
+          entityId: created.id,
+          newValue: {
+            customerId: dto.customerId,
+            amount: formatMoney(amount),
+            currency: dto.currency,
+          },
+          ipAddress: ip,
+          requestId,
+        },
+        tx,
+      );
+
+      return withRelations;
     });
 
     return this.toPaymentResponse(payment);

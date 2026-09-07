@@ -14,6 +14,7 @@ import { formatUzs, formatUsd } from '@/utils/format';
 import { downloadSpreadsheet, type ExportFormat } from '@/utils/spreadsheet';
 import { API_BASE_URL } from '@/api/client';
 import type { Product, Sale } from '@/types/entities';
+import { usePermissions } from '@/hooks/usePermissions';
 
 const statusLabels: Record<Product['status'], string> = {
   active: 'Faol',
@@ -40,6 +41,7 @@ const SORT_FIELD_MAP: Record<string, string> = {
 export function ProductsPage() {
   const navigate = useNavigate();
   const { success, error: notifyError } = useNotification();
+  const { can } = usePermissions();
   const [zipUploading, setZipUploading] = useState(false);
   const exchangeRate = useCurrencyStore((s) => s.rates.find((r) => r.status === 'active')?.rate ?? 12_620);
   const [products, setProducts] = useState<Product[]>([]);
@@ -291,7 +293,7 @@ export function ProductsPage() {
       <PageHeader
         title="Mahsulotlar"
         subtitle="Mahsulotlar katalogi va narxlarni boshqarish"
-        primaryAction={{ label: 'Yangi mahsulot', onClick: () => navigate('/products/new') }}
+        primaryAction={can('products.create') ? { label: 'Yangi mahsulot', onClick: () => navigate('/products/new') } : undefined}
         secondaryActions={
           <>
             <Button variant="outlined" onClick={() => setImportOpen(true)}>Import Excel</Button>

@@ -5,6 +5,7 @@ import * as path from 'path';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { AppException } from '../../../core/exceptions/app.exception';
 import { AuditService } from '../../../core/audit/audit.service';
+import { getStorageRoot } from '../../../core/utils/storage-path.util';
 import { findCatalogEntry } from './report-catalog';
 import { exportReport, inferColumns } from './export/report-exporter';
 import { ReportProviderResult } from './report.types';
@@ -20,7 +21,7 @@ export class ReportExportService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
   ) {
-    this.uploadDir = path.join(process.cwd(), 'uploads', 'reports');
+    this.uploadDir = path.join(getStorageRoot(), 'uploads', 'reports');
     fs.mkdirSync(this.uploadDir, { recursive: true });
   }
 

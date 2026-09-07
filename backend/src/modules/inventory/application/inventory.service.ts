@@ -319,6 +319,26 @@ export class InventoryService {
 
       const productStock = await getProductStockTotal(tx, companyId, dto.productId);
 
+      await this.audit.log(
+        {
+          companyId,
+          userId,
+          action: 'CREATE',
+          entityType: 'inventory_receive',
+          entityId: batch.id,
+          newValue: {
+            productId: dto.productId,
+            warehouseId: dto.warehouseId,
+            supplierId: dto.supplierId,
+            paymentType: dto.paymentType,
+            quantity: formatMoney(quantity),
+          },
+          ipAddress: ip,
+          requestId,
+        },
+        tx,
+      );
+
       return { batch, movement, productStock };
     });
 
@@ -329,23 +349,6 @@ export class InventoryService {
     const movementWithRelations = await this.prisma.inventoryMovement.findFirstOrThrow({
       where: { id: result.movement.id },
       include: { product: true, warehouse: true, performer: true },
-    });
-
-    await this.audit.log({
-      companyId,
-      userId,
-      action: 'CREATE',
-      entityType: 'inventory_receive',
-      entityId: result.batch.id,
-      newValue: {
-        productId: dto.productId,
-        warehouseId: dto.warehouseId,
-        supplierId: dto.supplierId,
-        paymentType: dto.paymentType,
-        quantity: formatMoney(quantity),
-      },
-      ipAddress: ip,
-      requestId,
     });
 
     return {
@@ -473,28 +476,32 @@ export class InventoryService {
       }
 
       const productStock = await getProductStockTotal(tx, companyId, dto.productId);
+
+      await this.audit.log(
+        {
+          companyId,
+          userId,
+          action: 'CREATE',
+          entityType: 'inventory_adjust',
+          entityId: movement.id,
+          newValue: {
+            productId: dto.productId,
+            warehouseId: dto.warehouseId,
+            quantityDelta: formatMoney(delta),
+            reasonCode: dto.reasonCode ?? null,
+          },
+          ipAddress: ip,
+          requestId,
+        },
+        tx,
+      );
+
       return { movement, productStock };
     });
 
     const movementWithRelations = await this.prisma.inventoryMovement.findFirstOrThrow({
       where: { id: result.movement.id },
       include: { product: true, warehouse: true, performer: true },
-    });
-
-    await this.audit.log({
-      companyId,
-      userId,
-      action: 'CREATE',
-      entityType: 'inventory_adjust',
-      entityId: result.movement.id,
-      newValue: {
-        productId: dto.productId,
-        warehouseId: dto.warehouseId,
-        quantityDelta: formatMoney(delta),
-        reasonCode: dto.reasonCode ?? null,
-      },
-      ipAddress: ip,
-      requestId,
     });
 
     return {
@@ -592,6 +599,25 @@ export class InventoryService {
         });
       }
 
+      await this.audit.log(
+        {
+          companyId,
+          userId,
+          action: 'CREATE',
+          entityType: 'inventory_transfer',
+          entityId: ids[0] ?? null,
+          newValue: {
+            productId: dto.productId,
+            fromWarehouseId: dto.fromWarehouseId,
+            toWarehouseId: dto.toWarehouseId,
+            quantity: formatMoney(quantity),
+          },
+          ipAddress: ip,
+          requestId,
+        },
+        tx,
+      );
+
       return ids;
     });
 
@@ -599,22 +625,6 @@ export class InventoryService {
       where: { id: { in: movementIds } },
       include: { product: true, warehouse: true, performer: true },
       orderBy: { createdAt: 'asc' },
-    });
-
-    await this.audit.log({
-      companyId,
-      userId,
-      action: 'CREATE',
-      entityType: 'inventory_transfer',
-      entityId: movementIds[0] ?? null,
-      newValue: {
-        productId: dto.productId,
-        fromWarehouseId: dto.fromWarehouseId,
-        toWarehouseId: dto.toWarehouseId,
-        quantity: formatMoney(quantity),
-      },
-      ipAddress: ip,
-      requestId,
     });
 
     return {

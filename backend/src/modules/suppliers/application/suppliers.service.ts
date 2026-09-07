@@ -435,25 +435,29 @@ export class SuppliersService {
       });
 
       await this.supplierDebt.applyPayment(companyId, supplierId, amount, dto.currency, exchangeRate, userId, created.id, tx);
-      return created;
-    });
 
-    await this.audit.log({
-      companyId,
-      userId,
-      action: 'CREATE',
-      entityType: 'supplier_payment',
-      entityId: payment.id,
-      newValue: { 
-        supplierId, 
-        amount: formatMoney(amount), 
-        currency: dto.currency, 
-        exchangeRateUsed: formatMoney(exchangeRate),
-        amountUzs: formatMoney(amountUzs),
-        amountUsd: formatMoney(amountUsd)
-      },
-      ipAddress: ip,
-      requestId,
+      await this.audit.log(
+        {
+          companyId,
+          userId,
+          action: 'CREATE',
+          entityType: 'supplier_payment',
+          entityId: created.id,
+          newValue: {
+            supplierId,
+            amount: formatMoney(amount),
+            currency: dto.currency,
+            exchangeRateUsed: formatMoney(exchangeRate),
+            amountUzs: formatMoney(amountUzs),
+            amountUsd: formatMoney(amountUsd)
+          },
+          ipAddress: ip,
+          requestId,
+        },
+        tx,
+      );
+
+      return created;
     });
 
     return this.toPaymentResponse(payment as any);
