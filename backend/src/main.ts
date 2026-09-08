@@ -8,6 +8,17 @@ import { RequestIdInterceptor } from './core/interceptors/request-id.interceptor
 import { PilotErrorLogger } from './core/logging/pilot-error.logger';
 import { getAppVersion } from './core/utils/app-version.util';
 
+// Postgres BIGINT columns (diskFreeBytes, zipSize) come back from Prisma as
+// native BigInt, which JSON.stringify cannot serialize — every response
+// path that returns one of those columns would otherwise crash with "Do not
+// know how to serialize a BigInt". None of this app's BigInt columns can
+// realistically exceed Number.MAX_SAFE_INTEGER (they're byte counts), so a
+// blanket safe conversion here is a reasonable global guard rather than
+// patching every call site that might return one.
+(BigInt.prototype as unknown as { toJSON(): number }).toJSON = function () {
+  return Number(this);
+};
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
 

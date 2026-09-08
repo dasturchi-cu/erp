@@ -404,7 +404,10 @@ export class SaasService {
     const bool = (v: any, fallback = false) =>
       typeof v === 'boolean' ? v : v === undefined || v === null ? fallback : Boolean(v);
 
-    return this.prisma.companyHeartbeat.create({
+    // Only acknowledge success — the created row has a `diskFreeBytes`
+    // BigInt column, which JSON.stringify (and thus the response
+    // serializer) cannot handle, and no caller needs the row back anyway.
+    await this.prisma.companyHeartbeat.create({
       data: {
         companyId,
         deviceId: dto.deviceId ? String(dto.deviceId) : 'unknown-device',
@@ -424,6 +427,7 @@ export class SaasService {
         responseTimeMs: Math.trunc(num(dto.responseTimeMs)),
       },
     });
+    return { success: true };
   }
 
   // 5. System Monitoring & Health Checks

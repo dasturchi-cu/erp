@@ -755,7 +755,7 @@ export class SaaSAdminService {
 
     const downloadUrl = `/api/v1/saas/updates/download/${safeFilename}`;
 
-    return this.prisma.remoteUpdateHistory.create({
+    const created = await this.prisma.remoteUpdateHistory.create({
       data: {
         version: dto.version,
         changelog: dto.whatsNew || 'Update package',
@@ -769,6 +769,9 @@ export class SaaSAdminService {
         releasedAt: new Date(),
       },
     });
+    // zipSize is a BigInt column — JSON.stringify (and thus the response
+    // serializer) can't handle it, so convert before it reaches the client.
+    return { ...created, zipSize: Number(created.zipSize) };
   }
 
   async updateReleaseStatus(id: string, status: string) {
