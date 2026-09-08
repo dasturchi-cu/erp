@@ -27,10 +27,35 @@ class _PosViewState extends State<PosView> {
   List<dynamic> _customers = [];
   final _paidNowController = TextEditingController();
 
+  // Display/settlement currency for this sale. Line items are always priced
+  // and sent to the backend in UZS (`unitPriceUzs` is the only field the
+  // API accepts) — switching to USD only changes what's shown on screen and
+  // which amountPaid* field carries the payment, exactly like the desktop
+  // POS's currency toggle.
+  String _currency = 'UZS'; // UZS or USD
+  double _exchangeRate = 12620;
+
   @override
   void initState() {
     super.initState();
     _loadCustomers();
+    _loadExchangeRate();
+  }
+
+  Future<void> _loadExchangeRate() async {
+    try {
+      final res = await _apiService.get('/currency/rate');
+      if (res.statusCode == 200) {
+        final rate = double.tryParse(
+          (res.data?['rateUzs'] ?? res.data?['rate'])?.toString() ?? '',
+        );
+        if (rate != null && rate > 0 && mounted) {
+          setState(() => _exchangeRate = rate);
+        }
+      }
+    } catch (_) {
+      // Keep the fallback rate; the toggle still works, just less precisely.
+    }
   }
 
   @override
@@ -56,7 +81,11 @@ class _PosViewState extends State<PosView> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Mijozlar ro\'yxati yuklanmadi: ${ApiService.parseError(e)}')),
+        SnackBar(
+          content: Text(
+            'Mijozlar ro\'yxati yuklanmadi: ${ApiService.parseError(e)}',
+          ),
+        ),
       );
     }
   }
@@ -67,7 +96,9 @@ class _PosViewState extends State<PosView> {
       return;
     }
     try {
-      final res = await _apiService.get('/pos/products?q=${Uri.encodeComponent(q)}');
+      final res = await _apiService.get(
+        '/pos/products?q=${Uri.encodeComponent(q)}',
+      );
       if (res.statusCode == 200) {
         final raw = res.data;
         final list = raw is Map && raw.containsKey('data')
@@ -81,7 +112,9 @@ class _PosViewState extends State<PosView> {
     }
 
     try {
-      final fb = await _apiService.get('/products?q=${Uri.encodeComponent(q)}&limit=20');
+      final fb = await _apiService.get(
+        '/products?q=${Uri.encodeComponent(q)}&limit=20',
+      );
       if (fb.statusCode == 200) {
         final raw = fb.data;
         final list = raw is Map && raw.containsKey('data')
@@ -92,24 +125,28 @@ class _PosViewState extends State<PosView> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Qidiruvda xatolik: ${ApiService.parseError(e)}')),
+        SnackBar(
+          content: Text('Qidiruvda xatolik: ${ApiService.parseError(e)}'),
+        ),
       );
     }
   }
 
   void _addToCart(dynamic product) {
     setState(() {
-      final existingIndex = _cart.indexWhere((item) => item['product']['id'] == product['id']);
+      final existingIndex = _cart.indexWhere(
+        (item) => item['product']['id'] == product['id'],
+      );
       if (existingIndex >= 0) {
         _cart[existingIndex]['quantity'] += 1.0;
       } else {
-        final rawPrice = product['salePriceUzs'] ?? product['priceUzs'] ?? product['salePrice'] ?? '0';
+        final rawPrice =
+            product['salePriceUzs'] ??
+            product['priceUzs'] ??
+            product['salePrice'] ??
+            '0';
         final price = double.tryParse(rawPrice.toString()) ?? 0.0;
-        _cart.add({
-          'product': product,
-          'quantity': 1.0,
-          'salePrice': price,
-        });
+        _cart.add({'product': product, 'quantity': 1.0, 'salePrice': price});
       }
       _searchResults = [];
       _searchController.clear();
@@ -117,7 +154,10 @@ class _PosViewState extends State<PosView> {
   }
 
   double get _totalAmount {
-    return _cart.fold(0.0, (sum, item) => sum + (item['quantity'] * item['salePrice']));
+    return _cart.fold(
+      0.0,
+      (sum, item) => sum + (item['quantity'] * item['salePrice']),
+    );
   }
 
   String _formatCurrency(double amount) {
@@ -132,24 +172,51 @@ class _PosViewState extends State<PosView> {
     return '${buffer.toString()} UZS';
   }
 
+  /// Shows a UZS amount converted into the currently selected display
+  /// currency. The underlying value stays UZS everywhere else (cart state,
+  /// the checkout payload's line items) — only this presentation layer
+  /// converts, same as the desktop POS's currency toggle.
+  String _formatDisplay(double amountUzs) {
+    if (_currency == 'USD') {
+      final usd = _exchangeRate > 0 ? amountUzs / _exchangeRate : 0.0;
+      return '\$${usd.toStringAsFixed(2)}';
+    }
+    return _formatCurrency(amountUzs);
+  }
+
   Future<void> _handleCheckout() async {
     if (_cart.isEmpty) return;
 
-    if ((_paymentType == 'DEBT' || _paymentType == 'MIXED') && _selectedCustomer == null) {
+    if ((_paymentType == 'DEBT' || _paymentType == 'MIXED') &&
+        _selectedCustomer == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_paymentType == 'MIXED'
-            ? 'Aralash to\'lov uchun mijozni tanlash majburiy!'
-            : 'Nasiya sotuv uchun mijozni tanlash majburiy!')),
+        SnackBar(
+          content: Text(
+            _paymentType == 'MIXED'
+                ? 'Aralash to\'lov uchun mijozni tanlash majburiy!'
+                : 'Nasiya sotuv uchun mijozni tanlash majburiy!',
+          ),
+        ),
       );
       return;
     }
 
+    // `paidNow` is UZS-denominated (matches `_totalAmount`) regardless of
+    // display currency — the "paid now" field is typed in `_currency` and
+    // converted here so the rest of the checkout math stays in one unit.
     double? paidNow;
     if (_paymentType == 'MIXED') {
-      paidNow = double.tryParse(_paidNowController.text.trim());
+      final typed = double.tryParse(_paidNowController.text.trim());
+      paidNow = typed != null && _currency == 'USD'
+          ? typed * _exchangeRate
+          : typed;
       if (paidNow == null || paidNow <= 0 || paidNow >= _totalAmount) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Aralash to\'lovda naqd qism 0 dan katta va jami summadan kam bo\'lishi kerak!')),
+          const SnackBar(
+            content: Text(
+              'Aralash to\'lovda naqd qism 0 dan katta va jami summadan kam bo\'lishi kerak!',
+            ),
+          ),
         );
         return;
       }
@@ -158,7 +225,9 @@ class _PosViewState extends State<PosView> {
     // Check if any items are sold below cost
     bool belowCost = false;
     for (final item in _cart) {
-      final cost = double.parse(item['product']['purchasePriceUzs']?.toString() ?? '0.0');
+      final cost = double.parse(
+        item['product']['purchasePriceUzs']?.toString() ?? '0.0',
+      );
       if (item['salePrice'] < cost) {
         belowCost = true;
         break;
@@ -170,7 +239,9 @@ class _PosViewState extends State<PosView> {
         context: context,
         builder: (context) => AlertDialog(
           title: const Text('Diqqat!'),
-          content: const Text('Mahsulot tannarxidan past narxda sotilyapti. Davom etasizmi?'),
+          content: const Text(
+            'Mahsulot tannarxidan past narxda sotilyapti. Davom etasizmi?',
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
@@ -191,53 +262,70 @@ class _PosViewState extends State<PosView> {
     // cash/card/transfer (no split) are paid in full now.
     final bool isCredit = _paymentType == 'DEBT';
     final bool isMixed = _paymentType == 'MIXED';
-    final String backendPaymentType = isCredit ? 'CREDIT' : (isMixed ? 'MIXED' : 'CASH');
-    final String amountPaid = isCredit
-        ? '0.0000'
+    final String backendPaymentType = isCredit
+        ? 'CREDIT'
+        : (isMixed ? 'MIXED' : 'CASH');
+    // Always UZS-denominated — `paidNow` was already converted above.
+    final double amountPaidUzsValue = isCredit
+        ? 0.0
         : isMixed
-            ? paidNow!.toStringAsFixed(4)
-            : _totalAmount.toStringAsFixed(4);
+        ? paidNow!
+        : _totalAmount;
+    // The customer physically paid in `_currency`, so that's the field the
+    // backend should record the payment against (it sums both fields as
+    // UZS-equivalent internally — see sales.service.ts).
+    final bool payingInUsd = _currency == 'USD' && !isCredit;
 
     final salePayload = {
-      'originalCurrency': 'UZS',
+      'originalCurrency': _currency,
       'paymentType': backendPaymentType,
-      'amountPaidUzs': amountPaid,
+      if (payingInUsd)
+        'amountPaidUsd': (amountPaidUzsValue / _exchangeRate).toStringAsFixed(4)
+      else
+        'amountPaidUzs': amountPaidUzsValue.toStringAsFixed(4),
       if (_selectedCustomer != null) 'customerId': _selectedCustomer!['id'],
       'lineItems': _cart
-          .map((item) => {
-                'productId': item['product']['id'],
-                'quantity': item['quantity'].toStringAsFixed(4),
-                'unitPriceUzs': item['salePrice'].toStringAsFixed(4),
-              })
+          .map(
+            (item) => {
+              'productId': item['product']['id'],
+              'quantity': item['quantity'].toStringAsFixed(4),
+              'unitPriceUzs': item['salePrice'].toStringAsFixed(4),
+            },
+          )
           .toList(),
     };
 
     // Snapshot the cart for the receipt before it's cleared on success.
     final receiptItems = _cart
-        .map((item) => ReceiptItem(
-              name: (item['product']['name'] ?? '').toString(),
-              quantity: (item['quantity'] as num).toDouble(),
-              unit: (item['product']['unitOfMeasure'] ?? 'dona').toString(),
-              unitPrice: (item['salePrice'] as num).toDouble(),
-              total: (item['quantity'] as num).toDouble() * (item['salePrice'] as num).toDouble(),
-            ))
+        .map(
+          (item) => ReceiptItem(
+            name: (item['product']['name'] ?? '').toString(),
+            quantity: (item['quantity'] as num).toDouble(),
+            unit: (item['product']['unitOfMeasure'] ?? 'dona').toString(),
+            unitPrice: (item['salePrice'] as num).toDouble(),
+            total:
+                (item['quantity'] as num).toDouble() *
+                (item['salePrice'] as num).toDouble(),
+          ),
+        )
         .toList();
     final receiptTotal = _totalAmount;
     final receiptCustomer = _selectedCustomer?['name']?.toString();
     final receiptPaymentLabel = isCredit
         ? 'Nasiya (Qarz)'
         : isMixed
-            ? 'Aralash (naqd ${_formatCurrency(paidNow!)}, qarz ${_formatCurrency(_totalAmount - paidNow)})'
-            : _paymentType == 'CARD'
-                ? 'Karta'
-                : _paymentType == 'TRANSFER'
-                    ? 'O\'tkazma'
-                    : 'Naqd';
+        ? 'Aralash (naqd ${_formatCurrency(paidNow!)}, qarz ${_formatCurrency(_totalAmount - paidNow)})'
+        : _paymentType == 'CARD'
+        ? 'Karta'
+        : _paymentType == 'TRANSFER'
+        ? 'O\'tkazma'
+        : 'Naqd';
 
     try {
       final res = await _apiService.post('/sales', salePayload);
       if (res.statusCode == 200 || res.statusCode == 201) {
-        final saleNumber = (res.data is Map ? res.data['saleNumber'] : null)?.toString() ??
+        final saleNumber =
+            (res.data is Map ? res.data['saleNumber'] : null)?.toString() ??
             DateTime.now().millisecondsSinceEpoch.toString();
         _successCheckout(
           saleNumber: saleNumber,
@@ -307,6 +395,7 @@ class _PosViewState extends State<PosView> {
       _cart.clear();
       _selectedCustomer = null;
       _paymentType = 'CASH';
+      _currency = 'UZS';
       _paidNowController.clear();
     });
   }
@@ -335,7 +424,9 @@ class _PosViewState extends State<PosView> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(ok ? 'Chek chiqarildi' : 'Chek chiqmadi. Printerni tekshiring'),
+        content: Text(
+          ok ? 'Chek chiqarildi' : 'Chek chiqmadi. Printerni tekshiring',
+        ),
         backgroundColor: ok ? Colors.green : Colors.red,
       ),
     );
@@ -354,6 +445,7 @@ class _PosViewState extends State<PosView> {
       _cart.clear();
       _selectedCustomer = null;
       _paymentType = 'CASH';
+      _currency = 'UZS';
       _paidNowController.clear();
     });
   }
@@ -408,13 +500,20 @@ class _PosViewState extends State<PosView> {
                 itemBuilder: (context, idx) {
                   final p = _searchResults[idx];
                   final rawStk = p['stock'] ?? p['totalStock'] ?? '0';
-                    final stkNum = (rawStk is num) ? rawStk.toDouble() : (double.tryParse(rawStk.toString()) ?? 0.0);
-                    return ListTile(
-                      title: Text(p['name'] ?? ''),
-                      subtitle: Text('${_formatCurrency(double.tryParse(p['salePriceUzs']?.toString() ?? '0') ?? 0)} | Qoldiq: ${stkNum.toStringAsFixed(0)} ${p['unitOfMeasure'] ?? 'dona'} | SKU: ${p['sku']}'),
-                      trailing: Icon(stkNum > 0 ? Icons.add_circle : Icons.add_circle_outline, color: stkNum > 0 ? Colors.green : Colors.grey),
-                      onTap: () => _addToCart(p),
-                    );
+                  final stkNum = (rawStk is num)
+                      ? rawStk.toDouble()
+                      : (double.tryParse(rawStk.toString()) ?? 0.0);
+                  return ListTile(
+                    title: Text(p['name'] ?? ''),
+                    subtitle: Text(
+                      '${_formatDisplay(double.tryParse(p['salePriceUzs']?.toString() ?? '0') ?? 0)} | Qoldiq: ${stkNum.toStringAsFixed(0)} ${p['unitOfMeasure'] ?? 'dona'} | SKU: ${p['sku']}',
+                    ),
+                    trailing: Icon(
+                      stkNum > 0 ? Icons.add_circle : Icons.add_circle_outline,
+                      color: stkNum > 0 ? Colors.green : Colors.grey,
+                    ),
+                    onTap: () => _addToCart(p),
+                  );
                 },
               ),
             ),
@@ -426,7 +525,11 @@ class _PosViewState extends State<PosView> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.shopping_cart_outlined, size: 60, color: theme.colorScheme.outline),
+                        Icon(
+                          Icons.shopping_cart_outlined,
+                          size: 60,
+                          color: theme.colorScheme.outline,
+                        ),
                         const SizedBox(height: 12),
                         const Text('Savat bo\'sh'),
                       ],
@@ -438,9 +541,15 @@ class _PosViewState extends State<PosView> {
                       final item = _cart[idx];
                       final p = item['product'];
                       return Card(
-                        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                        margin: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 4,
+                        ),
                         child: ListTile(
-                          title: Text(p['name'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold)),
+                          title: Text(
+                            p['name'] ?? '',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
                           subtitle: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -448,7 +557,9 @@ class _PosViewState extends State<PosView> {
                               Row(
                                 children: [
                                   IconButton(
-                                    icon: const Icon(Icons.remove_circle_outline),
+                                    icon: const Icon(
+                                      Icons.remove_circle_outline,
+                                    ),
                                     onPressed: () {
                                       setState(() {
                                         if (item['quantity'] > 1) {
@@ -459,7 +570,13 @@ class _PosViewState extends State<PosView> {
                                       });
                                     },
                                   ),
-                                  Text('${item['quantity']}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                                  Text(
+                                    '${item['quantity']}',
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
                                   IconButton(
                                     icon: const Icon(Icons.add_circle_outline),
                                     onPressed: () {
@@ -473,15 +590,27 @@ class _PosViewState extends State<PosView> {
                           trailing: SizedBox(
                             width: 110,
                             child: TextFormField(
-                              initialValue: '${item['salePrice']}',
+                              // Re-keyed on currency so Flutter rebuilds the
+                              // field (and its initialValue) fresh when the
+                              // toggle changes, instead of keeping stale text.
+                              key: ValueKey(
+                                '${item['product']['id']}-$_currency',
+                              ),
+                              initialValue: _currency == 'USD'
+                                  ? (item['salePrice'] / _exchangeRate)
+                                        .toStringAsFixed(2)
+                                  : '${item['salePrice']}',
                               keyboardType: TextInputType.number,
-                              decoration: const InputDecoration(
-                                suffixText: 'UZS',
+                              decoration: InputDecoration(
+                                suffixText: _currency,
                                 isDense: true,
                               ),
                               onChanged: (val) {
+                                final typed = double.tryParse(val) ?? 0.0;
                                 setState(() {
-                                  item['salePrice'] = double.tryParse(val) ?? 0.0;
+                                  item['salePrice'] = _currency == 'USD'
+                                      ? typed * _exchangeRate
+                                      : typed;
                                 });
                               },
                             ),
@@ -498,17 +627,42 @@ class _PosViewState extends State<PosView> {
               padding: const EdgeInsets.all(16.0),
               decoration: BoxDecoration(
                 color: theme.colorScheme.surfaceContainerLow,
-                border: Border(top: BorderSide(color: theme.colorScheme.outlineVariant)),
+                border: Border(
+                  top: BorderSide(color: theme.colorScheme.outlineVariant),
+                ),
               ),
               child: Column(
                 children: [
+                  // Currency toggle — display only; line items are always
+                  // sent to the backend in UZS (see `_handleCheckout`).
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: SegmentedButton<String>(
+                      segments: const [
+                        ButtonSegment(value: 'UZS', label: Text('UZS')),
+                        ButtonSegment(value: 'USD', label: Text('USD')),
+                      ],
+                      selected: {_currency},
+                      onSelectionChanged: (sel) {
+                        setState(() {
+                          _currency = sel.first;
+                          _paidNowController.clear();
+                        });
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 8),
                   // Payment Options Row
                   Row(
                     children: [
                       Expanded(
                         child: DropdownButtonFormField<String>(
                           value: _paymentType,
-                          style: TextStyle(color: theme.colorScheme.onSurface, fontSize: 14, fontWeight: FontWeight.w500),
+                          style: TextStyle(
+                            color: theme.colorScheme.onSurface,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
                           dropdownColor: theme.colorScheme.surface,
                           iconEnabledColor: theme.colorScheme.onSurface,
                           decoration: const InputDecoration(
@@ -517,18 +671,63 @@ class _PosViewState extends State<PosView> {
                             border: OutlineInputBorder(),
                           ),
                           items: [
-                            DropdownMenuItem(value: 'CASH', child: Text('Naqd', style: TextStyle(color: theme.colorScheme.onSurface))),
-                            DropdownMenuItem(value: 'CARD', child: Text('Karta', style: TextStyle(color: theme.colorScheme.onSurface))),
-                            DropdownMenuItem(value: 'TRANSFER', child: Text('O\'tkazma', style: TextStyle(color: theme.colorScheme.onSurface))),
-                            DropdownMenuItem(value: 'DEBT', child: Text('Nasiya (Qarz)', style: TextStyle(color: theme.colorScheme.onSurface))),
-                            DropdownMenuItem(value: 'MIXED', child: Text('Aralash (qisman)', style: TextStyle(color: theme.colorScheme.onSurface))),
+                            DropdownMenuItem(
+                              value: 'CASH',
+                              child: Text(
+                                'Naqd',
+                                style: TextStyle(
+                                  color: theme.colorScheme.onSurface,
+                                ),
+                              ),
+                            ),
+                            DropdownMenuItem(
+                              value: 'CARD',
+                              child: Text(
+                                'Karta',
+                                style: TextStyle(
+                                  color: theme.colorScheme.onSurface,
+                                ),
+                              ),
+                            ),
+                            DropdownMenuItem(
+                              value: 'TRANSFER',
+                              child: Text(
+                                'O\'tkazma',
+                                style: TextStyle(
+                                  color: theme.colorScheme.onSurface,
+                                ),
+                              ),
+                            ),
+                            DropdownMenuItem(
+                              value: 'DEBT',
+                              child: Text(
+                                'Nasiya (Qarz)',
+                                style: TextStyle(
+                                  color: theme.colorScheme.onSurface,
+                                ),
+                              ),
+                            ),
+                            DropdownMenuItem(
+                              value: 'MIXED',
+                              child: Text(
+                                'Aralash (qisman)',
+                                style: TextStyle(
+                                  color: theme.colorScheme.onSurface,
+                                ),
+                              ),
+                            ),
                           ],
                           onChanged: (val) {
                             if (val != null) {
                               setState(() {
                                 _paymentType = val;
-                                if (val == 'MIXED' && _paidNowController.text.trim().isEmpty) {
-                                  _paidNowController.text = (_totalAmount / 2).toStringAsFixed(0);
+                                if (val == 'MIXED' &&
+                                    _paidNowController.text.trim().isEmpty) {
+                                  final halfUzs = _totalAmount / 2;
+                                  _paidNowController.text = _currency == 'USD'
+                                      ? (halfUzs / _exchangeRate)
+                                            .toStringAsFixed(2)
+                                      : halfUzs.toStringAsFixed(0);
                                 }
                               });
                             }
@@ -540,20 +739,44 @@ class _PosViewState extends State<PosView> {
                         child: DropdownButtonFormField<Map<String, dynamic>>(
                           value: _selectedCustomer,
                           isExpanded: true,
-                          style: TextStyle(color: theme.colorScheme.onSurface, fontSize: 14, fontWeight: FontWeight.w500),
+                          style: TextStyle(
+                            color: theme.colorScheme.onSurface,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
                           dropdownColor: theme.colorScheme.surface,
                           iconEnabledColor: theme.colorScheme.onSurface,
                           decoration: InputDecoration(
-                            labelText: (_paymentType == 'DEBT' || _paymentType == 'MIXED') ? 'Mijoz *' : 'Mijoz (ixtiyoriy)',
+                            labelText:
+                                (_paymentType == 'DEBT' ||
+                                    _paymentType == 'MIXED')
+                                ? 'Mijoz *'
+                                : 'Mijoz (ixtiyoriy)',
                             isDense: true,
                             border: const OutlineInputBorder(),
                           ),
                           items: [
-                            DropdownMenuItem(value: null, child: Text('Mijozsiz sotuv', style: TextStyle(color: theme.colorScheme.onSurface))),
-                            ..._customers.map((c) => DropdownMenuItem(
-                                  value: c as Map<String, dynamic>,
-                                  child: Text(c['name'] ?? '', style: TextStyle(color: theme.colorScheme.onSurface), overflow: TextOverflow.ellipsis),
-                                )),
+                            DropdownMenuItem(
+                              value: null,
+                              child: Text(
+                                'Mijozsiz sotuv',
+                                style: TextStyle(
+                                  color: theme.colorScheme.onSurface,
+                                ),
+                              ),
+                            ),
+                            ..._customers.map(
+                              (c) => DropdownMenuItem(
+                                value: c as Map<String, dynamic>,
+                                child: Text(
+                                  c['name'] ?? '',
+                                  style: TextStyle(
+                                    color: theme.colorScheme.onSurface,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ),
                           ],
                           onChanged: (val) {
                             setState(() => _selectedCustomer = val);
@@ -570,8 +793,17 @@ class _PosViewState extends State<PosView> {
                       onChanged: (_) => setState(() {}),
                       decoration: InputDecoration(
                         labelText: 'Hozir to\'lanadigan (naqd) summa',
-                        helperText: 'Qolgani mijoz qarziga yoziladi: '
-                            '${_formatCurrency((_totalAmount - (double.tryParse(_paidNowController.text.trim()) ?? 0)).clamp(0, _totalAmount))}',
+                        suffixText: _currency,
+                        helperText: () {
+                          final typed =
+                              double.tryParse(_paidNowController.text.trim()) ??
+                              0.0;
+                          final typedUzs = _currency == 'USD'
+                              ? typed * _exchangeRate
+                              : typed;
+                          return 'Qolgani mijoz qarziga yoziladi: '
+                              '${_formatDisplay((_totalAmount - typedUzs).clamp(0, _totalAmount))}';
+                        }(),
                         border: const OutlineInputBorder(),
                         isDense: true,
                       ),
@@ -584,9 +816,12 @@ class _PosViewState extends State<PosView> {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('Jami summa:', style: TextStyle(fontSize: 12)),
+                          const Text(
+                            'Jami summa:',
+                            style: TextStyle(fontSize: 12),
+                          ),
                           Text(
-                            _formatCurrency(_totalAmount),
+                            _formatDisplay(_totalAmount),
                             style: GoogleFonts.outfit(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
@@ -600,7 +835,10 @@ class _PosViewState extends State<PosView> {
                         icon: const Icon(Icons.check),
                         label: const Text('To\'lov qilish'),
                         style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 14,
+                          ),
                           backgroundColor: theme.colorScheme.primary,
                           foregroundColor: theme.colorScheme.onPrimary,
                         ),
