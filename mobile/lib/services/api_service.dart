@@ -5,23 +5,27 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'navigation_service.dart';
 
 // Every device must reach the same backend regardless of network (phone and
-// desktop are not guaranteed to share a Wi-Fi/LAN), so the default is always
-// the live Railway API. A per-device override is still available via
-// updateHost() (wired to the login screen's server-settings dialog) for
-// local development/testing only.
-const String defaultApiUrl = 'https://erp-backend-production-e88a.up.railway.app/api/v1';
+// desktop are not guaranteed to share a Wi-Fi/LAN), so this is the only API
+// URL the app ever uses — no per-device override, no local/LAN picker. A
+// prior version exposed a server-address picker on the login screen; it was
+// removed because a stray tap there would silently and persistently point
+// the app at a personal dev machine's IP instead of the real backend.
+const String defaultApiUrl =
+    'https://erp-backend-production-e88a.up.railway.app/api/v1';
 
 class ApiService {
   static final ApiService _instance = ApiService._internal();
   factory ApiService() => _instance;
   ApiService._internal();
 
-  final Dio dio = Dio(BaseOptions(
-    baseUrl: defaultApiUrl,
-    connectTimeout: const Duration(seconds: 30),
-    receiveTimeout: const Duration(seconds: 30),
-    sendTimeout: const Duration(seconds: 30),
-  ));
+  final Dio dio = Dio(
+    BaseOptions(
+      baseUrl: defaultApiUrl,
+      connectTimeout: const Duration(seconds: 30),
+      receiveTimeout: const Duration(seconds: 30),
+      sendTimeout: const Duration(seconds: 30),
+    ),
+  );
 
   String? _token;
   String? _refreshToken;
@@ -35,125 +39,99 @@ class ApiService {
     _refreshToken = prefs.getString('refresh_token');
     _companyId = prefs.getString('company_id');
 
-    final savedHost = prefs.getString('api_host');
-    if (savedHost != null && savedHost.isNotEmpty) {
-      dio.options.baseUrl = savedHost;
-    } else {
-      dio.options.baseUrl = defaultApiUrl;
-    }
+    dio.options.baseUrl = defaultApiUrl;
 
     dio.interceptors.clear();
-    dio.interceptors.add(InterceptorsWrapper(
-      onRequest: (options, handler) {
-        if (_token != null && _token!.isNotEmpty) {
-          options.headers['Authorization'] = 'Bearer $_token';
-        }
-        if (_companyId != null && _companyId!.isNotEmpty) {
-          options.headers['X-Company-Id'] = _companyId;
-        }
-        if (options.method.toUpperCase() == 'POST' ||
-            options.method.toUpperCase() == 'PUT' ||
-            options.method.toUpperCase() == 'PATCH') {
-          final time = DateTime.now().microsecondsSinceEpoch;
-          options.headers['Idempotency-Key'] = 'm_${time}_${options.path.hashCode.abs()}';
-        }
-        return handler.next(options);
-      },
-      onError: (e, handler) async {
-        final isAuthPath = e.requestOptions.path.contains('/auth/login') ||
-            e.requestOptions.path.contains('/auth/refresh') ||
-            e.requestOptions.path.contains('/auth/logout');
+    dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          if (_token != null && _token!.isNotEmpty) {
+            options.headers['Authorization'] = 'Bearer $_token';
+          }
+          if (_companyId != null && _companyId!.isNotEmpty) {
+            options.headers['X-Company-Id'] = _companyId;
+          }
+          if (options.method.toUpperCase() == 'POST' ||
+              options.method.toUpperCase() == 'PUT' ||
+              options.method.toUpperCase() == 'PATCH') {
+            final time = DateTime.now().microsecondsSinceEpoch;
+            options.headers['Idempotency-Key'] =
+                'm_${time}_${options.path.hashCode.abs()}';
+          }
+          return handler.next(options);
+        },
+        onError: (e, handler) async {
+          final isAuthPath =
+              e.requestOptions.path.contains('/auth/login') ||
+              e.requestOptions.path.contains('/auth/refresh') ||
+              e.requestOptions.path.contains('/auth/logout');
 
-        if (e.response?.statusCode != 401 || isAuthPath) {
-          return handler.next(e);
-        }
-
-        // A refresh is already in flight (triggered by a concurrent request):
-        // wait for it instead of failing/logging out immediately, then retry
-        // this request with whatever token the refresh produced.
-        if (_isRefreshing) {
-          final waiter = Completer<void>();
-          _refreshWaiters.add(waiter);
-          try {
-            await waiter.future;
-            final opts = e.requestOptions;
-            opts.headers['Authorization'] = 'Bearer $_token';
-            final cloneReq = await dio.fetch(opts);
-            return handler.resolve(cloneReq);
-          } catch (_) {
+          if (e.response?.statusCode != 401 || isAuthPath) {
             return handler.next(e);
           }
-        }
 
-        if (_refreshToken != null && _refreshToken!.isNotEmpty) {
-          _isRefreshing = true;
-          try {
-            final refreshDio = Dio(BaseOptions(baseUrl: dio.options.baseUrl));
-            final res = await refreshDio.post('/auth/refresh', data: {
-              'refreshToken': _refreshToken,
-            });
-            if (res.statusCode == 200 || res.statusCode == 201) {
-              _token = res.data['accessToken'];
-              _refreshToken = res.data['refreshToken'] ?? _refreshToken;
-              final prefs = await SharedPreferences.getInstance();
-              if (_token != null) await prefs.setString('auth_token', _token!);
-              if (_refreshToken != null) await prefs.setString('refresh_token', _refreshToken!);
-
-              for (final w in _refreshWaiters) {
-                if (!w.isCompleted) w.complete();
-              }
-              _refreshWaiters.clear();
-
+          // A refresh is already in flight (triggered by a concurrent request):
+          // wait for it instead of failing/logging out immediately, then retry
+          // this request with whatever token the refresh produced.
+          if (_isRefreshing) {
+            final waiter = Completer<void>();
+            _refreshWaiters.add(waiter);
+            try {
+              await waiter.future;
               final opts = e.requestOptions;
               opts.headers['Authorization'] = 'Bearer $_token';
               final cloneReq = await dio.fetch(opts);
               return handler.resolve(cloneReq);
+            } catch (_) {
+              return handler.next(e);
             }
-          } catch (_) {
-            // Refresh failed
-          } finally {
-            _isRefreshing = false;
           }
-        }
 
-        for (final w in _refreshWaiters) {
-          if (!w.isCompleted) w.completeError('refresh-failed');
-        }
-        _refreshWaiters.clear();
+          if (_refreshToken != null && _refreshToken!.isNotEmpty) {
+            _isRefreshing = true;
+            try {
+              final refreshDio = Dio(BaseOptions(baseUrl: dio.options.baseUrl));
+              final res = await refreshDio.post(
+                '/auth/refresh',
+                data: {'refreshToken': _refreshToken},
+              );
+              if (res.statusCode == 200 || res.statusCode == 201) {
+                _token = res.data['accessToken'];
+                _refreshToken = res.data['refreshToken'] ?? _refreshToken;
+                final prefs = await SharedPreferences.getInstance();
+                if (_token != null)
+                  await prefs.setString('auth_token', _token!);
+                if (_refreshToken != null)
+                  await prefs.setString('refresh_token', _refreshToken!);
 
-        await clearSession();
-        NavigationService.redirectToLogin();
-        return handler.next(e);
-      },
-    ));
-  }
+                for (final w in _refreshWaiters) {
+                  if (!w.isCompleted) w.complete();
+                }
+                _refreshWaiters.clear();
 
-  Future<void> updateHost(String host) async {
-    String input = host.trim();
-    if (input.isEmpty) {
-      dio.options.baseUrl = defaultApiUrl;
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('api_host');
-      return;
-    }
+                final opts = e.requestOptions;
+                opts.headers['Authorization'] = 'Bearer $_token';
+                final cloneReq = await dio.fetch(opts);
+                return handler.resolve(cloneReq);
+              }
+            } catch (_) {
+              // Refresh failed
+            } finally {
+              _isRefreshing = false;
+            }
+          }
 
-    String formattedUrl = input;
-    if (!formattedUrl.startsWith('http://') && !formattedUrl.startsWith('https://')) {
-      if (formattedUrl.contains('railway.app') || formattedUrl.contains('onrender.com') || formattedUrl.contains('vercel.app')) {
-        formattedUrl = 'https://$formattedUrl';
-      } else {
-        final hostWithPort = formattedUrl.contains(':') ? formattedUrl : '$formattedUrl:3000';
-        formattedUrl = 'http://$hostWithPort';
-      }
-    }
+          for (final w in _refreshWaiters) {
+            if (!w.isCompleted) w.completeError('refresh-failed');
+          }
+          _refreshWaiters.clear();
 
-    if (!formattedUrl.endsWith('/api/v1')) {
-      formattedUrl = '$formattedUrl/api/v1';
-    }
-
-    dio.options.baseUrl = formattedUrl;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('api_host', formattedUrl);
+          await clearSession();
+          NavigationService.redirectToLogin();
+          return handler.next(e);
+        },
+      ),
+    );
   }
 
   String get host {
@@ -166,33 +144,48 @@ class ApiService {
 
   Future<String?> login(String email, String password) async {
     try {
-      final res = await dio.post('/auth/login', data: {
-        'email': email.trim().toLowerCase(),
-        'password': password,
-        'deviceInfo': {
-          'deviceId': '550e8400-e29b-41d4-a716-446655440000',
-          'name': 'Flutter Mobile',
-          'platform': 'android',
-          'osVersion': 'android-14'
-        }
-      });
+      final res = await dio.post(
+        '/auth/login',
+        data: {
+          'email': email.trim().toLowerCase(),
+          'password': password,
+          'deviceInfo': {
+            'deviceId': '550e8400-e29b-41d4-a716-446655440000',
+            'name': 'Flutter Mobile',
+            'platform': 'android',
+            'osVersion': 'android-14',
+          },
+        },
+      );
 
       if (res.statusCode == 200 || res.statusCode == 201) {
         final data = res.data;
         _token = data['accessToken'];
         _refreshToken = data['refreshToken'];
         final dynamic currentCo = data['currentCompany'];
-        final dynamic firstCo = (data['companies'] is List && (data['companies'] as List).isNotEmpty) ? data['companies'][0] : null;
+        final dynamic firstCo =
+            (data['companies'] is List &&
+                (data['companies'] as List).isNotEmpty)
+            ? data['companies'][0]
+            : null;
         final company = currentCo ?? firstCo;
         _companyId = company?['id']?.toString();
 
         final prefs = await SharedPreferences.getInstance();
         if (_token != null) await prefs.setString('auth_token', _token!);
-        if (_refreshToken != null) await prefs.setString('refresh_token', _refreshToken!);
-        if (_companyId != null) await prefs.setString('company_id', _companyId!);
-        if (company != null) await prefs.setString('active_company', jsonEncode(company));
-        if (data['companies'] != null) await prefs.setString('user_companies', jsonEncode(data['companies']));
-        if (data['user'] != null) await prefs.setString('user_details', jsonEncode(data['user']));
+        if (_refreshToken != null)
+          await prefs.setString('refresh_token', _refreshToken!);
+        if (_companyId != null)
+          await prefs.setString('company_id', _companyId!);
+        if (company != null)
+          await prefs.setString('active_company', jsonEncode(company));
+        if (data['companies'] != null)
+          await prefs.setString(
+            'user_companies',
+            jsonEncode(data['companies']),
+          );
+        if (data['user'] != null)
+          await prefs.setString('user_details', jsonEncode(data['user']));
 
         return null;
       }
@@ -206,17 +199,25 @@ class ApiService {
 
   Future<bool> switchCompany(String newCompanyId) async {
     try {
-      final res = await dio.post('/auth/switch-company', data: {'companyId': newCompanyId});
+      final res = await dio.post(
+        '/auth/switch-company',
+        data: {'companyId': newCompanyId},
+      );
       if (res.statusCode == 200 || res.statusCode == 201) {
         _companyId = newCompanyId;
         if (res.data['accessToken'] != null) _token = res.data['accessToken'];
-        if (res.data['refreshToken'] != null) _refreshToken = res.data['refreshToken'];
+        if (res.data['refreshToken'] != null)
+          _refreshToken = res.data['refreshToken'];
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('company_id', newCompanyId);
         if (_token != null) await prefs.setString('auth_token', _token!);
-        if (_refreshToken != null) await prefs.setString('refresh_token', _refreshToken!);
+        if (_refreshToken != null)
+          await prefs.setString('refresh_token', _refreshToken!);
         if (res.data['activeCompany'] != null) {
-          await prefs.setString('active_company', jsonEncode(res.data['activeCompany']));
+          await prefs.setString(
+            'active_company',
+            jsonEncode(res.data['activeCompany']),
+          );
         }
         return true;
       }
@@ -267,7 +268,11 @@ class ApiService {
   }
 
   /// Uploads a local file as multipart/form-data (field name `file`).
-  Future<Response> uploadFile(String path, String filePath, {String fieldName = 'file'}) async {
+  Future<Response> uploadFile(
+    String path,
+    String filePath, {
+    String fieldName = 'file',
+  }) async {
     final formData = FormData.fromMap({
       fieldName: await MultipartFile.fromFile(filePath),
     });
@@ -276,7 +281,10 @@ class ApiService {
 
   /// Downloads a binary response (e.g. a generated report file) as raw bytes.
   Future<Response<List<int>>> downloadBytes(String path) async {
-    return dio.get<List<int>>(path, options: Options(responseType: ResponseType.bytes));
+    return dio.get<List<int>>(
+      path,
+      options: Options(responseType: ResponseType.bytes),
+    );
   }
 
   Future<Response> patch(String path, dynamic data) async {
@@ -295,7 +303,10 @@ class ApiService {
     if (e is DioException) {
       final res = e.response;
       if (res?.data != null && res!.data is Map) {
-        final rawMsg = res.data['error']?['message'] ?? res.data['message'] ?? res.data['error'];
+        final rawMsg =
+            res.data['error']?['message'] ??
+            res.data['message'] ??
+            res.data['error'];
         if (rawMsg != null) {
           if (rawMsg is List) return rawMsg.join(', ');
           final str = rawMsg.toString();
