@@ -126,6 +126,13 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
 async function main() {
   console.log('Seeding baseline reference data (idempotent, no data is deleted)...');
 
+  // Standalone script holding one connection for its whole run — a plain
+  // session-level SET (not the transaction-local set_config used elsewhere)
+  // is correct here. Inert today (no RLS policies exist yet), but required
+  // once Stage B enables FORCE ROW LEVEL SECURITY — this script legitimately
+  // writes across companies/roles/permissions with no single companyId.
+  await prisma.$executeRawUnsafe("SET app.bypass_rls = 'on'");
+
   for (const perm of PERMISSIONS) {
     await prisma.permission.upsert({
       where: { code: perm.code },

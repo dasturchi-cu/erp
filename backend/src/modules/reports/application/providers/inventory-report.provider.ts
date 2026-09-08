@@ -1,6 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
+import { RLS_PRISMA, RlsPrismaClient } from '../../../../core/database/rls-prisma.service';
 import { PrismaService } from '../../../../core/database/prisma.service';
 import { formatMoney } from '../../../../core/utils/money.util';
 import { paginationSkip } from '../../../../core/utils/pagination.util';
@@ -9,7 +10,7 @@ import { applySearch, paginateRows, sortRows, sumDecimal } from './report-query.
 
 @Injectable()
 export class InventoryReportProvider {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(RLS_PRISMA) private readonly prisma: RlsPrismaClient, private readonly basePrisma: PrismaService) {}
 
   async run(ctx: ReportQueryContext): Promise<ReportProviderResult> {
     switch (ctx.template) {
@@ -177,20 +178,23 @@ export class InventoryReportProvider {
       where.product = { name: { contains: ctx.q, mode: 'insensitive' } };
     }
 
-    const [total, movements] = await this.prisma.$transaction([
-      this.prisma.inventoryMovement.count({ where }),
-      this.prisma.inventoryMovement.findMany({
-        where,
-        include: {
-          product: { select: { name: true, sku: true } },
-          warehouse: { select: { name: true } },
-          performer: { select: { firstName: true, lastName: true } },
-        },
-        orderBy: { createdAt: 'desc' },
-        skip: paginationSkip(ctx.page, ctx.limit),
-        take: ctx.limit,
-      }),
-    ]);
+    const [total, movements] = await this.basePrisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.company_id', ${ctx.companyId}, true)`;
+      return [
+        await tx.inventoryMovement.count({ where }),
+        await tx.inventoryMovement.findMany({
+          where,
+          include: {
+            product: { select: { name: true, sku: true } },
+            warehouse: { select: { name: true } },
+            performer: { select: { firstName: true, lastName: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+          skip: paginationSkip(ctx.page, ctx.limit),
+          take: ctx.limit,
+        }),
+      ] as const;
+    });
 
     const data = movements.map((m) => ({
       date: m.createdAt.toISOString(),
@@ -214,19 +218,22 @@ export class InventoryReportProvider {
 
   private async batches(ctx: ReportQueryContext): Promise<ReportProviderResult> {
     const where = this.batchWhere(ctx);
-    const [total, batches] = await this.prisma.$transaction([
-      this.prisma.inventoryBatch.count({ where }),
-      this.prisma.inventoryBatch.findMany({
-        where,
-        include: {
-          product: { select: { sku: true, name: true } },
-          warehouse: { select: { name: true } },
-        },
-        orderBy: { receivedAt: 'asc' },
-        skip: paginationSkip(ctx.page, ctx.limit),
-        take: ctx.limit,
-      }),
-    ]);
+    const [total, batches] = await this.basePrisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.company_id', ${ctx.companyId}, true)`;
+      return [
+        await tx.inventoryBatch.count({ where }),
+        await tx.inventoryBatch.findMany({
+          where,
+          include: {
+            product: { select: { sku: true, name: true } },
+            warehouse: { select: { name: true } },
+          },
+          orderBy: { receivedAt: 'asc' },
+          skip: paginationSkip(ctx.page, ctx.limit),
+          take: ctx.limit,
+        }),
+      ] as const;
+    });
 
     const now = Date.now();
     const data = batches.map((b) => {

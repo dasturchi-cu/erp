@@ -1,6 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
+import { RLS_PRISMA, RlsPrismaClient } from '../../../../core/database/rls-prisma.service';
 import { PrismaService } from '../../../../core/database/prisma.service';
 import { formatMoney } from '../../../../core/utils/money.util';
 import { paginationSkip } from '../../../../core/utils/pagination.util';
@@ -9,7 +10,7 @@ import { applySearch, moneyFields, paginateRows, saleDateFilter, sortRows, sumDe
 
 @Injectable()
 export class ProfitReportProvider {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(RLS_PRISMA) private readonly prisma: RlsPrismaClient, private readonly basePrisma: PrismaService) {}
 
   async run(ctx: ReportQueryContext): Promise<ReportProviderResult> {
     switch (ctx.template) {
@@ -187,20 +188,23 @@ export class ProfitReportProvider {
       sale: saleDateFilter(ctx),
     };
 
-    const [total, allocations] = await this.prisma.$transaction([
-      this.prisma.saleFifoAllocation.count({ where }),
-      this.prisma.saleFifoAllocation.findMany({
-        where,
-        include: {
-          sale: { select: { saleNumber: true } },
-          product: { select: { sku: true, name: true } },
-          batch: { select: { id: true, receivedAt: true } },
-        },
-        orderBy: { sale: { createdAt: 'desc' } },
-        skip: paginationSkip(ctx.page, ctx.limit),
-        take: ctx.limit,
-      }),
-    ]);
+    const [total, allocations] = await this.basePrisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.company_id', ${ctx.companyId}, true)`;
+      return [
+        await tx.saleFifoAllocation.count({ where }),
+        await tx.saleFifoAllocation.findMany({
+          where,
+          include: {
+            sale: { select: { saleNumber: true } },
+            product: { select: { sku: true, name: true } },
+            batch: { select: { id: true, receivedAt: true } },
+          },
+          orderBy: { sale: { createdAt: 'desc' } },
+          skip: paginationSkip(ctx.page, ctx.limit),
+          take: ctx.limit,
+        }),
+      ] as const;
+    });
 
     const agg = await this.prisma.saleFifoAllocation.aggregate({
       where,

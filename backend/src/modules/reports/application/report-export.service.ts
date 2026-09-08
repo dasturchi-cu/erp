@@ -1,7 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { ReportExportFormat, ReportJobStatus } from '@prisma/client';
 import * as fs from 'fs';
 import * as path from 'path';
+import { RLS_PRISMA, RlsPrismaClient } from '../../../core/database/rls-prisma.service';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { AppException } from '../../../core/exceptions/app.exception';
 import { AuditService } from '../../../core/audit/audit.service';
@@ -18,7 +19,8 @@ export class ReportExportService {
   private readonly uploadDir: string;
 
   constructor(
-    private readonly prisma: PrismaService,
+    @Inject(RLS_PRISMA) private readonly prisma: RlsPrismaClient,
+    private readonly basePrisma: PrismaService,
     private readonly audit: AuditService,
   ) {
     this.uploadDir = path.join(getStorageRoot(), 'uploads', 'reports');
@@ -218,15 +220,18 @@ export class ReportExportService {
 
   async listHistory(companyId: string, userId: string, page: number, limit: number) {
     const where = { companyId, userId };
-    const [total, jobs] = await this.prisma.$transaction([
-      this.prisma.reportJob.count({ where }),
-      this.prisma.reportJob.findMany({
-        where,
-        orderBy: { createdAt: 'desc' },
-        skip: (page - 1) * limit,
-        take: limit,
-      }),
-    ]);
+    const [total, jobs] = await this.basePrisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.company_id', ${companyId}, true)`;
+      return [
+        await tx.reportJob.count({ where }),
+        await tx.reportJob.findMany({
+          where,
+          orderBy: { createdAt: 'desc' },
+          skip: (page - 1) * limit,
+          take: limit,
+        }),
+      ] as const;
+    });
 
     return {
       data: jobs.map((j) => ({

@@ -1,7 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { Prisma, SupplierStatus, OriginalCurrency } from '@prisma/client';
 import { CurrencyService } from '../../currency/application/currency.service';
 import { Decimal } from '@prisma/client/runtime/library';
+import { RLS_PRISMA, RlsPrismaClient } from '../../../core/database/rls-prisma.service';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { AuditService } from '../../../core/audit/audit.service';
 import { AppException } from '../../../core/exceptions/app.exception';
@@ -47,7 +48,8 @@ function periodDateRange(period: 'day' | 'month' | 'year'): { from: Date; to: Da
 @Injectable()
 export class SuppliersService {
   constructor(
-    private readonly prisma: PrismaService,
+    @Inject(RLS_PRISMA) private readonly prisma: RlsPrismaClient,
+    private readonly basePrisma: PrismaService,
     private readonly audit: AuditService,
     private readonly supplierDebt: SupplierDebtService,
     private readonly currencyService: CurrencyService,
@@ -76,15 +78,18 @@ export class SuppliersService {
       { field: 'name', direction: 'asc' },
     ]);
 
-    const [total, rows] = await this.prisma.$transaction([
-      this.prisma.supplier.count({ where }),
-      this.prisma.supplier.findMany({
-        where,
-        orderBy: toPrismaOrderBy(sort),
-        skip: paginationSkip(page, limit),
-        take: limit,
-      }),
-    ]);
+    const [total, rows] = await this.basePrisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.company_id', ${companyId}, true)`;
+      return [
+        await tx.supplier.count({ where }),
+        await tx.supplier.findMany({
+          where,
+          orderBy: toPrismaOrderBy(sort),
+          skip: paginationSkip(page, limit),
+          take: limit,
+        }),
+      ] as const;
+    });
 
     return {
       data: rows.map((row) => this.toSupplierResponse(row)),
@@ -158,16 +163,19 @@ export class SuppliersService {
     const where: Prisma.SupplierPaymentWhereInput = { companyId };
     if (query.supplierId) where.supplierId = query.supplierId;
 
-    const [total, rows] = await this.prisma.$transaction([
-      this.prisma.supplierPayment.count({ where }),
-      this.prisma.supplierPayment.findMany({
-        where,
-        include: { supplier: true, recorder: true },
-        orderBy: { createdAt: 'desc' },
-        skip: paginationSkip(page, limit),
-        take: limit,
-      }),
-    ]);
+    const [total, rows] = await this.basePrisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.company_id', ${companyId}, true)`;
+      return [
+        await tx.supplierPayment.count({ where }),
+        await tx.supplierPayment.findMany({
+          where,
+          include: { supplier: true, recorder: true },
+          orderBy: { createdAt: 'desc' },
+          skip: paginationSkip(page, limit),
+          take: limit,
+        }),
+      ] as const;
+    });
 
     return {
       data: rows.map((row) => this.toPaymentResponse(row)),
@@ -319,16 +327,19 @@ export class SuppliersService {
       }
     }
 
-    const [total, rows] = await this.prisma.$transaction([
-      this.prisma.supplierReceipt.count({ where }),
-      this.prisma.supplierReceipt.findMany({
-        where,
-        include: { product: true },
-        orderBy: { createdAt: 'desc' },
-        skip: paginationSkip(page, limit),
-        take: limit,
-      }),
-    ]);
+    const [total, rows] = await this.basePrisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.company_id', ${companyId}, true)`;
+      return [
+        await tx.supplierReceipt.count({ where }),
+        await tx.supplierReceipt.findMany({
+          where,
+          include: { product: true },
+          orderBy: { createdAt: 'desc' },
+          skip: paginationSkip(page, limit),
+          take: limit,
+        }),
+      ] as const;
+    });
 
     const data: SupplierReceiptResponseDto[] = rows.map((row) => ({
       id: row.id,
@@ -367,15 +378,18 @@ export class SuppliersService {
       }
     }
 
-    const [total, rows] = await this.prisma.$transaction([
-      this.prisma.supplierDebtHistory.count({ where }),
-      this.prisma.supplierDebtHistory.findMany({
-        where,
-        orderBy: { createdAt: 'desc' },
-        skip: paginationSkip(page, limit),
-        take: limit,
-      }),
-    ]);
+    const [total, rows] = await this.basePrisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.company_id', ${companyId}, true)`;
+      return [
+        await tx.supplierDebtHistory.count({ where }),
+        await tx.supplierDebtHistory.findMany({
+          where,
+          orderBy: { createdAt: 'desc' },
+          skip: paginationSkip(page, limit),
+          take: limit,
+        }),
+      ] as const;
+    });
 
     const userIds = [...new Set(rows.map((r) => r.recordedBy))];
     const users = await this.prisma.user.findMany({
@@ -417,7 +431,8 @@ export class SuppliersService {
     const amountUzs = dto.currency === OriginalCurrency.UZS ? amount : amount.mul(exchangeRate);
     const amountUsd = dto.currency === OriginalCurrency.USD ? amount : amount.div(exchangeRate);
 
-    const payment = await this.prisma.$transaction(async (tx) => {
+    const payment = await this.basePrisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.company_id', ${companyId}, true)`;
       const created = await tx.supplierPayment.create({
         data: {
           companyId,

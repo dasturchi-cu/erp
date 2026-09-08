@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import {
   CompanyStatus,
   InventoryBatchSourceType,
@@ -8,6 +8,7 @@ import {
   OriginalCurrency,
 } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
+import { RLS_PRISMA, RlsPrismaClient } from '../../../core/database/rls-prisma.service';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { AuditService } from '../../../core/audit/audit.service';
 import { AppException } from '../../../core/exceptions/app.exception';
@@ -64,7 +65,8 @@ type MovementWithRelations = Prisma.InventoryMovementGetPayload<{
 @Injectable()
 export class InventoryService {
   constructor(
-    private readonly prisma: PrismaService,
+    @Inject(RLS_PRISMA) private readonly prisma: RlsPrismaClient,
+    private readonly basePrisma: PrismaService,
     private readonly audit: AuditService,
     private readonly currencyService: CurrencyService,
     private readonly supplierDebt: SupplierDebtService,
@@ -157,16 +159,19 @@ export class InventoryService {
       receivedAt: s.field === 'receivedAt' ? s.direction : undefined,
     })) as Prisma.InventoryBatchOrderByWithRelationInput[];
 
-    const [total, rows] = await this.prisma.$transaction([
-      this.prisma.inventoryBatch.count({ where }),
-      this.prisma.inventoryBatch.findMany({
-        where,
-        include: { product: true, warehouse: true },
-        orderBy: orderBy.length ? orderBy : [{ receivedAt: 'desc' }],
-        skip: paginationSkip(page, limit),
-        take: limit,
-      }),
-    ]);
+    const [total, rows] = await this.basePrisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.company_id', ${companyId}, true)`;
+      return [
+        await tx.inventoryBatch.count({ where }),
+        await tx.inventoryBatch.findMany({
+          where,
+          include: { product: true, warehouse: true },
+          orderBy: orderBy.length ? orderBy : [{ receivedAt: 'desc' }],
+          skip: paginationSkip(page, limit),
+          take: limit,
+        }),
+      ] as const;
+    });
 
     return {
       data: rows.map((row) => this.toBatchResponse(row)),
@@ -207,16 +212,19 @@ export class InventoryService {
       { field: 'createdAt', direction: 'desc' },
     ]);
 
-    const [total, rows] = await this.prisma.$transaction([
-      this.prisma.inventoryMovement.count({ where }),
-      this.prisma.inventoryMovement.findMany({
-        where,
-        include: { product: true, warehouse: true, performer: true },
-        orderBy: [{ createdAt: sort[0]?.direction ?? 'desc' }],
-        skip: paginationSkip(page, limit),
-        take: limit,
-      }),
-    ]);
+    const [total, rows] = await this.basePrisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.company_id', ${companyId}, true)`;
+      return [
+        await tx.inventoryMovement.count({ where }),
+        await tx.inventoryMovement.findMany({
+          where,
+          include: { product: true, warehouse: true, performer: true },
+          orderBy: [{ createdAt: sort[0]?.direction ?? 'desc' }],
+          skip: paginationSkip(page, limit),
+          take: limit,
+        }),
+      ] as const;
+    });
 
     return {
       data: rows.map((row) => this.toMovementResponse(row)),
@@ -265,7 +273,8 @@ export class InventoryService {
       receivedBy: userId,
     };
 
-    const result = await this.prisma.$transaction(async (tx) => {
+    const result = await this.basePrisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.company_id', ${companyId}, true)`;
       const batch = await createReceiptBatch(tx, {
         companyId,
         productId: dto.productId,
@@ -419,7 +428,8 @@ export class InventoryService {
     await this.ensureProduct(companyId, dto.productId);
     await this.ensureWarehouse(companyId, dto.warehouseId);
 
-    const result = await this.prisma.$transaction(async (tx) => {
+    const result = await this.basePrisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.company_id', ${companyId}, true)`;
       let movement;
 
       if (delta.lt(0)) {
@@ -536,7 +546,8 @@ export class InventoryService {
       throw AppException.businessRule('Transfers must be within the same branch');
     }
 
-    const movementIds = await this.prisma.$transaction(async (tx) => {
+    const movementIds = await this.basePrisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.company_id', ${companyId}, true)`;
       const allocations = await deductFifo(tx, {
         companyId,
         productId: dto.productId,

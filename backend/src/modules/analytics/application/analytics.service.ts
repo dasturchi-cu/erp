@@ -1,10 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { ReportPeriod } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import { AuditService } from '../../../core/audit/audit.service';
 import { formatMoney } from '../../../core/utils/money.util';
 import { AnalyticsCacheService } from './analytics-cache.service';
-import { PrismaService } from '../../../core/database/prisma.service';
+import { RLS_PRISMA, RlsPrismaClient } from '../../../core/database/rls-prisma.service';
 import {
   defaultChartPoints,
   formatMonthShort,
@@ -46,7 +46,7 @@ export class AnalyticsService {
     private readonly queries: AnalyticsQueriesService,
     private readonly cache: AnalyticsCacheService,
     private readonly audit: AuditService,
-    private readonly prisma: PrismaService,
+    @Inject(RLS_PRISMA) private readonly prisma: RlsPrismaClient,
   ) {}
 
   private scope(

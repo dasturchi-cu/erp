@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import {
   Prisma,
   SupplierDebtHistoryType,
@@ -7,13 +7,18 @@ import {
   OriginalCurrency,
 } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
-import { PrismaService } from '../../../core/database/prisma.service';
+import { RLS_PRISMA, RlsPrismaClient } from '../../../core/database/rls-prisma.service';
 import { AppException } from '../../../core/exceptions/app.exception';
 import { formatMoney, isPositiveMoney } from '../../../core/utils/money.util';
 
+// Narrow structural type for the models this service touches — avoids the
+// TS "excessive stack depth" error from directly unioning the RLS-extended
+// client's complex type with the plain transaction client type.
+type SupplierDebtDb = Pick<Prisma.TransactionClient, 'supplier' | 'supplierDebtHistory'>;
+
 @Injectable()
 export class SupplierDebtService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(RLS_PRISMA) private readonly prisma: RlsPrismaClient) {}
 
   async recordReceiptCredit(
     tx: Prisma.TransactionClient,
@@ -160,7 +165,7 @@ export class SupplierDebtService {
     paymentId: string,
     tx?: Prisma.TransactionClient,
   ): Promise<Decimal> {
-    const db = tx ?? this.prisma;
+    const db: SupplierDebtDb = tx ?? (this.prisma as unknown as SupplierDebtDb);
     const supplier = await db.supplier.findFirst({
       where: { id: supplierId, companyId, deletedAt: null },
     });

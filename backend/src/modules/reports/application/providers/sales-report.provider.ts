@@ -1,6 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
+import { RLS_PRISMA, RlsPrismaClient } from '../../../../core/database/rls-prisma.service';
 import { PrismaService } from '../../../../core/database/prisma.service';
 import { formatMoney } from '../../../../core/utils/money.util';
 import { paginationSkip, parseSort } from '../../../../core/utils/pagination.util';
@@ -17,7 +18,7 @@ import {
 
 @Injectable()
 export class SalesReportProvider {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(RLS_PRISMA) private readonly prisma: RlsPrismaClient, private readonly basePrisma: PrismaService) {}
 
   async run(ctx: ReportQueryContext): Promise<ReportProviderResult> {
     switch (ctx.template) {
@@ -120,20 +121,23 @@ export class SalesReportProvider {
       return { [s.field]: s.direction };
     }) as Prisma.SaleOrderByWithRelationInput[];
 
-    const [total, sales] = await this.prisma.$transaction([
-      this.prisma.sale.count({ where }),
-      this.prisma.sale.findMany({
-        where,
-        include: {
-          customer: { select: { name: true } },
-          cashier: { select: { firstName: true, lastName: true } },
-          items: { select: { id: true } },
-        },
-        orderBy,
-        skip: paginationSkip(ctx.page, ctx.limit),
-        take: ctx.limit,
-      }),
-    ]);
+    const [total, sales] = await this.basePrisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.company_id', ${ctx.companyId}, true)`;
+      return [
+        await tx.sale.count({ where }),
+        await tx.sale.findMany({
+          where,
+          include: {
+            customer: { select: { name: true } },
+            cashier: { select: { firstName: true, lastName: true } },
+            items: { select: { id: true } },
+          },
+          orderBy,
+          skip: paginationSkip(ctx.page, ctx.limit),
+          take: ctx.limit,
+        }),
+      ] as const;
+    });
 
     const agg = await this.prisma.sale.aggregate({
       where,
@@ -338,20 +342,23 @@ export class SalesReportProvider {
       ];
     }
 
-    const [total, returns] = await this.prisma.$transaction([
-      this.prisma.saleReturn.count({ where }),
-      this.prisma.saleReturn.findMany({
-        where,
-        include: {
-          sale: { select: { saleNumber: true } },
-          customer: { select: { name: true } },
-          items: { select: { id: true } },
-        },
-        orderBy: { createdAt: 'desc' },
-        skip: paginationSkip(ctx.page, ctx.limit),
-        take: ctx.limit,
-      }),
-    ]);
+    const [total, returns] = await this.basePrisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.company_id', ${ctx.companyId}, true)`;
+      return [
+        await tx.saleReturn.count({ where }),
+        await tx.saleReturn.findMany({
+          where,
+          include: {
+            sale: { select: { saleNumber: true } },
+            customer: { select: { name: true } },
+            items: { select: { id: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+          skip: paginationSkip(ctx.page, ctx.limit),
+          take: ctx.limit,
+        }),
+      ] as const;
+    });
 
     const agg = await this.prisma.saleReturn.aggregate({
       where,

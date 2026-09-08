@@ -1,6 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { ReportPeriod } from '@prisma/client';
-import { PrismaService } from '../../../core/database/prisma.service';
+import { RLS_PRISMA, RlsPrismaClient } from '../../../core/database/rls-prisma.service';
 import { AppException } from '../../../core/exceptions/app.exception';
 import { buildPaginationMeta, paginationSkip } from '../../../core/utils/pagination.util';
 import { AuditService } from '../../../core/audit/audit.service';
@@ -24,7 +24,7 @@ import { ProfitReportProvider } from './providers/profit-report.provider';
 @Injectable()
 export class ReportsService {
   constructor(
-    private readonly prisma: PrismaService,
+    @Inject(RLS_PRISMA) private readonly prisma: RlsPrismaClient,
     private readonly audit: AuditService,
     private readonly exportService: ReportExportService,
     private readonly salesProvider: SalesReportProvider,

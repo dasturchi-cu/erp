@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import {
   CompanyStatus,
   InventoryBatchSourceType,
@@ -11,6 +11,7 @@ import {
   SaleStatus,
 } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
+import { RLS_PRISMA, RlsPrismaClient } from '../../../core/database/rls-prisma.service';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { AuditService } from '../../../core/audit/audit.service';
 import { IdempotencyService } from '../../../core/idempotency/idempotency.service';
@@ -66,7 +67,8 @@ type ReturnWithRelations = Prisma.SaleReturnGetPayload<{
 @Injectable()
 export class SalesService {
   constructor(
-    private readonly prisma: PrismaService,
+    @Inject(RLS_PRISMA) private readonly prisma: RlsPrismaClient,
+    private readonly basePrisma: PrismaService,
     private readonly audit: AuditService,
     private readonly currencyService: CurrencyService,
     private readonly debtService: DebtService,
@@ -140,21 +142,24 @@ export class SalesService {
       return { createdAt: s.direction };
     }) as Prisma.SaleOrderByWithRelationInput[];
 
-    const [total, rows] = await this.prisma.$transaction([
-      this.prisma.sale.count({ where }),
-      this.prisma.sale.findMany({
-        where,
-        include: {
-          customer: true,
-          cashier: true,
-          items: { include: { product: true } },
-          fifoAllocations: { include: { product: true } },
-        },
-        orderBy: orderBy.length ? orderBy : [{ createdAt: 'desc' }],
-        skip: paginationSkip(page, limit),
-        take: limit,
-      }),
-    ]);
+    const [total, rows] = await this.basePrisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.company_id', ${companyId}, true)`;
+      return [
+        await tx.sale.count({ where }),
+        await tx.sale.findMany({
+          where,
+          include: {
+            customer: true,
+            cashier: true,
+            items: { include: { product: true } },
+            fifoAllocations: { include: { product: true } },
+          },
+          orderBy: orderBy.length ? orderBy : [{ createdAt: 'desc' }],
+          skip: paginationSkip(page, limit),
+          take: limit,
+        }),
+      ] as const;
+    });
 
     return {
       data: rows.map((row) => this.toSaleResponse(row)),
@@ -239,20 +244,23 @@ export class SalesService {
     const where: Prisma.SaleReturnWhereInput = { companyId };
     if (query.status) where.status = query.status;
 
-    const [total, rows] = await this.prisma.$transaction([
-      this.prisma.saleReturn.count({ where }),
-      this.prisma.saleReturn.findMany({
-        where,
-        include: {
-          sale: true,
-          customer: true,
-          items: { include: { product: true } },
-        },
-        orderBy: { createdAt: 'desc' },
-        skip: paginationSkip(page, limit),
-        take: limit,
-      }),
-    ]);
+    const [total, rows] = await this.basePrisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.company_id', ${companyId}, true)`;
+      return [
+        await tx.saleReturn.count({ where }),
+        await tx.saleReturn.findMany({
+          where,
+          include: {
+            sale: true,
+            customer: true,
+            items: { include: { product: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+          skip: paginationSkip(page, limit),
+          take: limit,
+        }),
+      ] as const;
+    });
 
     return {
       data: rows.map((row) => this.toReturnResponse(row)),
@@ -273,7 +281,8 @@ export class SalesService {
     ip?: string,
     requestId?: string,
   ): Promise<SaleReturnResponseDto> {
-    const ret = await this.prisma.$transaction(async (tx) => {
+    const ret = await this.basePrisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.company_id', ${companyId}, true)`;
       await tx.$executeRaw`
         SELECT id FROM sale_returns
         WHERE id = ${returnId}::uuid AND company_id = ${companyId}::uuid
@@ -431,7 +440,8 @@ export class SalesService {
       throw AppException.businessRule('Return is not pending');
     }
 
-    const ret = await this.prisma.$transaction(async (tx) => {
+    const ret = await this.basePrisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.company_id', ${companyId}, true)`;
       const updated = await tx.saleReturn.update({
         where: { id: returnId },
         data: {
@@ -480,7 +490,8 @@ export class SalesService {
     const activeRate = await this.currencyService.getActiveRateOrThrow(companyId);
     const exchangeRate = activeRate.rate;
 
-    const saleId = await this.prisma.$transaction(async (tx) => {
+    const saleId = await this.basePrisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.company_id', ${companyId}, true)`;
       const resolvedBranchId = await this.resolveBranchId(tx, companyId, branchId);
       const warehouse = await this.resolveWarehouse(tx, companyId, userId, resolvedBranchId);
       const saleNumber = await this.generateSaleNumber(tx, companyId);
@@ -700,7 +711,8 @@ export class SalesService {
     ip?: string,
     requestId?: string,
   ): Promise<SaleResponseDto> {
-    await this.prisma.$transaction(async (tx) => {
+    await this.basePrisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.company_id', ${companyId}, true)`;
       await tx.$executeRaw`
         SELECT id FROM sales
         WHERE id = ${saleId}::uuid AND company_id = ${companyId}::uuid
@@ -803,7 +815,8 @@ export class SalesService {
     ip?: string,
     requestId?: string,
   ): Promise<SaleReturnResponseDto> {
-    const ret = await this.prisma.$transaction(async (tx) => {
+    const ret = await this.basePrisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.company_id', ${companyId}, true)`;
       await this.lockSaleForUpdate(tx, companyId, saleId);
       const sale = await tx.sale.findFirst({
         where: { id: saleId, companyId },

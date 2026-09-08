@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import {
   BackupJobStatus,
   BackupTrigger,
@@ -10,6 +10,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { gzipSync, gunzipSync } from 'zlib';
+import { RLS_PRISMA, RlsPrismaClient } from '../../../core/database/rls-prisma.service';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { RedisService } from '../../../core/redis/redis.service';
 import { AuditService } from '../../../core/audit/audit.service';
@@ -86,7 +87,8 @@ export class AdminBackupService {
   private readonly backupDir: string;
 
   constructor(
-    private readonly prisma: PrismaService,
+    @Inject(RLS_PRISMA) private readonly prisma: RlsPrismaClient,
+    private readonly basePrisma: PrismaService,
     private readonly audit: AuditService,
   ) {
     this.backupDir = path.join(getStorageRoot(), 'uploads', 'backups');
@@ -225,7 +227,8 @@ export class AdminBackupService {
       throw AppException.forbidden('BACKUP_COMPANY_MISMATCH', 'Backup belongs to another company');
     }
 
-    await this.prisma.$transaction(async (tx) => {
+    await this.basePrisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.company_id', ${companyId}, true)`;
       for (const cat of payload.categories ?? []) {
         await tx.productCategory.upsert({
           where: { id: cat.id },
@@ -403,7 +406,8 @@ export class AdminBackupService {
 @Injectable()
 export class AdminMonitoringService {
   constructor(
-    private readonly prisma: PrismaService,
+    @Inject(RLS_PRISMA) private readonly prisma: RlsPrismaClient,
+    private readonly basePrisma: PrismaService,
     private readonly redis: RedisService,
   ) {}
 

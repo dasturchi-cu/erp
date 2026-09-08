@@ -1,12 +1,12 @@
-import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../../core/database/prisma.service';
+import { Inject, Injectable } from '@nestjs/common';
+import { RLS_PRISMA, RlsPrismaClient } from '../../core/database/rls-prisma.service';
 import { CreateExpenseDto, ExpenseQueryDto } from './dto/expenses.dto';
 import { AppException } from '../../core/exceptions/app.exception';
 import { Decimal } from '@prisma/client/runtime/library';
 
 @Injectable()
 export class ExpensesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(RLS_PRISMA) private readonly prisma: RlsPrismaClient) {}
 
   async create(companyId: string, userId: string, dto: CreateExpenseDto) {
     // 1. Get active exchange rate

@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { CustomerStatus, Prisma } from '@prisma/client';
+import { RLS_PRISMA, RlsPrismaClient } from '../../../core/database/rls-prisma.service';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { AuditService } from '../../../core/audit/audit.service';
 import { AppException } from '../../../core/exceptions/app.exception';
@@ -24,7 +25,8 @@ import {
 @Injectable()
 export class CustomersService {
   constructor(
-    private readonly prisma: PrismaService,
+    @Inject(RLS_PRISMA) private readonly prisma: RlsPrismaClient,
+    private readonly basePrisma: PrismaService,
     private readonly audit: AuditService,
   ) {}
 
@@ -47,15 +49,18 @@ export class CustomersService {
       [{ field: 'name', direction: 'asc' }],
     );
 
-    const [total, rows] = await this.prisma.$transaction([
-      this.prisma.customer.count({ where }),
-      this.prisma.customer.findMany({
-        where,
-        orderBy: toPrismaOrderBy(sort),
-        skip: paginationSkip(page, limit),
-        take: limit,
-      }),
-    ]);
+    const [total, rows] = await this.basePrisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.company_id', ${companyId}, true)`;
+      return [
+        await tx.customer.count({ where }),
+        await tx.customer.findMany({
+          where,
+          orderBy: toPrismaOrderBy(sort),
+          skip: paginationSkip(page, limit),
+          take: limit,
+        }),
+      ] as const;
+    });
 
     return {
       data: rows.map((row) => this.toCustomerResponse(row)),
@@ -222,16 +227,19 @@ export class CustomersService {
 
     const sort = parseSort(query.sort, ['createdAt'], [{ field: 'createdAt', direction: 'desc' }]);
 
-    const [total, rows] = await this.prisma.$transaction([
-      this.prisma.debtHistory.count({ where }),
-      this.prisma.debtHistory.findMany({
-        where,
-        include: { recorder: true },
-        orderBy: toPrismaOrderBy(sort),
-        skip: paginationSkip(page, limit),
-        take: limit,
-      }),
-    ]);
+    const [total, rows] = await this.basePrisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.company_id', ${companyId}, true)`;
+      return [
+        await tx.debtHistory.count({ where }),
+        await tx.debtHistory.findMany({
+          where,
+          include: { recorder: true },
+          orderBy: toPrismaOrderBy(sort),
+          skip: paginationSkip(page, limit),
+          take: limit,
+        }),
+      ] as const;
+    });
 
     const data: DebtHistoryEntryDto[] = rows.map((row) => ({
       id: row.id,

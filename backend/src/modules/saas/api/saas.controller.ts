@@ -1,13 +1,15 @@
-import { Controller, Get, Post, Body, Query, UseGuards, Req, Ip, Res, Param } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query, UseGuards, UseInterceptors, Req, Ip, Res, Param } from '@nestjs/common';
 import { SaasService } from '../application/saas.service';
 import { JwtAuthGuard } from '../../../core/guards/jwt-auth.guard';
 import { CurrentUser } from '../../../core/decorators/current-user.decorator';
 import { Public } from '../../../core/decorators/auth.decorators';
+import { RlsBypassInterceptor } from '../../../core/company/rls-bypass.interceptor';
 import { Request, Response } from 'express';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 
 @ApiTags('SaaS Platform')
 @Controller('saas')
+@UseInterceptors(RlsBypassInterceptor)
 export class SaasController {
   constructor(private readonly saasService: SaasService) {}
 

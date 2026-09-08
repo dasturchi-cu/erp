@@ -1,6 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { UserCompanyStatus } from '@prisma/client';
-import { PrismaService } from '../database/prisma.service';
+import { RLS_PRISMA, RlsPrismaClient } from '../database/rls-prisma.service';
+import { rlsContextStorage } from '../company/rls-context.storage';
 
 export interface ResolvedAccess {
   permissions: string[];
@@ -11,7 +12,7 @@ export interface ResolvedAccess {
 
 @Injectable()
 export class AccessControlService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(RLS_PRISMA) private readonly prisma: RlsPrismaClient) {}
 
   async resolveAccess(userId: string, companyId: string | undefined): Promise<ResolvedAccess> {
     if (!companyId) {
@@ -23,6 +24,13 @@ export class AccessControlService {
       };
     }
 
+    // This runs from CompanyIsolationGuard, before RlsContextInterceptor (which
+    // runs after guards) has established the ambient per-request ALS scope —
+    // so it must open its own, using the companyId it's already given.
+    return rlsContextStorage.run({ companyId }, () => this.doResolveAccess(userId, companyId));
+  }
+
+  private async doResolveAccess(userId: string, companyId: string): Promise<ResolvedAccess> {
     const membership = await this.prisma.userCompany.findUnique({
       where: { userId_companyId: { userId, companyId } },
       include: {

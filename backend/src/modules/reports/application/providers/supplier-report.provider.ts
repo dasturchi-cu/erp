@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { RLS_PRISMA, RlsPrismaClient } from '../../../../core/database/rls-prisma.service';
 import { PrismaService } from '../../../../core/database/prisma.service';
 import { formatMoney } from '../../../../core/utils/money.util';
 import { paginationSkip } from '../../../../core/utils/pagination.util';
@@ -8,7 +9,7 @@ import { applySearch, paginateRows } from './report-query.helpers';
 
 @Injectable()
 export class SupplierReportProvider {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(RLS_PRISMA) private readonly prisma: RlsPrismaClient, private readonly basePrisma: PrismaService) {}
 
   async run(ctx: ReportQueryContext): Promise<ReportProviderResult> {
     switch (ctx.template) {
@@ -32,15 +33,18 @@ export class SupplierReportProvider {
       ];
     }
 
-    const [total, suppliers] = await this.prisma.$transaction([
-      this.prisma.supplier.count({ where }),
-      this.prisma.supplier.findMany({
-        where,
-        orderBy: { totalDebtUzs: 'desc' },
-        skip: paginationSkip(ctx.page, ctx.limit),
-        take: ctx.limit,
-      }),
-    ]);
+    const [total, suppliers] = await this.basePrisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.company_id', ${ctx.companyId}, true)`;
+      return [
+        await tx.supplier.count({ where }),
+        await tx.supplier.findMany({
+          where,
+          orderBy: { totalDebtUzs: 'desc' },
+          skip: paginationSkip(ctx.page, ctx.limit),
+          take: ctx.limit,
+        }),
+      ] as const;
+    });
 
     const agg = await this.prisma.supplier.aggregate({
       where,
@@ -82,15 +86,18 @@ export class SupplierReportProvider {
       where.name = { contains: ctx.q, mode: 'insensitive' };
     }
 
-    const [total, suppliers] = await this.prisma.$transaction([
-      this.prisma.supplier.count({ where }),
-      this.prisma.supplier.findMany({
-        where,
-        orderBy: { totalDebtUzs: 'desc' },
-        skip: paginationSkip(ctx.page, ctx.limit),
-        take: ctx.limit,
-      }),
-    ]);
+    const [total, suppliers] = await this.basePrisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.company_id', ${ctx.companyId}, true)`;
+      return [
+        await tx.supplier.count({ where }),
+        await tx.supplier.findMany({
+          where,
+          orderBy: { totalDebtUzs: 'desc' },
+          skip: paginationSkip(ctx.page, ctx.limit),
+          take: ctx.limit,
+        }),
+      ] as const;
+    });
 
     const data = suppliers.map((s) => ({
       name: s.name,

@@ -1,6 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { OriginalCurrency, Prisma } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
+import { RLS_PRISMA, RlsPrismaClient } from '../../../core/database/rls-prisma.service';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { AuditService } from '../../../core/audit/audit.service';
 import { IdempotencyService } from '../../../core/idempotency/idempotency.service';
@@ -35,7 +36,8 @@ type PaymentWithRelations = Prisma.DebtPaymentGetPayload<{
 @Injectable()
 export class DebtPaymentsService {
   constructor(
-    private readonly prisma: PrismaService,
+    @Inject(RLS_PRISMA) private readonly prisma: RlsPrismaClient,
+    private readonly basePrisma: PrismaService,
     private readonly audit: AuditService,
     private readonly currencyService: CurrencyService,
     private readonly debtService: DebtService,
@@ -65,16 +67,19 @@ export class DebtPaymentsService {
       { field: 'createdAt', direction: 'desc' },
     ]);
 
-    const [total, rows] = await this.prisma.$transaction([
-      this.prisma.debtPayment.count({ where }),
-      this.prisma.debtPayment.findMany({
-        where,
-        include: { customer: true, receiver: true },
-        orderBy: [{ createdAt: sort[0]?.direction ?? 'desc' }],
-        skip: paginationSkip(page, limit),
-        take: limit,
-      }),
-    ]);
+    const [total, rows] = await this.basePrisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.company_id', ${companyId}, true)`;
+      return [
+        await tx.debtPayment.count({ where }),
+        await tx.debtPayment.findMany({
+          where,
+          include: { customer: true, receiver: true },
+          orderBy: [{ createdAt: sort[0]?.direction ?? 'desc' }],
+          skip: paginationSkip(page, limit),
+          take: limit,
+        }),
+      ] as const;
+    });
 
     return {
       data: rows.map((row) => this.toPaymentResponse(row)),
@@ -115,7 +120,8 @@ export class DebtPaymentsService {
     ip?: string,
     requestId?: string,
   ): Promise<DebtPaymentResponseDto> {
-    const payment = await this.prisma.$transaction(async (tx) => {
+    const payment = await this.basePrisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.company_id', ${companyId}, true)`;
       const existing = await tx.debtPayment.findFirst({
         where: { id: paymentId, companyId },
       });
@@ -216,15 +222,18 @@ export class DebtPaymentsService {
     });
     const rate = activeRate?.rate ?? new Decimal(12620);
 
-    const [total, rows] = await this.prisma.$transaction([
-      this.prisma.customer.count({ where }),
-      this.prisma.customer.findMany({
-        where,
-        orderBy: [{ totalDebtUzs: 'desc' }],
-        skip: paginationSkip(page, limit),
-        take: limit,
-      }),
-    ]);
+    const [total, rows] = await this.basePrisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.company_id', ${companyId}, true)`;
+      return [
+        await tx.customer.count({ where }),
+        await tx.customer.findMany({
+          where,
+          orderBy: [{ totalDebtUzs: 'desc' }],
+          skip: paginationSkip(page, limit),
+          take: limit,
+        }),
+      ] as const;
+    });
 
     const data: CustomerDebtListItemDto[] = rows.map((c) => ({
       id: c.id,
@@ -256,7 +265,8 @@ export class DebtPaymentsService {
     const activeRate = await this.currencyService.getActiveRateOrThrow(companyId);
     const exchangeRate = activeRate.rate;
 
-    const payment = await this.prisma.$transaction(async (tx) => {
+    const payment = await this.basePrisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.company_id', ${companyId}, true)`;
       await tx.$executeRaw`
         SELECT id FROM customers
         WHERE id = ${dto.customerId}::uuid AND company_id = ${companyId}::uuid AND deleted_at IS NULL

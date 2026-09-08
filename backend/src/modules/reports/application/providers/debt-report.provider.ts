@@ -1,6 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { DebtHistoryType, Prisma } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
+import { RLS_PRISMA, RlsPrismaClient } from '../../../../core/database/rls-prisma.service';
 import { PrismaService } from '../../../../core/database/prisma.service';
 import { formatMoney } from '../../../../core/utils/money.util';
 import { paginationSkip } from '../../../../core/utils/pagination.util';
@@ -14,7 +15,7 @@ import {
 
 @Injectable()
 export class DebtReportProvider {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(RLS_PRISMA) private readonly prisma: RlsPrismaClient, private readonly basePrisma: PrismaService) {}
 
   async run(ctx: ReportQueryContext): Promise<ReportProviderResult> {
     switch (ctx.template) {
@@ -47,15 +48,18 @@ export class DebtReportProvider {
       ];
     }
 
-    const [total, customers] = await this.prisma.$transaction([
-      this.prisma.customer.count({ where }),
-      this.prisma.customer.findMany({
-        where,
-        orderBy: { totalDebtUzs: 'desc' },
-        skip: paginationSkip(ctx.page, ctx.limit),
-        take: ctx.limit,
-      }),
-    ]);
+    const [total, customers] = await this.basePrisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.company_id', ${ctx.companyId}, true)`;
+      return [
+        await tx.customer.count({ where }),
+        await tx.customer.findMany({
+          where,
+          orderBy: { totalDebtUzs: 'desc' },
+          skip: paginationSkip(ctx.page, ctx.limit),
+          take: ctx.limit,
+        }),
+      ] as const;
+    });
 
     const agg = await this.prisma.customer.aggregate({
       where,
@@ -168,19 +172,22 @@ export class DebtReportProvider {
       where.customer = { name: { contains: ctx.q, mode: 'insensitive' } };
     }
 
-    const [total, payments] = await this.prisma.$transaction([
-      this.prisma.debtPayment.count({ where }),
-      this.prisma.debtPayment.findMany({
-        where,
-        include: {
-          customer: { select: { name: true } },
-          receiver: { select: { firstName: true, lastName: true } },
-        },
-        orderBy: { createdAt: 'desc' },
-        skip: paginationSkip(ctx.page, ctx.limit),
-        take: ctx.limit,
-      }),
-    ]);
+    const [total, payments] = await this.basePrisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.company_id', ${ctx.companyId}, true)`;
+      return [
+        await tx.debtPayment.count({ where }),
+        await tx.debtPayment.findMany({
+          where,
+          include: {
+            customer: { select: { name: true } },
+            receiver: { select: { firstName: true, lastName: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+          skip: paginationSkip(ctx.page, ctx.limit),
+          take: ctx.limit,
+        }),
+      ] as const;
+    });
 
     const agg = await this.prisma.debtPayment.aggregate({
       where,

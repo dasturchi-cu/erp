@@ -1,6 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { ExpenseCategory, Prisma } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
+import { RLS_PRISMA, RlsPrismaClient } from '../../../../core/database/rls-prisma.service';
 import { PrismaService } from '../../../../core/database/prisma.service';
 import { formatMoney } from '../../../../core/utils/money.util';
 import { paginationSkip } from '../../../../core/utils/pagination.util';
@@ -9,7 +10,7 @@ import { applySearch, moneyFields, paginateRows, sortRows, sumDecimal } from './
 
 @Injectable()
 export class ExpenseReportProvider {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(RLS_PRISMA) private readonly prisma: RlsPrismaClient, private readonly basePrisma: PrismaService) {}
 
   async run(ctx: ReportQueryContext): Promise<ReportProviderResult> {
     switch (ctx.template) {
@@ -75,19 +76,22 @@ export class ExpenseReportProvider {
       ];
     }
 
-    const [total, expenses] = await this.prisma.$transaction([
-      this.prisma.expense.count({ where }),
-      this.prisma.expense.findMany({
-        where,
-        include: {
-          recorder: { select: { firstName: true, lastName: true } },
-          branch: { select: { name: true } },
-        },
-        orderBy: { expenseDate: 'desc' },
-        skip: paginationSkip(ctx.page, ctx.limit),
-        take: ctx.limit,
-      }),
-    ]);
+    const [total, expenses] = await this.basePrisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.company_id', ${ctx.companyId}, true)`;
+      return [
+        await tx.expense.count({ where }),
+        await tx.expense.findMany({
+          where,
+          include: {
+            recorder: { select: { firstName: true, lastName: true } },
+            branch: { select: { name: true } },
+          },
+          orderBy: { expenseDate: 'desc' },
+          skip: paginationSkip(ctx.page, ctx.limit),
+          take: ctx.limit,
+        }),
+      ] as const;
+    });
 
     const agg = await this.prisma.expense.aggregate({
       where,

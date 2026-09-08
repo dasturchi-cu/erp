@@ -23,26 +23,4 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   async onModuleDestroy() {
     await this.$disconnect();
   }
-
-  /**
-   * NOTE: this is currently a no-op in practice and NOT a real isolation
-   * boundary. `set_config(..., true)` is transaction-local in Postgres, but
-   * this call runs as its own standalone statement (no surrounding
-   * `$transaction`), so the setting is discarded before any later query in
-   * the same request can see it — doubly so with Prisma's pooled
-   * connections, where a later query may not even reuse this connection.
-   * There are no RLS policies in the schema that read `app.company_id`
-   * today, so nothing is silently broken by this — but don't add RLS
-   * policies assuming this plumbing works without first moving to a
-   * per-request-pinned connection (e.g. wrapping the whole request in one
-   * `$transaction`, or a raw `pg` client held for the request lifetime).
-   * Company isolation is actually enforced today by every query explicitly
-   * filtering `where: { companyId }` — see CompanyIsolationGuard.
-   */
-  async setCompanyContext(companyId: string): Promise<void> {
-    await this.$executeRawUnsafe(
-      `SELECT set_config('app.company_id', $1, true)`,
-      companyId,
-    );
-  }
 }

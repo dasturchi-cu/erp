@@ -1,9 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import {
   NotificationCategory,
   NotificationSeverity,
   Prisma,
 } from '@prisma/client';
+import { RLS_PRISMA, RlsPrismaClient } from '../../../core/database/rls-prisma.service';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { AuditService } from '../../../core/audit/audit.service';
 import { AppException } from '../../../core/exceptions/app.exception';
@@ -23,7 +24,8 @@ const DEDUP_HOURS = 24;
 @Injectable()
 export class NotificationsService {
   constructor(
-    private readonly prisma: PrismaService,
+    @Inject(RLS_PRISMA) private readonly prisma: RlsPrismaClient,
+    private readonly basePrisma: PrismaService,
     private readonly audit: AuditService,
   ) {}
 
@@ -43,15 +45,18 @@ export class NotificationsService {
     if (params.read !== undefined) where.read = params.read;
     if (params.category) where.category = params.category;
 
-    const [total, rows] = await this.prisma.$transaction([
-      this.prisma.notification.count({ where }),
-      this.prisma.notification.findMany({
-        where,
-        orderBy: { createdAt: 'desc' },
-        skip: paginationSkip(params.page, params.limit),
-        take: params.limit,
-      }),
-    ]);
+    const [total, rows] = await this.basePrisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.company_id', ${companyId}, true)`;
+      return [
+        await tx.notification.count({ where }),
+        await tx.notification.findMany({
+          where,
+          orderBy: { createdAt: 'desc' },
+          skip: paginationSkip(params.page, params.limit),
+          take: params.limit,
+        }),
+      ] as const;
+    });
 
     return {
       data: rows.map(toNotificationResponse),

@@ -1,4 +1,5 @@
-import { Injectable, UnauthorizedException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, UnauthorizedException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { RLS_PRISMA, RlsPrismaClient } from '../../../core/database/rls-prisma.service';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -23,7 +24,8 @@ import { getSaasJwtSecret } from '../../../core/utils/saas-secret.util';
 @Injectable()
 export class SaaSAdminService {
   constructor(
-    private readonly prisma: PrismaService,
+    @Inject(RLS_PRISMA) private readonly prisma: RlsPrismaClient,
+    private readonly basePrisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly config: ConfigService,
   ) {}
@@ -349,7 +351,8 @@ export class SaaSAdminService {
       throw new ForbiddenException('Ushbu kompaniya kodi allaqachon ro\'yxatdan o\'tgan');
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    return this.basePrisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.bypass_rls', 'on', true)`;
       const company = await tx.company.create({
         data: {
           name: dto.name,
@@ -516,7 +519,8 @@ export class SaaSAdminService {
     }
 
     // Cascade delete related records using transaction
-    return this.prisma.$transaction(async (tx) => {
+    return this.basePrisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.bypass_rls', 'on', true)`;
       await tx.tenantSubscription.deleteMany({ where: { companyId: id } });
       await tx.saasUsageStat.deleteMany({ where: { companyId: id } });
       await tx.companyHeartbeat.deleteMany({ where: { companyId: id } });

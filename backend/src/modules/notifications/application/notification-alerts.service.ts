@@ -1,14 +1,14 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { NotificationCategory, NotificationSeverity } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
-import { PrismaService } from '../../../core/database/prisma.service';
+import { RLS_PRISMA, RlsPrismaClient } from '../../../core/database/rls-prisma.service';
 import { formatMoney } from '../../../core/utils/money.util';
 import { NotificationsService } from './notifications.service';
 
 @Injectable()
 export class NotificationAlertsService {
   constructor(
-    private readonly prisma: PrismaService,
+    @Inject(RLS_PRISMA) private readonly prisma: RlsPrismaClient,
     private readonly notifications: NotificationsService,
   ) {}
 

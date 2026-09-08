@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import {
   DeviceStatus,
   Prisma,
@@ -6,7 +6,7 @@ import {
   UserStatus,
 } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
-import { PrismaService } from '../../../core/database/prisma.service';
+import { RLS_PRISMA, RlsPrismaClient } from '../../../core/database/rls-prisma.service';
 import { AuditService } from '../../../core/audit/audit.service';
 import { AppException } from '../../../core/exceptions/app.exception';
 import { getAppVersion } from '../../../core/utils/app-version.util';
@@ -30,7 +30,7 @@ import {
 @Injectable()
 export class AdminService {
   constructor(
-    private readonly prisma: PrismaService,
+    @Inject(RLS_PRISMA) private readonly prisma: RlsPrismaClient,
     private readonly audit: AuditService,
   ) {}
 

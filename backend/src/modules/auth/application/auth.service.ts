@@ -1,6 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { UserStatus, DeviceStatus, UserCompanyStatus } from '@prisma/client';
-import { PrismaService } from '../../../core/database/prisma.service';
+import { RLS_PRISMA, RlsPrismaClient } from '../../../core/database/rls-prisma.service';
+import { rlsContextStorage } from '../../../core/company/rls-context.storage';
 import { AppException } from '../../../core/exceptions/app.exception';
 import { AuditService } from '../../../core/audit/audit.service';
 import { AccessControlService } from '../../../core/access/access-control.service';
@@ -20,14 +21,37 @@ type UserWithMemberships = Awaited<ReturnType<AuthService['loadUserByEmail']>>;
 @Injectable()
 export class AuthService {
   constructor(
-    private readonly prisma: PrismaService,
+    @Inject(RLS_PRISMA) private readonly prisma: RlsPrismaClient,
     private readonly tokens: TokenService,
     private readonly audit: AuditService,
     private readonly accessControl: AccessControlService,
     private readonly notificationsService: NotificationsService,
   ) {}
 
+  /**
+   * This module's own real security boundary is manual userId/sessionId
+   * equality checks (login, session lookup, token verification) — it runs
+   * both before company context exists (first login) and across company
+   * switches, so scoping every individual query correctly isn't worth the
+   * complexity. All of this module's direct Prisma access runs bypassed;
+   * `AccessControlService.resolveAccess` (called from several methods below)
+   * opens its own correctly-scoped inner context for its own queries.
+   */
+  private bypass<T>(fn: () => Promise<T>): Promise<T> {
+    return rlsContextStorage.run({ bypass: true }, fn);
+  }
+
   async login(
+    email: string,
+    password: string,
+    deviceInfo: DeviceInfoDto,
+    ipAddress?: string,
+    requestId?: string,
+  ): Promise<LoginResponseDto> {
+    return this.bypass(() => this.doLogin(email, password, deviceInfo, ipAddress, requestId));
+  }
+
+  private async doLogin(
     email: string,
     password: string,
     deviceInfo: DeviceInfoDto,
@@ -147,6 +171,10 @@ export class AuthService {
   }
 
   async refresh(refreshToken: string, ipAddress?: string): Promise<LoginResponseDto> {
+    return this.bypass(() => this.doRefresh(refreshToken, ipAddress));
+  }
+
+  private async doRefresh(refreshToken: string, ipAddress?: string): Promise<LoginResponseDto> {
     let payload;
     try {
       payload = await this.tokens.verifyRefreshToken(refreshToken);
@@ -256,6 +284,16 @@ export class AuthService {
     newPassword: string,
     requestId?: string,
   ): Promise<void> {
+    return this.bypass(() => this.doChangePassword(userId, sessionId, oldPassword, newPassword, requestId));
+  }
+
+  private async doChangePassword(
+    userId: string,
+    sessionId: string,
+    oldPassword: string,
+    newPassword: string,
+    requestId?: string,
+  ): Promise<void> {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
       throw AppException.notFound('user', userId);
@@ -289,6 +327,10 @@ export class AuthService {
   }
 
   async logout(sessionId: string, userId: string, requestId?: string): Promise<void> {
+    return this.bypass(() => this.doLogout(sessionId, userId, requestId));
+  }
+
+  private async doLogout(sessionId: string, userId: string, requestId?: string): Promise<void> {
     const session = await this.prisma.session.findFirst({
       where: { id: sessionId, userId, revokedAt: null },
     });
@@ -311,6 +353,10 @@ export class AuthService {
   }
 
   async me(userId: string, companyId?: string, sessionId?: string): Promise<MeResponseDto> {
+    return this.bypass(() => this.doMe(userId, companyId, sessionId));
+  }
+
+  private async doMe(userId: string, companyId?: string, sessionId?: string): Promise<MeResponseDto> {
     const user = await this.loadUserById(userId);
     if (!user) {
       throw AppException.notFound('user', userId);
@@ -338,6 +384,17 @@ export class AuthService {
   }
 
   async switchCompany(
+    userId: string,
+    sessionId: string,
+    companyId: string,
+    deviceUuid: string,
+    ipAddress?: string,
+    requestId?: string,
+  ): Promise<SwitchCompanyResponseDto> {
+    return this.bypass(() => this.doSwitchCompany(userId, sessionId, companyId, deviceUuid, ipAddress, requestId));
+  }
+
+  private async doSwitchCompany(
     userId: string,
     sessionId: string,
     companyId: string,

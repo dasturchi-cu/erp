@@ -1,5 +1,9 @@
 import { Global, Module } from '@nestjs/common';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import { PrismaService } from './database/prisma.service';
+import { RLS_PRISMA, rlsPrismaProvider } from './database/rls-prisma.service';
+import { RlsContextInterceptor } from './company/rls-context.interceptor';
+import { RlsBypassInterceptor } from './company/rls-bypass.interceptor';
 import { RedisService } from './redis/redis.service';
 import { AuditService } from './audit/audit.service';
 import { CompanyContextService } from './company/company-context.service';
@@ -14,6 +18,7 @@ import { JobQueueService } from './job-queue/job-queue.service';
 @Module({
   providers: [
     PrismaService,
+    rlsPrismaProvider,
     RedisService,
     AuditService,
     CompanyContextService,
@@ -23,9 +28,12 @@ import { JobQueueService } from './job-queue/job-queue.service';
     PilotErrorLogger,
     EventBusService,
     JobQueueService,
+    RlsBypassInterceptor,
+    { provide: APP_INTERCEPTOR, useClass: RlsContextInterceptor },
   ],
   exports: [
     PrismaService,
+    RLS_PRISMA,
     RedisService,
     AuditService,
     CompanyContextService,
@@ -35,6 +43,7 @@ import { JobQueueService } from './job-queue/job-queue.service';
     PilotErrorLogger,
     EventBusService,
     JobQueueService,
+    RlsBypassInterceptor,
   ],
 })
 export class CoreModule {}

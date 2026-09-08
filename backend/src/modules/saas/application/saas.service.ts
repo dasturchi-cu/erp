@@ -1,5 +1,5 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../../../core/database/prisma.service';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { RLS_PRISMA, RlsPrismaClient } from '../../../core/database/rls-prisma.service';
 import { AdminBackupService } from '../../admin/application/admin-backup-monitoring.service';
 import { SaasSubscriptionStatus, BackupType, BackupTrigger } from '@prisma/client';
 import * as os from 'os';
@@ -10,7 +10,7 @@ import { getStorageRoot } from '../../../core/utils/storage-path.util';
 @Injectable()
 export class SaasService {
   constructor(
-    private readonly prisma: PrismaService,
+    @Inject(RLS_PRISMA) private readonly prisma: RlsPrismaClient,
     private readonly backupService: AdminBackupService,
   ) {}
 

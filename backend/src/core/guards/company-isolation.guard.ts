@@ -3,7 +3,6 @@ import { Reflector } from '@nestjs/core';
 import { JwtPayload } from '../../modules/auth/interfaces/jwt-payload.interface';
 import { AppException } from '../exceptions/app.exception';
 import { CompanyContextService } from '../company/company-context.service';
-import { PrismaService } from '../database/prisma.service';
 import { AccessControlService } from '../access/access-control.service';
 import { IS_PUBLIC_KEY } from '../decorators/auth.decorators';
 import { Request } from 'express';
@@ -13,7 +12,6 @@ export class CompanyIsolationGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     private readonly companyContext: CompanyContextService,
-    private readonly prisma: PrismaService,
     private readonly accessControl: AccessControlService,
   ) {}
 
@@ -62,8 +60,6 @@ export class CompanyIsolationGuard implements CanActivate {
       permissions: access.permissions,
       modules: access.modules,
     });
-
-    await this.prisma.setCompanyContext(user.companyId);
 
     return true;
   }

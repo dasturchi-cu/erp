@@ -1,6 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { PrismaService } from '../../../core/database/prisma.service';
+import { RLS_PRISMA, RlsPrismaClient } from '../../../core/database/rls-prisma.service';
 import { AuditService } from '../../../core/audit/audit.service';
 import { AppException } from '../../../core/exceptions/app.exception';
 import {
@@ -13,7 +13,7 @@ import {
 @Injectable()
 export class CategoriesService {
   constructor(
-    private readonly prisma: PrismaService,
+    @Inject(RLS_PRISMA) private readonly prisma: RlsPrismaClient,
     private readonly audit: AuditService,
   ) {}
 
@@ -186,7 +186,12 @@ export class CategoriesService {
   }
 
   async findOrCreateByName(companyId: string, name: string, userId: string): Promise<string> {
-    return this.findOrCreateByNameInternal(this.prisma, companyId, name, userId);
+    return this.findOrCreateByNameInternal(
+      this.prisma as unknown as Prisma.TransactionClient,
+      companyId,
+      name,
+      userId,
+    );
   }
 
   async findOrCreateByNameInternal(

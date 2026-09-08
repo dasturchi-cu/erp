@@ -13,9 +13,11 @@ import {
 } from './dto/saas-admin.dto';
 
 import { Public } from '../../../core/decorators/auth.decorators';
+import { RlsBypassInterceptor } from '../../../core/company/rls-bypass.interceptor';
 
 @Controller('saas-admin')
 @Public()
+@UseInterceptors(RlsBypassInterceptor)
 export class SaaSAdminController {
   constructor(private readonly saasService: SaaSAdminService) {}
 

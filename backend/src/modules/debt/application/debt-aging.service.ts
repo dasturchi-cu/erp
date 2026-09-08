@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import {
   DebtHistoryType,
   Prisma,
@@ -6,7 +6,7 @@ import {
   SupplierDebtHistoryType,
 } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
-import { PrismaService } from '../../../core/database/prisma.service';
+import { RLS_PRISMA, RlsPrismaClient } from '../../../core/database/rls-prisma.service';
 import { AuditService } from '../../../core/audit/audit.service';
 import {
   buildPaginationMeta,
@@ -53,7 +53,7 @@ interface InternalAgingRow {
 @Injectable()
 export class DebtAgingService {
   constructor(
-    private readonly prisma: PrismaService,
+    @Inject(RLS_PRISMA) private readonly prisma: RlsPrismaClient,
     private readonly audit: AuditService,
   ) {}
 

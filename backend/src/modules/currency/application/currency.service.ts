@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { ExchangeRateStatus, Prisma } from '@prisma/client';
+import { RLS_PRISMA, RlsPrismaClient } from '../../../core/database/rls-prisma.service';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { AuditService } from '../../../core/audit/audit.service';
 import { AppException } from '../../../core/exceptions/app.exception';
@@ -29,7 +30,8 @@ import {
 @Injectable()
 export class CurrencyService {
   constructor(
-    private readonly prisma: PrismaService,
+    @Inject(RLS_PRISMA) private readonly prisma: RlsPrismaClient,
+    private readonly basePrisma: PrismaService,
     private readonly audit: AuditService,
   ) {}
 
@@ -79,16 +81,19 @@ export class CurrencyService {
       { field: 'effectiveFrom', direction: 'desc' },
     ]);
 
-    const [total, rows] = await this.prisma.$transaction([
-      this.prisma.exchangeRate.count({ where }),
-      this.prisma.exchangeRate.findMany({
-        where,
-        include: { setter: true },
-        orderBy: toPrismaOrderBy(sort),
-        skip: paginationSkip(page, limit),
-        take: limit,
-      }),
-    ]);
+    const [total, rows] = await this.basePrisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.company_id', ${companyId}, true)`;
+      return [
+        await tx.exchangeRate.count({ where }),
+        await tx.exchangeRate.findMany({
+          where,
+          include: { setter: true },
+          orderBy: toPrismaOrderBy(sort),
+          skip: paginationSkip(page, limit),
+          take: limit,
+        }),
+      ] as const;
+    });
 
     return {
       data: rows.map((row) => this.toExchangeRateResponse(row)),
@@ -110,7 +115,8 @@ export class CurrencyService {
       ]);
     }
 
-    const created = await this.prisma.$transaction(async (tx) => {
+    const created = await this.basePrisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.company_id', ${companyId}, true)`;
       const previous = await tx.exchangeRate.findFirst({
         where: { companyId, status: ExchangeRateStatus.ACTIVE },
       });

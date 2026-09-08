@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { Prisma, ProductStatus } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import { writeFileSync, existsSync, mkdirSync, unlinkSync } from 'fs';
@@ -7,6 +7,7 @@ import { randomUUID } from 'crypto';
 import AdmZip from 'adm-zip';
 import { Response } from 'express';
 const { Jimp } = require('jimp');
+import { RLS_PRISMA, RlsPrismaClient } from '../../../core/database/rls-prisma.service';
 import { PrismaService } from '../../../core/database/prisma.service';
 import { AuditService } from '../../../core/audit/audit.service';
 import { AppException } from '../../../core/exceptions/app.exception';
@@ -51,7 +52,8 @@ type ProductWithRelations = Prisma.ProductGetPayload<{
 @Injectable()
 export class ProductsService {
   constructor(
-    private readonly prisma: PrismaService,
+    @Inject(RLS_PRISMA) private readonly prisma: RlsPrismaClient,
+    private readonly basePrisma: PrismaService,
     private readonly audit: AuditService,
     private readonly categoriesService: CategoriesService,
     private readonly currencyService: CurrencyService,
@@ -105,16 +107,19 @@ export class ProductsService {
 
     const orderBy = this.buildProductOrderBy(sort);
 
-    const [total, rows] = await this.prisma.$transaction([
-      this.prisma.product.count({ where }),
-      this.prisma.product.findMany({
-        where,
-        include: { category: true, prices: true, images: true, barcodes: true, unitConversions: true, aliases: true },
-        orderBy,
-        skip: paginationSkip(page, limit),
-        take: limit,
-      }),
-    ]);
+    const [total, rows] = await this.basePrisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.company_id', ${companyId}, true)`;
+      return [
+        await tx.product.count({ where }),
+        await tx.product.findMany({
+          where,
+          include: { category: true, prices: true, images: true, barcodes: true, unitConversions: true, aliases: true },
+          orderBy,
+          skip: paginationSkip(page, limit),
+          take: limit,
+        }),
+      ] as const;
+    });
 
     const stockMap = await this.getStockMap(companyId, rows.map((r) => r.id));
     const data = await Promise.all(
@@ -242,7 +247,8 @@ export class ProductsService {
     requestId?: string,
   ): Promise<ProductResponseDto> {
     try {
-      const product = await this.prisma.$transaction(async (tx) => {
+      const product = await this.basePrisma.$transaction(async (tx) => {
+        await tx.$executeRaw`SELECT set_config('app.company_id', ${companyId}, true)`;
         const created = await this.createInternal(tx, companyId, userId, dto);
 
         await this.audit.log(
@@ -467,7 +473,8 @@ export class ProductsService {
     const minPriceUsd = dto.minPriceUsd ? parseMoney(dto.minPriceUsd) : undefined;
 
     try {
-      const updated = await this.prisma.$transaction(async (tx) => {
+      const updated = await this.basePrisma.$transaction(async (tx) => {
+        await tx.$executeRaw`SELECT set_config('app.company_id', ${companyId}, true)`;
         // Proactive duplicate barcode check on update
         const barcodeToCheck = dto.barcode === undefined ? undefined : dto.barcode?.trim() || null;
         if (barcodeToCheck) {
@@ -814,7 +821,8 @@ export class ProductsService {
     }
 
     // If pre-validation succeeded, execute imports inside a single transaction
-    const results = await this.prisma.$transaction(async (tx) => {
+    const results = await this.basePrisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.company_id', ${companyId}, true)`;
       const imported: Array<{
         row: number;
         sku: string;
@@ -1041,7 +1049,13 @@ export class ProductsService {
     product: ProductWithRelations,
     precalculatedStock?: Decimal,
   ): Promise<ProductResponseDto> {
-    const stock = precalculatedStock ?? await getProductStockTotal(this.prisma, companyId, product.id);
+    const stock =
+      precalculatedStock ??
+      (await getProductStockTotal(
+        this.prisma as unknown as Prisma.TransactionClient,
+        companyId,
+        product.id,
+      ));
 
     return {
       id: product.id,
@@ -1275,7 +1289,8 @@ export class ProductsService {
         writeFileSync(join(baseDir, 'thumb', filename), fileBuffer);
       }
 
-      await this.prisma.$transaction(async (tx) => {
+      await this.basePrisma.$transaction(async (tx) => {
+        await tx.$executeRaw`SELECT set_config('app.company_id', ${companyId}, true)`;
         await tx.productImage.updateMany({
           where: { productId: product.id, isPrimary: true },
           data: { isPrimary: false },

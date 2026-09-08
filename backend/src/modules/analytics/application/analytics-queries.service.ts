@@ -1,7 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { Prisma, ReportPeriod } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
-import { PrismaService } from '../../../core/database/prisma.service';
+import { RLS_PRISMA, RlsPrismaClient } from '../../../core/database/rls-prisma.service';
 import { chartBucketSql } from './analytics-period.util';
 
 export interface SalesAggRow {
@@ -52,7 +52,7 @@ export interface AnalyticsQueryScope {
 
 @Injectable()
 export class AnalyticsQueriesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(RLS_PRISMA) private readonly prisma: RlsPrismaClient) {}
 
   private saleFilters(scope: AnalyticsQueryScope): Prisma.Sql {
     const parts: Prisma.Sql[] = [

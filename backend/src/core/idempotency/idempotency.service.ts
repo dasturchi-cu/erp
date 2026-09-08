@@ -1,7 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { createHash } from 'crypto';
 import { Prisma } from '@prisma/client';
-import { PrismaService } from '../database/prisma.service';
+import { RLS_PRISMA, RlsPrismaClient } from '../database/rls-prisma.service';
+import { rlsContextStorage } from '../company/rls-context.storage';
 import { AppException } from '../exceptions/app.exception';
 
 const TTL_MS = 24 * 60 * 60 * 1000;
@@ -16,7 +17,19 @@ export interface IdempotencyExecuteResult<T> {
 
 @Injectable()
 export class IdempotencyService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(RLS_PRISMA) private readonly prisma: RlsPrismaClient) {}
+
+  /**
+   * Wraps this service's own direct Prisma calls with the companyId it was
+   * explicitly given — never the ambient per-request context — since this
+   * runs both from within an already-scoped request AND is a cross-cutting
+   * concern other bypass-context callers could invoke. `params.handler()`
+   * itself is invoked outside this wrapper, so it keeps using whatever
+   * ambient context is already active for the surrounding request.
+   */
+  private withCompany<T>(companyId: string, fn: () => Promise<T>): Promise<T> {
+    return rlsContextStorage.run({ companyId }, fn);
+  }
 
   hashRequest(body: unknown): string {
     let normalized: unknown = body ?? {};
@@ -62,7 +75,9 @@ export class IdempotencyService {
       },
     };
 
-    const existing = await this.prisma.idempotencyKey.findUnique({ where });
+    const existing = await this.withCompany(params.companyId, () =>
+      this.prisma.idempotencyKey.findUnique({ where }),
+    );
 
     if (existing && existing.expiresAt > new Date()) {
       if (
@@ -89,23 +104,27 @@ export class IdempotencyService {
     }
 
     try {
-      await this.prisma.idempotencyKey.create({
-        data: {
-          companyId: params.companyId,
-          idempotencyKey: params.key,
-          endpoint: params.endpoint,
-          requestHash: params.requestHash ?? null,
-          responseStatus: IN_FLIGHT_STATUS,
-          responseBody: {},
-          expiresAt,
-        },
-      });
+      await this.withCompany(params.companyId, () =>
+        this.prisma.idempotencyKey.create({
+          data: {
+            companyId: params.companyId,
+            idempotencyKey: params.key,
+            endpoint: params.endpoint,
+            requestHash: params.requestHash ?? null,
+            responseStatus: IN_FLIGHT_STATUS,
+            responseBody: {},
+            expiresAt,
+          },
+        }),
+      );
     } catch (err: unknown) {
       if (
         err instanceof Prisma.PrismaClientKnownRequestError &&
         err.code === 'P2002'
       ) {
-        const raced = await this.prisma.idempotencyKey.findUnique({ where });
+        const raced = await this.withCompany(params.companyId, () =>
+          this.prisma.idempotencyKey.findUnique({ where }),
+        );
         if (raced && raced.expiresAt > new Date()) {
           if (raced.responseStatus === IN_FLIGHT_STATUS) {
             throw AppException.conflict(
@@ -126,19 +145,23 @@ export class IdempotencyService {
     try {
       const result = await params.handler();
 
-      await this.prisma.idempotencyKey.update({
-        where,
-        data: {
-          requestHash: params.requestHash ?? null,
-          responseStatus: result.status,
-          responseBody: result.body as object,
-          expiresAt,
-        },
-      });
+      await this.withCompany(params.companyId, () =>
+        this.prisma.idempotencyKey.update({
+          where,
+          data: {
+            requestHash: params.requestHash ?? null,
+            responseStatus: result.status,
+            responseBody: result.body as object,
+            expiresAt,
+          },
+        }),
+      );
 
       return { cached: false, status: result.status, body: result.body };
     } catch (err) {
-      await this.prisma.idempotencyKey.delete({ where }).catch(() => undefined);
+      await this.withCompany(params.companyId, () =>
+        this.prisma.idempotencyKey.delete({ where }),
+      ).catch(() => undefined);
       throw err;
     }
   }
