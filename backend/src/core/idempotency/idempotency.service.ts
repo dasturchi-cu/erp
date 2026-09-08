@@ -26,6 +26,11 @@ export class IdempotencyService {
    * concern other bypass-context callers could invoke. `params.handler()`
    * itself is invoked outside this wrapper, so it keeps using whatever
    * ambient context is already active for the surrounding request.
+   *
+   * `fn` must itself `await` its Prisma call rather than just returning it:
+   * Prisma Client calls are lazy thenables that don't start real work until
+   * awaited, so a callback that merely returns the call would let the
+   * actual execution happen one level up, after run()'s scope has closed.
    */
   private withCompany<T>(companyId: string, fn: () => Promise<T>): Promise<T> {
     return rlsContextStorage.run({ companyId }, fn);
@@ -75,8 +80,8 @@ export class IdempotencyService {
       },
     };
 
-    const existing = await this.withCompany(params.companyId, () =>
-      this.prisma.idempotencyKey.findUnique({ where }),
+    const existing = await this.withCompany(params.companyId, async () =>
+      await this.prisma.idempotencyKey.findUnique({ where }),
     );
 
     if (existing && existing.expiresAt > new Date()) {
@@ -104,8 +109,8 @@ export class IdempotencyService {
     }
 
     try {
-      await this.withCompany(params.companyId, () =>
-        this.prisma.idempotencyKey.create({
+      await this.withCompany(params.companyId, async () =>
+        await this.prisma.idempotencyKey.create({
           data: {
             companyId: params.companyId,
             idempotencyKey: params.key,
@@ -122,8 +127,8 @@ export class IdempotencyService {
         err instanceof Prisma.PrismaClientKnownRequestError &&
         err.code === 'P2002'
       ) {
-        const raced = await this.withCompany(params.companyId, () =>
-          this.prisma.idempotencyKey.findUnique({ where }),
+        const raced = await this.withCompany(params.companyId, async () =>
+          await this.prisma.idempotencyKey.findUnique({ where }),
         );
         if (raced && raced.expiresAt > new Date()) {
           if (raced.responseStatus === IN_FLIGHT_STATUS) {
@@ -145,8 +150,8 @@ export class IdempotencyService {
     try {
       const result = await params.handler();
 
-      await this.withCompany(params.companyId, () =>
-        this.prisma.idempotencyKey.update({
+      await this.withCompany(params.companyId, async () =>
+        await this.prisma.idempotencyKey.update({
           where,
           data: {
             requestHash: params.requestHash ?? null,
@@ -159,8 +164,8 @@ export class IdempotencyService {
 
       return { cached: false, status: result.status, body: result.body };
     } catch (err) {
-      await this.withCompany(params.companyId, () =>
-        this.prisma.idempotencyKey.delete({ where }),
+      await this.withCompany(params.companyId, async () =>
+        await this.prisma.idempotencyKey.delete({ where }),
       ).catch(() => undefined);
       throw err;
     }

@@ -32,8 +32,16 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
     // Runs on every authenticated request, before any company context is
     // known (it's what establishes req.user) — same rationale as AuthService.
-    const session = await rlsContextStorage.run({ bypass: true }, () =>
-      this.prisma.session.findUnique({
+    //
+    // The callback must itself `await` the Prisma call rather than just
+    // returning it: Prisma Client calls are lazy thenables that don't start
+    // real work until `.then()`/`await` runs on them. If the callback just
+    // returns the unresolved call, that `await` happens in our caller — one
+    // level outside `run()` — after the ALS scope has already closed, so the
+    // extension sees no context. Awaiting inside the callback ensures the
+    // query starts while the scope is still active.
+    const session = await rlsContextStorage.run({ bypass: true }, async () =>
+      await this.prisma.session.findUnique({
         where: { id: payload.sessionId },
         include: { user: true },
       }),

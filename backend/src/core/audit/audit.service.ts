@@ -55,7 +55,11 @@ export class AuditService {
       return;
     }
 
+    // The callback must itself `await` the Prisma call — Prisma Client calls
+    // are lazy thenables that don't start real work until awaited, so just
+    // returning the call here would let the actual execution happen one
+    // level up (in this method's own `await`), after run()'s scope closed.
     const rlsContext = entry.companyId ? { companyId: entry.companyId } : { bypass: true };
-    await rlsContextStorage.run(rlsContext, () => this.prisma.auditLog.create({ data }));
+    await rlsContextStorage.run(rlsContext, async () => await this.prisma.auditLog.create({ data }));
   }
 }
