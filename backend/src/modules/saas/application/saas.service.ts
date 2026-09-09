@@ -157,6 +157,9 @@ export class SaasService {
       return;
     }
 
+    // Fire-and-forget download-count tracking — must not block or fail the
+    // actual download. An uncaught rejection here would otherwise crash the
+    // process (Node terminates on unhandled promise rejections by default).
     this.prisma.remoteUpdateHistory.findFirst({
       where: { downloadUrl: { endsWith: safeFilename } }
     }).then((rel) => {
@@ -166,7 +169,7 @@ export class SaasService {
           data: { downloadCount: { increment: 1 } }
         }).catch(err => console.error('Failed to increment download count:', err));
       }
-    });
+    }).catch(err => console.error('Failed to look up download record:', err));
 
     res.sendFile(filePath);
   }
