@@ -123,7 +123,7 @@ export function SaaSCompanyProfilePage() {
   const handleCreateUser = async () => {
     if (!id || !userEmail || !userFirstName || !userLastName) return;
     try {
-      await saasApi.createCompanyUser(id, {
+      const res = await saasApi.createCompanyUser(id, {
         email: userEmail,
         password: userPassword || undefined,
         firstName: userFirstName,
@@ -137,6 +137,13 @@ export function SaaSCompanyProfilePage() {
       setUserLastName('');
       setUserRoleName('Admin');
       fetchProfileAndBranches();
+      // Only present when no password was typed above — this is the only
+      // place the backend ever reveals it, so it must be relayed now.
+      if (res?.generatedPassword) {
+        alert(
+          `Foydalanuvchi yaratildi. Avtomatik generatsiya qilingan parol (buni mijozga yetkazing, keyin qayta ko'rsatilmaydi):\n\n${res.generatedPassword}`,
+        );
+      }
     } catch (err: any) {
       alert(err.response?.data?.message ?? 'Xodim qo\'shishda xatolik yuz berdi');
     }

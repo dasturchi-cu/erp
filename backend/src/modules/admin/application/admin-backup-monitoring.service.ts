@@ -123,7 +123,7 @@ export class AdminBackupService {
 
   async createBackup(
     companyId: string,
-    userId: string,
+    userId: string | undefined,
     type: BackupType,
     trigger: BackupTrigger,
     ip?: string,

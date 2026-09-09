@@ -934,11 +934,17 @@ export class SaaSAdminService {
     }
 
     const email = dto.email.toLowerCase().trim();
-    const password = dto.password || 'User123!';
+    // No hardcoded fallback — a shared, publicly-known default password
+    // would apply to every auto-created user across every company that
+    // never got an explicit password. Generate one instead and hand it
+    // back below so the caller can relay it to the actual user.
+    const generatedPassword = dto.password ? null : crypto.randomBytes(9).toString('base64url');
+    const password = dto.password || generatedPassword!;
     const passwordHash = await bcrypt.hash(password, 12);
 
     // Check if user already exists
     let user = await this.prisma.user.findUnique({ where: { email } });
+    const isNewUser = !user;
     if (!user) {
       user = await this.prisma.user.create({
         data: {
@@ -975,6 +981,10 @@ export class SaaSAdminService {
       firstName: user.firstName,
       lastName: user.lastName,
       role: role.name,
+      // Only present when this call actually created the user with a
+      // generated password — this is the only place it's ever shown, so
+      // relay it to the real user now.
+      ...(isNewUser && generatedPassword ? { generatedPassword } : {}),
     };
   }
 }
