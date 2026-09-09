@@ -48,7 +48,7 @@
     "appId": "com.erp.desktop",
     "productName": "ERP",
     "afterPack": "./scripts/replace-ffmpeg.cjs",
-    "compression": "normal",
+    "compression": "maximum",
     "directories": {
       "output": "release"
     },
@@ -57,7 +57,9 @@
       "dist-electron/**/*"
     ],
     "win": {
-      "target": "nsis",
+      "target": [
+        { "target": "nsis", "arch": ["x64"] }
+      ],
       "forceCodeSigning": false
     },
     "nsis": {
