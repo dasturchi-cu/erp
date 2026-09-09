@@ -56,6 +56,7 @@ export function SaaSReleasesPage() {
   const [version, setVersion] = useState('');
   const [status, setStatus] = useState('DRAFT');
   const [rolloutTarget, setRolloutTarget] = useState('GLOBAL');
+  const [platform, setPlatform] = useState('desktop');
   const [whatsNew, setWhatsNew] = useState('');
   const [bugFixes, setBugFixes] = useState('');
   const [breakingChanges, setBreakingChanges] = useState('');
@@ -113,6 +114,7 @@ export function SaaSReleasesPage() {
     formData.append('version', version);
     formData.append('status', status);
     formData.append('rolloutTarget', rolloutTarget);
+    formData.append('platform', platform);
     formData.append('whatsNew', whatsNew);
     formData.append('bugFixes', bugFixes);
     formData.append('breakingChanges', breakingChanges);
@@ -126,6 +128,7 @@ export function SaaSReleasesPage() {
       setBugFixes('');
       setBreakingChanges('');
       setFile(null);
+      setPlatform('desktop');
       fetchReleases();
     } catch (err: any) {
       setUploadError(err.response?.data?.message || 'Yuklashda xatolik yuz berdi');
@@ -231,6 +234,7 @@ export function SaaSReleasesPage() {
             <TableHead>
               <TableRow sx={{ bgcolor: 'action.hover' }}>
                 <TableCell sx={{ fontWeight: 600 }}>Versiya</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>Platforma</TableCell>
                 <TableCell sx={{ fontWeight: 600 }}>Tavsif (Changelog)</TableCell>
                 <TableCell sx={{ fontWeight: 600 }}>Holat (Status)</TableCell>
                 <TableCell sx={{ fontWeight: 600 }}>Rollout doirasi</TableCell>
@@ -243,7 +247,7 @@ export function SaaSReleasesPage() {
             <TableBody>
               {releases.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} align="center" sx={{ py: 3, color: 'text.secondary' }}>
+                  <TableCell colSpan={9} align="center" sx={{ py: 3, color: 'text.secondary' }}>
                     Yuklangan yangilanish paketlari mavjud emas.
                   </TableCell>
                 </TableRow>
@@ -251,6 +255,7 @@ export function SaaSReleasesPage() {
                 releases.map((rel) => (
                   <TableRow key={rel.id} hover>
                     <TableCell sx={{ fontWeight: 600, color: 'primary.main' }}>{rel.version}</TableCell>
+                    <TableCell>{rel.platform === 'android' ? 'Android' : 'Desktop'}</TableCell>
                     <TableCell>{rel.changelog}</TableCell>
                     <TableCell>{getStatusChip(rel.status)}</TableCell>
                     <TableCell>{getRolloutLabel(rel.rolloutTarget)}</TableCell>
@@ -395,6 +400,20 @@ export function SaaSReleasesPage() {
                   <MenuItem value="DRAFT">Draft</MenuItem>
                   <MenuItem value="BETA">Beta</MenuItem>
                   <MenuItem value="STABLE">Stable</MenuItem>
+                </TextField>
+              </Grid>
+
+              <Grid size={12}>
+                <TextField
+                  select
+                  label="Platforma"
+                  fullWidth
+                  value={platform}
+                  onChange={(e) => setPlatform(e.target.value)}
+                  helperText="Desktop uchun .exe o'rnatgich, Android uchun .apk fayl yuklang"
+                >
+                  <MenuItem value="desktop">Desktop (Windows)</MenuItem>
+                  <MenuItem value="android">Mobil (Android)</MenuItem>
                 </TextField>
               </Grid>
 

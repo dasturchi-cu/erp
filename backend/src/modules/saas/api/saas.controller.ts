@@ -69,8 +69,9 @@ export class SaasController {
   checkRemoteUpdate(
     @Query('currentVersion') currentVersion: string,
     @Query('companyId') companyId: string,
+    @Query('platform') platform: string = 'desktop',
   ) {
-    return this.saasService.checkRemoteUpdateForCompany(currentVersion, companyId);
+    return this.saasService.checkRemoteUpdateForCompany(currentVersion, companyId, platform);
   }
 
   @Public()

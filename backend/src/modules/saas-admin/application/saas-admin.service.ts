@@ -749,11 +749,16 @@ export class SaaSAdminService {
     const sha256 = crypto.createHash('sha256').update(file.buffer).digest('hex');
     const signature = signBuffer(file.buffer);
 
-    const safeFilename = `update_${dto.version.replace(/[^a-zA-Z0-9.-]/g, '_')}_${Date.now()}.zip`;
+    // Preserve the real extension (.exe for desktop, .apk for android) — the
+    // downloaded file is spawned/opened directly by its client, and a
+    // mismatched extension is at best confusing, at worst refused by the OS.
+    const originalExt = path.extname(file.originalname || '') || '.zip';
+    const safeFilename = `update_${dto.version.replace(/[^a-zA-Z0-9.-]/g, '_')}_${Date.now()}${originalExt}`;
     const destPath = path.join(UPDATES_DIR, safeFilename);
     fs.writeFileSync(destPath, file.buffer);
 
     const downloadUrl = `/api/v1/saas/updates/download/${safeFilename}`;
+    const platform = dto.platform === 'android' ? 'android' : 'desktop';
 
     const created = await this.prisma.remoteUpdateHistory.create({
       data: {
@@ -761,6 +766,8 @@ export class SaaSAdminService {
         changelog: dto.whatsNew || 'Update package',
         downloadUrl,
         checksum: sha256,
+        signature,
+        platform,
         status: dto.status || 'DRAFT',
         rolloutTarget: dto.rolloutTarget || 'GLOBAL',
         uploadedBy: 'Super Admin',

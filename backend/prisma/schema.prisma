@@ -1310,6 +1310,8 @@ model RemoteUpdateHistory {
   changelog     String   @db.Text
   downloadUrl   String   @map("download_url") @db.VarChar(255)
   checksum      String   @db.VarChar(255)
+  signature     String?  @db.Text
+  platform      String   @default("desktop") @db.VarChar(20)
   status        String   @default("DRAFT") @db.VarChar(20)
   rolloutTarget String   @map("rollout_target") @default("GLOBAL") @db.VarChar(20)
   uploadedBy    String   @map("uploaded_by") @default("Super Admin") @db.VarChar(100)
@@ -1317,6 +1319,7 @@ model RemoteUpdateHistory {
   downloadCount Int      @map("download_count") @default(0)
   releasedAt    DateTime @map("released_at") @db.Timestamptz(6)
 
+  @@index([platform, status, releasedAt(sort: Desc)])
   @@map("remote_update_histories")
 }
 

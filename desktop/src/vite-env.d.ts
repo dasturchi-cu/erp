@@ -8,6 +8,9 @@ export interface ElectronAPI {
     electron: string;
   };
   appendPilotLog?: (line: string) => Promise<void>;
+  getAppVersion?: () => Promise<string>;
+  downloadUpdate?: (url: string, sha256: string) => Promise<string>;
+  installUpdate?: (installerPath: string) => Promise<void>;
 }
 
 declare global {

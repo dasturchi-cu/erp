@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Sidebar } from '@/components/organisms/Sidebar';
 import { TopBar } from '@/components/organisms/TopBar';
 import { BreadcrumbBar } from '@/components/molecules/BreadcrumbBar';
+import { UpdateBanner } from '@/components/organisms/UpdateBanner';
 import { useUiStore } from '@/stores/uiStore';
 import { SIDEBAR_COLLAPSED_WIDTH, SIDEBAR_WIDTH } from '@/constants';
 
@@ -35,6 +36,7 @@ export function AppShell() {
         }}
       >
         <TopBar onMenuClick={() => setMobileOpen(true)} />
+        <UpdateBanner />
         <BreadcrumbBar />
         <Box
           sx={{

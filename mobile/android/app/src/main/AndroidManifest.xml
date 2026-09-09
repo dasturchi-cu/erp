@@ -8,6 +8,10 @@
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30"/>
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT"/>
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" tools:targetApi="s"/>
+    <!-- Lets the user install a downloaded update APK — Android still shows
+         its own "install this app" confirmation, this only allows the
+         request to be made (required on API 26+, ignored below that). -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
     <application
         android:label="ERP Enterprise"
         android:name="${applicationName}"

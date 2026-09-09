@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/api_service.dart';
 import '../services/sync_service.dart';
+import '../services/update_service.dart';
 import 'pos_view.dart';
 import 'products_view.dart';
 import 'inventory_view.dart';
@@ -35,6 +36,12 @@ class DashboardView extends StatefulWidget {
 class _DashboardViewState extends State<DashboardView> {
   final _apiService = ApiService();
   final _syncService = SyncService();
+  final _updateService = UpdateService();
+
+  UpdateInfo? _updateInfo;
+  double? _updateDownloadProgress;
+  String? _updateError;
+  bool _updateInstalling = false;
 
   bool _loading = true;
   int _pendingSyncCount = 0;
@@ -54,12 +61,132 @@ class _DashboardViewState extends State<DashboardView> {
     super.initState();
     _loadDashboardData();
     _loadUnreadNotifications();
+    _checkForUpdate();
+  }
+
+  Future<void> _checkForUpdate() async {
+    final info = await _updateService.checkForUpdate();
+    if (mounted && info != null) {
+      setState(() => _updateInfo = info);
+    }
+  }
+
+  Future<void> _installUpdate() async {
+    final info = _updateInfo;
+    if (info == null) return;
+    final previousVersion = await _updateService.currentVersion();
+    setState(() {
+      _updateError = null;
+      _updateDownloadProgress = 0;
+    });
+    await _updateService.reportProgress(
+      releaseId: info.releaseId,
+      previousVersion: previousVersion,
+      currentVersion: info.latestVersion,
+      status: 'UPDATING',
+    );
+    try {
+      final filePath = await _updateService.download(
+        info,
+        onProgress: (p) {
+          if (mounted) setState(() => _updateDownloadProgress = p);
+        },
+      );
+      if (!mounted) return;
+      setState(() {
+        _updateDownloadProgress = null;
+        _updateInstalling = true;
+      });
+      final opened = await _updateService.install(filePath);
+      if (!opened) {
+        throw Exception('O\'rnatuvchi ochilmadi');
+      }
+    } catch (e) {
+      await _updateService.reportProgress(
+        releaseId: info.releaseId,
+        previousVersion: previousVersion,
+        currentVersion: info.latestVersion,
+        status: 'FAILED',
+        failureReason: e.toString(),
+      );
+      if (mounted) {
+        setState(() {
+          _updateDownloadProgress = null;
+          _updateError =
+              'Yangilanishni o\'rnatib bo\'lmadi. Qayta urinib ko\'ring.';
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _updateInstalling = false);
+    }
+  }
+
+  Widget _buildUpdateBanner(ThemeData theme) {
+    final info = _updateInfo;
+    if (info == null) return const SizedBox.shrink();
+
+    final isBusy = _updateDownloadProgress != null || _updateInstalling;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primaryContainer,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.system_update, color: theme.colorScheme.primary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Yangi versiya mavjud: ${info.latestVersion}',
+                  style: GoogleFonts.outfit(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
+                ),
+                if (_updateError != null)
+                  Text(
+                    _updateError!,
+                    style: TextStyle(
+                      color: theme.colorScheme.error,
+                      fontSize: 12,
+                    ),
+                  )
+                else if (_updateDownloadProgress != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: LinearProgressIndicator(
+                      value: _updateDownloadProgress,
+                    ),
+                  )
+                else if (_updateInstalling)
+                  const Text(
+                    'O\'rnatuvchi ochilmoqda...',
+                    style: TextStyle(fontSize: 12),
+                  ),
+              ],
+            ),
+          ),
+          if (!isBusy)
+            TextButton(
+              onPressed: _installUpdate,
+              child: const Text('Yuklab olish'),
+            ),
+        ],
+      ),
+    );
   }
 
   Future<void> _loadUnreadNotifications() async {
     try {
       final res = await _apiService.get('/notifications/unread-count');
-      final count = res.data is Map ? (res.data['count'] as num?)?.toInt() ?? 0 : 0;
+      final count = res.data is Map
+          ? (res.data['count'] as num?)?.toInt() ?? 0
+          : 0;
       if (mounted) setState(() => _unreadNotifications = count);
     } catch (_) {
       // Notifications module may be disabled for this company — fine to stay at 0.
@@ -98,7 +225,11 @@ class _DashboardViewState extends State<DashboardView> {
         setState(() => _loading = false);
         if (e is DioException && e.response?.statusCode == 401) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Sessiya muddati tugadi. Iltimos, qaytadan tizimga kiring.')),
+            const SnackBar(
+              content: Text(
+                'Sessiya muddati tugadi. Iltimos, qaytadan tizimga kiring.',
+              ),
+            ),
           );
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(builder: (_) => const LoginView()),
@@ -113,11 +244,15 @@ class _DashboardViewState extends State<DashboardView> {
     if (mounted) {
       if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Offline sotuvlar sinxronizatsiya qilindi!')),
+          const SnackBar(
+            content: Text('Offline sotuvlar sinxronizatsiya qilindi!'),
+          ),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Sinxronizatsiyada ba\'zi xatoliklar yuz berdi')),
+          const SnackBar(
+            content: Text('Sinxronizatsiyada ba\'zi xatoliklar yuz berdi'),
+          ),
         );
       }
       _loadDashboardData();
@@ -128,7 +263,11 @@ class _DashboardViewState extends State<DashboardView> {
     if (val == null) return '0 UZS';
     double amount = 0.0;
     if (val is Map) {
-      amount = double.tryParse(val['uzs']?.toString() ?? val['amount']?.toString() ?? '0') ?? 0.0;
+      amount =
+          double.tryParse(
+            val['uzs']?.toString() ?? val['amount']?.toString() ?? '0',
+          ) ??
+          0.0;
     } else if (val is num) {
       amount = val.toDouble();
     } else {
@@ -162,10 +301,15 @@ class _DashboardViewState extends State<DashboardView> {
         actions: [
           IconButton(
             icon: _unreadNotifications > 0
-                ? Badge(label: Text('$_unreadNotifications'), child: const Icon(Icons.notifications_outlined))
+                ? Badge(
+                    label: Text('$_unreadNotifications'),
+                    child: const Icon(Icons.notifications_outlined),
+                  )
                 : const Icon(Icons.notifications_outlined),
             onPressed: () async {
-              await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NotificationsView()));
+              await Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const NotificationsView()),
+              );
               _loadUnreadNotifications();
             },
           ),
@@ -191,7 +335,10 @@ class _DashboardViewState extends State<DashboardView> {
             UserAccountsDrawerHeader(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [theme.colorScheme.primary, theme.colorScheme.secondary],
+                  colors: [
+                    theme.colorScheme.primary,
+                    theme.colorScheme.secondary,
+                  ],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
@@ -200,12 +347,24 @@ class _DashboardViewState extends State<DashboardView> {
                 backgroundColor: Colors.white24,
                 child: Icon(Icons.person, color: Colors.white, size: 36),
               ),
-              accountName: Text(_userName, style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 18)),
-              accountEmail: Text('$_userEmail • $_userRole', style: GoogleFonts.outfit(color: Colors.white70)),
+              accountName: Text(
+                _userName,
+                style: GoogleFonts.outfit(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                ),
+              ),
+              accountEmail: Text(
+                '$_userEmail • $_userRole',
+                style: GoogleFonts.outfit(color: Colors.white70),
+              ),
             ),
             ListTile(
               leading: const Icon(Icons.dashboard_outlined),
-              title: Text('Dashboard', style: GoogleFonts.outfit(fontWeight: FontWeight.w600)),
+              title: Text(
+                'Dashboard',
+                style: GoogleFonts.outfit(fontWeight: FontWeight.w600),
+              ),
               selected: true,
               onTap: () => Navigator.of(context).pop(),
             ),
@@ -213,14 +372,26 @@ class _DashboardViewState extends State<DashboardView> {
             // --- SOTUV ---
             Padding(
               padding: const EdgeInsets.only(left: 16, top: 12, bottom: 2),
-              child: Text('SOTUV', style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.w700, color: theme.colorScheme.onSurfaceVariant)),
+              child: Text(
+                'SOTUV',
+                style: GoogleFonts.outfit(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
             ),
             ListTile(
-              leading: const Icon(Icons.point_of_sale_outlined, color: Colors.indigo),
+              leading: const Icon(
+                Icons.point_of_sale_outlined,
+                color: Colors.indigo,
+              ),
               title: Text('Kassa (POS)', style: GoogleFonts.outfit()),
               onTap: () {
                 Navigator.of(context).pop();
-                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PosView()));
+                Navigator.of(
+                  context,
+                ).push(MaterialPageRoute(builder: (_) => const PosView()));
               },
             ),
             ListTile(
@@ -228,29 +399,51 @@ class _DashboardViewState extends State<DashboardView> {
               title: Text('Sotuvlar Tarixi', style: GoogleFonts.outfit()),
               onTap: () {
                 Navigator.of(context).pop();
-                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SalesHistoryView()));
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const SalesHistoryView()),
+                );
               },
             ),
             ListTile(
-              leading: const Icon(Icons.assignment_return_outlined, color: Colors.orange),
-              title: Text('Vozvratlar (Qaytarish)', style: GoogleFonts.outfit()),
+              leading: const Icon(
+                Icons.assignment_return_outlined,
+                color: Colors.orange,
+              ),
+              title: Text(
+                'Vozvratlar (Qaytarish)',
+                style: GoogleFonts.outfit(),
+              ),
               onTap: () {
                 Navigator.of(context).pop();
-                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ReturnsView()));
+                Navigator.of(
+                  context,
+                ).push(MaterialPageRoute(builder: (_) => const ReturnsView()));
               },
             ),
 
             // --- OMBOR ---
             Padding(
               padding: const EdgeInsets.only(left: 16, top: 12, bottom: 2),
-              child: Text('OMBOR', style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.w700, color: theme.colorScheme.onSurfaceVariant)),
+              child: Text(
+                'OMBOR',
+                style: GoogleFonts.outfit(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
             ),
             ListTile(
-              leading: const Icon(Icons.inventory_2_outlined, color: Colors.teal),
+              leading: const Icon(
+                Icons.inventory_2_outlined,
+                color: Colors.teal,
+              ),
               title: Text('Mahsulotlar', style: GoogleFonts.outfit()),
               onTap: () {
                 Navigator.of(context).pop();
-                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ProductsView()));
+                Navigator.of(
+                  context,
+                ).push(MaterialPageRoute(builder: (_) => const ProductsView()));
               },
             ),
             ListTile(
@@ -258,45 +451,83 @@ class _DashboardViewState extends State<DashboardView> {
               title: Text('Mahsulot Kirim Qilish', style: GoogleFonts.outfit()),
               onTap: () {
                 Navigator.of(context).pop();
-                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const InventoryReceiveView()));
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const InventoryReceiveView(),
+                  ),
+                );
               },
             ),
             ListTile(
-              leading: const Icon(Icons.remove_shopping_cart_outlined, color: Colors.red),
-              title: Text('Mahsulot Chiqim (Tuzatish)', style: GoogleFonts.outfit()),
+              leading: const Icon(
+                Icons.remove_shopping_cart_outlined,
+                color: Colors.red,
+              ),
+              title: Text(
+                'Mahsulot Chiqim (Tuzatish)',
+                style: GoogleFonts.outfit(),
+              ),
               onTap: () {
                 Navigator.of(context).pop();
-                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const InventoryAdjustView()));
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const InventoryAdjustView(),
+                  ),
+                );
               },
             ),
             ListTile(
-              leading: const Icon(Icons.warehouse_outlined, color: Colors.brown),
+              leading: const Icon(
+                Icons.warehouse_outlined,
+                color: Colors.brown,
+              ),
               title: Text('Ombor (Stock)', style: GoogleFonts.outfit()),
               onTap: () {
                 Navigator.of(context).pop();
-                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const InventoryView()));
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const InventoryView()),
+                );
               },
             ),
             ListTile(
               leading: const Icon(Icons.swap_horiz, color: Colors.cyan),
-              title: Text('Omborlar Orasida Ko\'chirish', style: GoogleFonts.outfit()),
+              title: Text(
+                'Omborlar Orasida Ko\'chirish',
+                style: GoogleFonts.outfit(),
+              ),
               onTap: () {
                 Navigator.of(context).pop();
-                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const InventoryTransferView()));
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const InventoryTransferView(),
+                  ),
+                );
               },
             ),
 
             // --- MOLIYA ---
             Padding(
               padding: const EdgeInsets.only(left: 16, top: 12, bottom: 2),
-              child: Text('MOLIYA', style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.w700, color: theme.colorScheme.onSurfaceVariant)),
+              child: Text(
+                'MOLIYA',
+                style: GoogleFonts.outfit(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
             ),
             ListTile(
-              leading: const Icon(Icons.receipt_long_outlined, color: Colors.red),
+              leading: const Icon(
+                Icons.receipt_long_outlined,
+                color: Colors.red,
+              ),
               title: Text('Xarajatlar', style: GoogleFonts.outfit()),
               onTap: () {
                 Navigator.of(context).pop();
-                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ExpensesView()));
+                Navigator.of(
+                  context,
+                ).push(MaterialPageRoute(builder: (_) => const ExpensesView()));
               },
             ),
             ListTile(
@@ -304,29 +535,48 @@ class _DashboardViewState extends State<DashboardView> {
               title: Text('Valyuta Kurslari', style: GoogleFonts.outfit()),
               onTap: () {
                 Navigator.of(context).pop();
-                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CurrencyView()));
+                Navigator.of(
+                  context,
+                ).push(MaterialPageRoute(builder: (_) => const CurrencyView()));
               },
             ),
             ListTile(
-              leading: const Icon(Icons.hourglass_bottom, color: Colors.deepOrange),
+              leading: const Icon(
+                Icons.hourglass_bottom,
+                color: Colors.deepOrange,
+              ),
               title: Text('Qarz Muddati Tahlili', style: GoogleFonts.outfit()),
               onTap: () {
                 Navigator.of(context).pop();
-                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const DebtAgingView()));
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const DebtAgingView()),
+                );
               },
             ),
 
             // --- HAMKORLAR ---
             Padding(
               padding: const EdgeInsets.only(left: 16, top: 12, bottom: 2),
-              child: Text('HAMKORLAR', style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.w700, color: theme.colorScheme.onSurfaceVariant)),
+              child: Text(
+                'HAMKORLAR',
+                style: GoogleFonts.outfit(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
             ),
             ListTile(
-              leading: const Icon(Icons.people_alt_outlined, color: Colors.deepPurple),
+              leading: const Icon(
+                Icons.people_alt_outlined,
+                color: Colors.deepPurple,
+              ),
               title: Text('Mijozlar', style: GoogleFonts.outfit()),
               onTap: () {
                 Navigator.of(context).pop();
-                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CustomersView()));
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const CustomersView()),
+                );
               },
             ),
             ListTile(
@@ -334,21 +584,35 @@ class _DashboardViewState extends State<DashboardView> {
               title: Text('Ta\'minotchilar', style: GoogleFonts.outfit()),
               onTap: () {
                 Navigator.of(context).pop();
-                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SuppliersView()));
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const SuppliersView()),
+                );
               },
             ),
 
             // --- TIZIM ---
             Padding(
               padding: const EdgeInsets.only(left: 16, top: 12, bottom: 2),
-              child: Text('TIZIM VA HISOBOT', style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.w700, color: theme.colorScheme.onSurfaceVariant)),
+              child: Text(
+                'TIZIM VA HISOBOT',
+                style: GoogleFonts.outfit(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
             ),
             ListTile(
-              leading: const Icon(Icons.description_outlined, color: Colors.purple),
+              leading: const Icon(
+                Icons.description_outlined,
+                color: Colors.purple,
+              ),
               title: Text('Hisobotlar', style: GoogleFonts.outfit()),
               onTap: () {
                 Navigator.of(context).pop();
-                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ReportsView()));
+                Navigator.of(
+                  context,
+                ).push(MaterialPageRoute(builder: (_) => const ReportsView()));
               },
             ),
             ListTile(
@@ -356,7 +620,9 @@ class _DashboardViewState extends State<DashboardView> {
               title: Text('Xodimlar va Boshqaruv', style: GoogleFonts.outfit()),
               onTap: () {
                 Navigator.of(context).pop();
-                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const UsersView()));
+                Navigator.of(
+                  context,
+                ).push(MaterialPageRoute(builder: (_) => const UsersView()));
               },
             ),
             ListTile(
@@ -364,14 +630,22 @@ class _DashboardViewState extends State<DashboardView> {
               title: Text('Sozlamalar', style: GoogleFonts.outfit()),
               onTap: () {
                 Navigator.of(context).pop();
-                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SettingsView()));
+                Navigator.of(
+                  context,
+                ).push(MaterialPageRoute(builder: (_) => const SettingsView()));
               },
             ),
 
             const Divider(),
             ListTile(
               leading: const Icon(Icons.logout, color: Colors.red),
-              title: Text('Chiqish', style: GoogleFonts.outfit(color: Colors.red, fontWeight: FontWeight.w600)),
+              title: Text(
+                'Chiqish',
+                style: GoogleFonts.outfit(
+                  color: Colors.red,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
               onTap: () async {
                 await _apiService.clearSession();
                 if (context.mounted) {
@@ -395,12 +669,16 @@ class _DashboardViewState extends State<DashboardView> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    _buildUpdateBanner(theme),
                     // Welcome Banner Card
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
-                          colors: [theme.colorScheme.primary, theme.colorScheme.tertiary],
+                          colors: [
+                            theme.colorScheme.primary,
+                            theme.colorScheme.tertiary,
+                          ],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         ),
@@ -410,7 +688,7 @@ class _DashboardViewState extends State<DashboardView> {
                             color: theme.colorScheme.primary.withOpacity(0.2),
                             blurRadius: 10,
                             offset: const Offset(0, 4),
-                          )
+                          ),
                         ],
                       ),
                       child: Row(
@@ -418,7 +696,11 @@ class _DashboardViewState extends State<DashboardView> {
                           const CircleAvatar(
                             radius: 26,
                             backgroundColor: Colors.white24,
-                            child: Icon(Icons.storefront, color: Colors.white, size: 30),
+                            child: Icon(
+                              Icons.storefront,
+                              color: Colors.white,
+                              size: 30,
+                            ),
                           ),
                           const SizedBox(width: 14),
                           Expanded(
@@ -427,26 +709,47 @@ class _DashboardViewState extends State<DashboardView> {
                               children: [
                                 Text(
                                   'Xayrli kun! 👋',
-                                  style: GoogleFonts.outfit(color: Colors.white70, fontSize: 13),
+                                  style: GoogleFonts.outfit(
+                                    color: Colors.white70,
+                                    fontSize: 13,
+                                  ),
                                 ),
                                 Text(
                                   'ERP Enterprise Tizimi',
-                                  style: GoogleFonts.outfit(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                                  style: GoogleFonts.outfit(
+                                    color: Colors.white,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                               ],
                             ),
                           ),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.white24,
                               borderRadius: BorderRadius.circular(20),
                             ),
                             child: const Row(
                               children: [
-                                Icon(Icons.circle, color: Colors.greenAccent, size: 8),
+                                Icon(
+                                  Icons.circle,
+                                  color: Colors.greenAccent,
+                                  size: 8,
+                                ),
                                 SizedBox(width: 4),
-                                Text('ONLINE', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                                Text(
+                                  'ONLINE',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                               ],
                             ),
                           ),
@@ -465,12 +768,24 @@ class _DashboardViewState extends State<DashboardView> {
                         ),
                         margin: const EdgeInsets.only(bottom: 16),
                         child: ListTile(
-                          leading: const Icon(Icons.wifi_off_outlined, color: Colors.orange, size: 28),
-                          title: const Text('Oflayn sotuvlar zaxirada', style: TextStyle(fontWeight: FontWeight.bold)),
-                          subtitle: Text('$_pendingSyncCount ta sotuv internetga ulanishni kutmoqda.'),
+                          leading: const Icon(
+                            Icons.wifi_off_outlined,
+                            color: Colors.orange,
+                            size: 28,
+                          ),
+                          title: const Text(
+                            'Oflayn sotuvlar zaxirada',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          subtitle: Text(
+                            '$_pendingSyncCount ta sotuv internetga ulanishni kutmoqda.',
+                          ),
                           trailing: ElevatedButton(
                             onPressed: _handleSync,
-                            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, foregroundColor: Colors.white),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.orange,
+                              foregroundColor: Colors.white,
+                            ),
                             child: const Text('Sinxronlash'),
                           ),
                         ),
@@ -479,7 +794,11 @@ class _DashboardViewState extends State<DashboardView> {
                     // Quick Actions Bar
                     Text(
                       'Tezkor Amallar',
-                      style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: theme.colorScheme.onSurface),
+                      style: GoogleFonts.outfit(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: theme.colorScheme.onSurface,
+                      ),
                     ),
                     const SizedBox(height: 10),
                     SingleChildScrollView(
@@ -491,35 +810,60 @@ class _DashboardViewState extends State<DashboardView> {
                             'Kassa POS',
                             Icons.point_of_sale,
                             Colors.indigo,
-                            () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PosView())),
+                            () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const PosView(),
+                              ),
+                            ),
                           ),
                           _buildQuickActionButton(
                             context,
                             'Kirim Qilish',
                             Icons.add_shopping_cart,
                             Colors.green,
-                            () => Navigator.push(context, MaterialPageRoute(builder: (_) => const InventoryReceiveView())),
+                            () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const InventoryReceiveView(),
+                              ),
+                            ),
                           ),
                           _buildQuickActionButton(
                             context,
                             'Mijozlar',
                             Icons.person_add_alt_1,
                             Colors.deepPurple,
-                            () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CustomersView())),
+                            () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const CustomersView(),
+                              ),
+                            ),
                           ),
                           _buildQuickActionButton(
                             context,
                             'Vozvrat',
                             Icons.assignment_return,
                             Colors.orange,
-                            () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ReturnsView())),
+                            () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const ReturnsView(),
+                              ),
+                            ),
                           ),
                           _buildQuickActionButton(
                             context,
                             'Xarajat',
                             Icons.receipt_long,
                             Colors.red,
-                            () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ExpensesView())),
+                            () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const ExpensesView(),
+                              ),
+                            ),
                           ),
                         ],
                       ),
@@ -529,7 +873,11 @@ class _DashboardViewState extends State<DashboardView> {
                     // Grid stats
                     Text(
                       'Moliyaviy Ko\'rsatkichlar',
-                      style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: theme.colorScheme.onSurface),
+                      style: GoogleFonts.outfit(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: theme.colorScheme.onSurface,
+                      ),
                     ),
                     const SizedBox(height: 10),
                     GridView.count(
@@ -545,8 +893,15 @@ class _DashboardViewState extends State<DashboardView> {
                           _formatStatValue(_stats['todaySales']),
                           Icons.trending_up,
                           const Color(0xFF2563EB),
-                          isDark ? const Color(0xFF1E293B) : const Color(0xFFEFF6FF),
-                          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SalesHistoryView())),
+                          isDark
+                              ? const Color(0xFF1E293B)
+                              : const Color(0xFFEFF6FF),
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const SalesHistoryView(),
+                            ),
+                          ),
                         ),
                         _buildStatCard(
                           context,
@@ -554,8 +909,15 @@ class _DashboardViewState extends State<DashboardView> {
                           _formatStatValue(_stats['weeklySales']),
                           Icons.calendar_view_week,
                           const Color(0xFF059669),
-                          isDark ? const Color(0xFF064E3B) : const Color(0xFFECFDF5),
-                          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ReportsView())),
+                          isDark
+                              ? const Color(0xFF064E3B)
+                              : const Color(0xFFECFDF5),
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const ReportsView(),
+                            ),
+                          ),
                         ),
                         _buildStatCard(
                           context,
@@ -563,8 +925,15 @@ class _DashboardViewState extends State<DashboardView> {
                           _formatStatValue(_stats['netProfit']),
                           Icons.attach_money,
                           const Color(0xFF7C3AED),
-                          isDark ? const Color(0xFF3B0764) : const Color(0xFFF5F3FF),
-                          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ReportsView())),
+                          isDark
+                              ? const Color(0xFF3B0764)
+                              : const Color(0xFFF5F3FF),
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const ReportsView(),
+                            ),
+                          ),
                         ),
                         _buildStatCard(
                           context,
@@ -572,8 +941,15 @@ class _DashboardViewState extends State<DashboardView> {
                           _formatStatValue(_stats['customerDebt']),
                           Icons.assignment_late,
                           const Color(0xFFDC2626),
-                          isDark ? const Color(0xFF450A0A) : const Color(0xFFFEF2F2),
-                          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CustomersView())),
+                          isDark
+                              ? const Color(0xFF450A0A)
+                              : const Color(0xFFFEF2F2),
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const CustomersView(),
+                            ),
+                          ),
                         ),
                       ],
                     ),
@@ -582,7 +958,9 @@ class _DashboardViewState extends State<DashboardView> {
                     // Sales Chart Card
                     Card(
                       elevation: 2,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
                       child: Padding(
                         padding: const EdgeInsets.all(16.0),
                         child: Column(
@@ -599,12 +977,23 @@ class _DashboardViewState extends State<DashboardView> {
                                   ),
                                 ),
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 4,
+                                  ),
                                   decoration: BoxDecoration(
                                     color: theme.colorScheme.primaryContainer,
                                     borderRadius: BorderRadius.circular(12),
                                   ),
-                                  child: Text('Haftalik', style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.bold, color: theme.colorScheme.onPrimaryContainer)),
+                                  child: Text(
+                                    'Haftalik',
+                                    style: GoogleFonts.outfit(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                      color:
+                                          theme.colorScheme.onPrimaryContainer,
+                                    ),
+                                  ),
                                 ),
                               ],
                             ),
@@ -615,9 +1004,15 @@ class _DashboardViewState extends State<DashboardView> {
                                 LineChartData(
                                   gridData: const FlGridData(show: false),
                                   titlesData: const FlTitlesData(
-                                    leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                                    topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                                    rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                                    leftTitles: AxisTitles(
+                                      sideTitles: SideTitles(showTitles: false),
+                                    ),
+                                    topTitles: AxisTitles(
+                                      sideTitles: SideTitles(showTitles: false),
+                                    ),
+                                    rightTitles: AxisTitles(
+                                      sideTitles: SideTitles(showTitles: false),
+                                    ),
                                   ),
                                   borderData: FlBorderData(show: false),
                                   lineBarsData: [
@@ -637,7 +1032,8 @@ class _DashboardViewState extends State<DashboardView> {
                                       dotData: const FlDotData(show: true),
                                       belowBarData: BarAreaData(
                                         show: true,
-                                        color: theme.colorScheme.primary.withOpacity(0.12),
+                                        color: theme.colorScheme.primary
+                                            .withOpacity(0.12),
                                       ),
                                     ),
                                   ],
@@ -731,7 +1127,11 @@ class _DashboardViewState extends State<DashboardView> {
                     ),
                     child: Icon(icon, color: accentColor, size: 22),
                   ),
-                  Icon(Icons.arrow_forward_ios, size: 12, color: theme.colorScheme.onSurfaceVariant),
+                  Icon(
+                    Icons.arrow_forward_ios,
+                    size: 12,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
                 ],
               ),
               Column(

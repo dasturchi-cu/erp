@@ -118,8 +118,9 @@ export class SaasService {
     };
   }
 
-  async checkRemoteUpdateForCompany(currentVersion: string, companyId: string) {
+  async checkRemoteUpdateForCompany(currentVersion: string, companyId: string, platform: string) {
     const releases = await this.prisma.remoteUpdateHistory.findMany({
+      where: { platform },
       orderBy: { releasedAt: 'desc' },
     });
 
@@ -145,6 +146,7 @@ export class SaasService {
       changelog: latestEligible.changelog,
       downloadUrl: latestEligible.downloadUrl,
       checksum: latestEligible.checksum,
+      signature: latestEligible.signature,
     };
   }
 
@@ -294,7 +296,7 @@ export class SaasService {
       this.updateState.step = 'CHECKING';
       this.updateState.error = undefined;
 
-      const checkRes = await this.checkRemoteUpdateForCompany(currentVersion, companyId);
+      const checkRes = await this.checkRemoteUpdateForCompany(currentVersion, companyId, 'desktop');
       if (!checkRes.updateRequired) {
         this.updateState.step = 'IDLE';
         return;
