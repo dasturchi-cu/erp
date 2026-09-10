@@ -42,29 +42,46 @@ export class SalesReportProvider {
   }
 
   private async dailySummary(ctx: ReportQueryContext): Promise<ReportProviderResult> {
-    const sales = await this.prisma.sale.groupBy({
-      by: ['createdAt'],
+    // Fetched per-sale (not Prisma's groupBy _sum) because the credit
+    // (unpaid) portion must be computed per sale using *that sale's own*
+    // exchangeRateUsed before summing — independently summing amountPaidUzs
+    // and amountPaidUsd across sales and subtracting each from the
+    // matching total conflates "which currency paid" with "how much is
+    // still owed": a sale paid in full in UZS has amountPaidUsd=0, so
+    // totalUsd.sub(sum of amountPaidUsd) wrongly counted its entire USD
+    // total as still-outstanding credit even though nothing was owed.
+    const sales = await this.prisma.sale.findMany({
       where: saleDateFilter(ctx),
-      _count: { id: true },
-      _sum: { totalUzs: true, totalUsd: true, amountPaidUzs: true, amountPaidUsd: true },
+      select: {
+        createdAt: true,
+        totalUzs: true,
+        totalUsd: true,
+        amountPaidUzs: true,
+        amountPaidUsd: true,
+        exchangeRateUsed: true,
+      },
     });
 
-    const dayMap = new Map<string, { count: number; totalUzs: Decimal; totalUsd: Decimal; cashUzs: Decimal; cashUsd: Decimal }>();
+    const dayMap = new Map<string, { count: number; totalUzs: Decimal; totalUsd: Decimal; creditUzs: Decimal; creditUsd: Decimal }>();
 
-    for (const row of sales) {
-      const key = row.createdAt.toISOString().slice(0, 10);
+    for (const sale of sales) {
+      const key = sale.createdAt.toISOString().slice(0, 10);
       const existing = dayMap.get(key) ?? {
         count: 0,
         totalUzs: new Decimal(0),
         totalUsd: new Decimal(0),
-        cashUzs: new Decimal(0),
-        cashUsd: new Decimal(0),
+        creditUzs: new Decimal(0),
+        creditUsd: new Decimal(0),
       };
-      existing.count += row._count.id;
-      existing.totalUzs = existing.totalUzs.add(row._sum.totalUzs ?? 0);
-      existing.totalUsd = existing.totalUsd.add(row._sum.totalUsd ?? 0);
-      existing.cashUzs = existing.cashUzs.add(row._sum.amountPaidUzs ?? 0);
-      existing.cashUsd = existing.cashUsd.add(row._sum.amountPaidUsd ?? 0);
+      existing.count += 1;
+      existing.totalUzs = existing.totalUzs.add(sale.totalUzs);
+      existing.totalUsd = existing.totalUsd.add(sale.totalUsd);
+
+      const paidUzsEquivalent = sale.amountPaidUzs.add(sale.amountPaidUsd.mul(sale.exchangeRateUsed));
+      const saleCreditUzs = Decimal.max(0, sale.totalUzs.sub(paidUzsEquivalent));
+      const saleCreditUsd = sale.exchangeRateUsed.gt(0) ? saleCreditUzs.div(sale.exchangeRateUsed) : new Decimal(0);
+      existing.creditUzs = existing.creditUzs.add(saleCreditUzs);
+      existing.creditUsd = existing.creditUsd.add(saleCreditUsd);
       dayMap.set(key, existing);
     }
 
@@ -73,10 +90,10 @@ export class SalesReportProvider {
       saleCount: v.count,
       totalUzs: formatMoney(v.totalUzs),
       totalUsd: formatMoney(v.totalUsd),
-      cashUzs: formatMoney(v.cashUzs),
-      cashUsd: formatMoney(v.cashUsd),
-      creditUzs: formatMoney(v.totalUzs.sub(v.cashUzs)),
-      creditUsd: formatMoney(v.totalUsd.sub(v.cashUsd)),
+      cashUzs: formatMoney(v.totalUzs.sub(v.creditUzs)),
+      cashUsd: formatMoney(v.totalUsd.sub(v.creditUsd)),
+      creditUzs: formatMoney(v.creditUzs),
+      creditUsd: formatMoney(v.creditUsd),
     }));
 
     rows = sortRows(rows, ctx.sort, ['date', 'saleCount', 'totalUzs'], 'date');
