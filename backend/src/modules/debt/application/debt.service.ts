@@ -129,7 +129,6 @@ export class DebtService {
       newDebtUzs = customer.totalDebtUzs.sub(params.amount);
     } else {
       amountUsd = params.amount;
-      amountUsd = params.amount;
       amountUzs = usdToUzs(params.amount, params.exchangeRate);
       newDebtUzs = customer.totalDebtUzs.sub(amountUzs);
     }
