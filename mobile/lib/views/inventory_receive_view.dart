@@ -57,10 +57,18 @@ class _InventoryReceiveViewState extends State<InventoryReceiveView> {
       final bRes = await _apiService.get('/branches');
 
       if (mounted) {
-        final pList = pRes.data is Map && pRes.data.containsKey('data') ? pRes.data['data'] : (pRes.data is List ? pRes.data : []);
-        var wList = wRes.data is Map && wRes.data.containsKey('data') ? wRes.data['data'] : (wRes.data is List ? wRes.data : []);
-        final sList = sRes.data is Map && sRes.data.containsKey('data') ? sRes.data['data'] : (sRes.data is List ? sRes.data : []);
-        final bList = bRes.data is Map && bRes.data.containsKey('data') ? bRes.data['data'] : (bRes.data is List ? bRes.data : []);
+        final pList = pRes.data is Map && pRes.data.containsKey('data')
+            ? pRes.data['data']
+            : (pRes.data is List ? pRes.data : []);
+        var wList = wRes.data is Map && wRes.data.containsKey('data')
+            ? wRes.data['data']
+            : (wRes.data is List ? wRes.data : []);
+        final sList = sRes.data is Map && sRes.data.containsKey('data')
+            ? sRes.data['data']
+            : (sRes.data is List ? sRes.data : []);
+        final bList = bRes.data is Map && bRes.data.containsKey('data')
+            ? bRes.data['data']
+            : (bRes.data is List ? bRes.data : []);
 
         // Auto-create default warehouse if none exists
         if (wList.isEmpty && bList.isNotEmpty) {
@@ -72,7 +80,9 @@ class _InventoryReceiveViewState extends State<InventoryReceiveView> {
             });
             if (defaultWh.statusCode == 200 || defaultWh.statusCode == 201) {
               final wRefresh = await _apiService.get('/warehouses');
-              wList = wRefresh.data is Map && wRefresh.data.containsKey('data') ? wRefresh.data['data'] : (wRefresh.data is List ? wRefresh.data : []);
+              wList = wRefresh.data is Map && wRefresh.data.containsKey('data')
+                  ? wRefresh.data['data']
+                  : (wRefresh.data is List ? wRefresh.data : []);
             }
           } catch (_) {}
         }
@@ -88,8 +98,13 @@ class _InventoryReceiveViewState extends State<InventoryReceiveView> {
               orElse: () => widget.initialProduct,
             );
             _selectedProduct = match as Map<String, dynamic>?;
-            if (_selectedProduct != null && _selectedProduct!['purchasePriceUzs'] != null) {
-              final cost = double.tryParse(_selectedProduct!['purchasePriceUzs'].toString()) ?? 0;
+            if (_selectedProduct != null &&
+                _selectedProduct!['purchasePriceUzs'] != null) {
+              final cost =
+                  double.tryParse(
+                    _selectedProduct!['purchasePriceUzs'].toString(),
+                  ) ??
+                  0;
               if (cost > 0) _costController.text = cost.toStringAsFixed(0);
             }
           }
@@ -109,7 +124,9 @@ class _InventoryReceiveViewState extends State<InventoryReceiveView> {
 
   Future<void> _createWarehouseOnTheFly() async {
     _newWarehouseNameCtrl.text = 'Yangi Ombor';
-    String? selectedBranchId = _branches.isNotEmpty ? _branches.first['id'] : null;
+    String? selectedBranchId = _branches.isNotEmpty
+        ? _branches.first['id']
+        : null;
 
     showModalBottomSheet(
       context: context,
@@ -131,19 +148,26 @@ class _InventoryReceiveViewState extends State<InventoryReceiveView> {
             ),
             child: Form(
               key: whFormKey,
-              autovalidateMode: whSubmitted ? AutovalidateMode.always : AutovalidateMode.disabled,
+              autovalidateMode: whSubmitted
+                  ? AutovalidateMode.always
+                  : AutovalidateMode.disabled,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Text(
                     'Yangi Ombor Yaratish',
-                    style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold),
+                    style: GoogleFonts.outfit(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: _newWarehouseNameCtrl,
-                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Ombor nomi majburiy!' : null,
+                    validator: (v) => (v == null || v.trim().isEmpty)
+                        ? 'Ombor nomi majburiy!'
+                        : null,
                     decoration: const InputDecoration(
                       labelText: 'Ombor Nomi *',
                       prefixIcon: Icon(Icons.warehouse_outlined),
@@ -158,18 +182,29 @@ class _InventoryReceiveViewState extends State<InventoryReceiveView> {
                         labelText: 'Filial',
                         border: OutlineInputBorder(),
                       ),
-                      items: _branches.map((b) => DropdownMenuItem<String>(
-                        value: b['id'] as String,
-                        child: Text(b['name'] ?? 'Filial'),
-                      )).toList(),
+                      items: _branches
+                          .map(
+                            (b) => DropdownMenuItem<String>(
+                              value: b['id'] as String,
+                              child: Text(b['name'] ?? 'Filial'),
+                            ),
+                          )
+                          .toList(),
                       onChanged: (val) {
-                        if (val != null) setModalState(() => selectedBranchId = val);
+                        if (val != null)
+                          setModalState(() => selectedBranchId = val);
                       },
                     ),
                   const SizedBox(height: 16),
                   ElevatedButton.icon(
                     icon: const Icon(Icons.add_business),
-                    label: Text('Omborni Saqlash', style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold)),
+                    label: Text(
+                      'Omborni Saqlash',
+                      style: GoogleFonts.outfit(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
@@ -186,17 +221,25 @@ class _InventoryReceiveViewState extends State<InventoryReceiveView> {
                           'name': name,
                           'isDefault': _warehouses.isEmpty,
                         };
-                        if (selectedBranchId != null && selectedBranchId!.isNotEmpty) {
+                        if (selectedBranchId != null &&
+                            selectedBranchId!.isNotEmpty) {
                           payload['branchId'] = selectedBranchId;
                         }
 
-                        final res = await _apiService.post('/warehouses', payload);
+                        final res = await _apiService.post(
+                          '/warehouses',
+                          payload,
+                        );
 
                         if (res.statusCode == 200 || res.statusCode == 201) {
                           if (mounted) {
                             Navigator.pop(ctx);
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Ombor muvaffaqiyatli yaratildi!')),
+                              const SnackBar(
+                                content: Text(
+                                  'Ombor muvaffaqiyatli yaratildi!',
+                                ),
+                              ),
                             );
                             _loadDependencies();
                           }
@@ -204,7 +247,11 @@ class _InventoryReceiveViewState extends State<InventoryReceiveView> {
                       } catch (e) {
                         if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Xatolik: ${ApiService.parseError(e)}')),
+                            SnackBar(
+                              content: Text(
+                                'Xatolik: ${ApiService.parseError(e)}',
+                              ),
+                            ),
                           );
                         }
                       }
@@ -234,7 +281,9 @@ class _InventoryReceiveViewState extends State<InventoryReceiveView> {
 
     if (_selectedWarehouse == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Iltimos, qaysi omborga kirim qilishni tanlang!')),
+        const SnackBar(
+          content: Text('Iltimos, qaysi omborga kirim qilishni tanlang!'),
+        ),
       );
       return;
     }
@@ -291,6 +340,10 @@ class _InventoryReceiveViewState extends State<InventoryReceiveView> {
           setState(() {
             _selectedProduct = null;
             _submitting = false;
+            // Otherwise the Form stays in AutovalidateMode.always from this
+            // submit and immediately flags the fields it just cleared as
+            // "required" — right under a success message.
+            _submitted = false;
           });
           _loadDependencies();
         }
@@ -320,7 +373,10 @@ class _InventoryReceiveViewState extends State<InventoryReceiveView> {
           style: GoogleFonts.outfit(fontWeight: FontWeight.w600),
         ),
         actions: [
-          IconButton(icon: const Icon(Icons.refresh), onPressed: _loadDependencies),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadDependencies,
+          ),
         ],
       ),
       body: _loading
@@ -328,7 +384,8 @@ class _InventoryReceiveViewState extends State<InventoryReceiveView> {
           : GestureDetector(
               onTap: () => FocusScope.of(context).unfocus(),
               child: SingleChildScrollView(
-                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
                 padding: EdgeInsets.only(
                   left: 16.0,
                   right: 16.0,
@@ -341,7 +398,9 @@ class _InventoryReceiveViewState extends State<InventoryReceiveView> {
                     padding: const EdgeInsets.all(16.0),
                     child: Form(
                       key: _formKey,
-                      autovalidateMode: _submitted ? AutovalidateMode.always : AutovalidateMode.disabled,
+                      autovalidateMode: _submitted
+                          ? AutovalidateMode.always
+                          : AutovalidateMode.disabled,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
@@ -350,12 +409,20 @@ class _InventoryReceiveViewState extends State<InventoryReceiveView> {
                             children: [
                               Text(
                                 'Kirim Ma\'lumotlari',
-                                style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold),
+                                style: GoogleFonts.outfit(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                               TextButton.icon(
                                 onPressed: _createWarehouseOnTheFly,
                                 icon: const Icon(Icons.add_business, size: 18),
-                                label: Text('+ Ombor', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+                                label: Text(
+                                  '+ Ombor',
+                                  style: GoogleFonts.outfit(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                               ),
                             ],
                           ),
@@ -364,28 +431,45 @@ class _InventoryReceiveViewState extends State<InventoryReceiveView> {
                           DropdownButtonFormField<Map<String, dynamic>>(
                             value: _selectedProduct,
                             isExpanded: true,
-                            style: TextStyle(color: textColor, fontSize: 14, fontWeight: FontWeight.w500),
+                            style: TextStyle(
+                              color: textColor,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
                             dropdownColor: theme.colorScheme.surface,
                             iconEnabledColor: textColor,
-                            validator: (v) => v == null ? 'Mahsulot tanlanishi majburiy!' : null,
+                            validator: (v) => v == null
+                                ? 'Mahsulot tanlanishi majburiy!'
+                                : null,
                             decoration: const InputDecoration(
                               labelText: 'Mahsulot *',
                               prefixIcon: Icon(Icons.inventory_2_outlined),
                             ),
-                            items: _products.map((p) => DropdownMenuItem(
-                              value: p as Map<String, dynamic>,
-                              child: Text(
-                                '${p['name']} (SKU: ${p['sku']})',
-                                style: TextStyle(color: textColor),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            )).toList(),
+                            items: _products
+                                .map(
+                                  (p) => DropdownMenuItem(
+                                    value: p as Map<String, dynamic>,
+                                    child: Text(
+                                      '${p['name']} (SKU: ${p['sku']})',
+                                      style: TextStyle(color: textColor),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                )
+                                .toList(),
                             onChanged: (val) {
                               setState(() {
                                 _selectedProduct = val;
-                                if (val != null && val['purchasePriceUzs'] != null) {
-                                  final cost = double.tryParse(val['purchasePriceUzs'].toString()) ?? 0;
-                                  _costController.text = cost.toStringAsFixed(0);
+                                if (val != null &&
+                                    val['purchasePriceUzs'] != null) {
+                                  final cost =
+                                      double.tryParse(
+                                        val['purchasePriceUzs'].toString(),
+                                      ) ??
+                                      0;
+                                  _costController.text = cost.toStringAsFixed(
+                                    0,
+                                  );
                                 }
                               });
                             },
@@ -395,55 +479,78 @@ class _InventoryReceiveViewState extends State<InventoryReceiveView> {
                           DropdownButtonFormField<Map<String, dynamic>>(
                             value: _selectedWarehouse,
                             isExpanded: true,
-                            style: TextStyle(color: textColor, fontSize: 14, fontWeight: FontWeight.w500),
+                            style: TextStyle(
+                              color: textColor,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
                             dropdownColor: theme.colorScheme.surface,
                             iconEnabledColor: textColor,
-                            validator: (v) => v == null ? 'Ombor tanlanishi majburiy!' : null,
+                            validator: (v) =>
+                                v == null ? 'Ombor tanlanishi majburiy!' : null,
                             decoration: const InputDecoration(
                               labelText: 'Qaysi Omborgacha? *',
                               prefixIcon: Icon(Icons.warehouse_outlined),
                             ),
-                            items: _warehouses.map((w) => DropdownMenuItem(
-                              value: w as Map<String, dynamic>,
-                              child: Text(
-                                w['name'] ?? 'Ombor',
-                                style: TextStyle(color: textColor),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            )).toList(),
-                            onChanged: (val) => setState(() => _selectedWarehouse = val),
+                            items: _warehouses
+                                .map(
+                                  (w) => DropdownMenuItem(
+                                    value: w as Map<String, dynamic>,
+                                    child: Text(
+                                      w['name'] ?? 'Ombor',
+                                      style: TextStyle(color: textColor),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: (val) =>
+                                setState(() => _selectedWarehouse = val),
                           ),
                           const SizedBox(height: 14),
                           // Supplier Picker (required by backend)
                           DropdownButtonFormField<Map<String, dynamic>>(
                             value: _selectedSupplier,
                             isExpanded: true,
-                            style: TextStyle(color: textColor, fontSize: 14, fontWeight: FontWeight.w500),
+                            style: TextStyle(
+                              color: textColor,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
                             dropdownColor: theme.colorScheme.surface,
                             iconEnabledColor: textColor,
-                            validator: (v) => v == null ? 'Ta\'minotchi tanlanishi majburiy!' : null,
+                            validator: (v) => v == null
+                                ? 'Ta\'minotchi tanlanishi majburiy!'
+                                : null,
                             decoration: const InputDecoration(
                               labelText: 'Ta\'minotchi *',
                               prefixIcon: Icon(Icons.store_outlined),
                             ),
                             items: _suppliers
-                                .map((s) => DropdownMenuItem(
-                                      value: s as Map<String, dynamic>,
-                                      child: Text(
-                                        s['name'] ?? '',
-                                        style: TextStyle(color: textColor),
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ))
+                                .map(
+                                  (s) => DropdownMenuItem(
+                                    value: s as Map<String, dynamic>,
+                                    child: Text(
+                                      s['name'] ?? '',
+                                      style: TextStyle(color: textColor),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                )
                                 .toList(),
-                            onChanged: (val) => setState(() => _selectedSupplier = val),
+                            onChanged: (val) =>
+                                setState(() => _selectedSupplier = val),
                           ),
                           const SizedBox(height: 14),
                           // Payment type (required by backend): naqd yoki nasiya
                           DropdownButtonFormField<String>(
                             value: _paymentType,
                             isExpanded: true,
-                            style: TextStyle(color: textColor, fontSize: 14, fontWeight: FontWeight.w500),
+                            style: TextStyle(
+                              color: textColor,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
                             dropdownColor: theme.colorScheme.surface,
                             iconEnabledColor: textColor,
                             decoration: const InputDecoration(
@@ -453,14 +560,21 @@ class _InventoryReceiveViewState extends State<InventoryReceiveView> {
                             items: [
                               DropdownMenuItem(
                                 value: 'CASH',
-                                child: Text('Naqd (darhol to\'landi)', style: TextStyle(color: textColor)),
+                                child: Text(
+                                  'Naqd (darhol to\'landi)',
+                                  style: TextStyle(color: textColor),
+                                ),
                               ),
                               DropdownMenuItem(
                                 value: 'CREDIT',
-                                child: Text('Nasiya (ta\'minotchiga qarz)', style: TextStyle(color: textColor)),
+                                child: Text(
+                                  'Nasiya (ta\'minotchiga qarz)',
+                                  style: TextStyle(color: textColor),
+                                ),
                               ),
                             ],
-                            onChanged: (val) => setState(() => _paymentType = val ?? 'CASH'),
+                            onChanged: (val) =>
+                                setState(() => _paymentType = val ?? 'CASH'),
                           ),
                           const SizedBox(height: 14),
                           Row(
@@ -469,12 +583,20 @@ class _InventoryReceiveViewState extends State<InventoryReceiveView> {
                               Expanded(
                                 child: TextFormField(
                                   controller: _quantityController,
-                                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                  style: TextStyle(color: textColor, fontWeight: FontWeight.bold),
+                                  keyboardType:
+                                      const TextInputType.numberWithOptions(
+                                        decimal: true,
+                                      ),
+                                  style: TextStyle(
+                                    color: textColor,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                   validator: (v) {
-                                    if (v == null || v.trim().isEmpty) return 'Miqdor majburiy!';
+                                    if (v == null || v.trim().isEmpty)
+                                      return 'Miqdor majburiy!';
                                     final n = double.tryParse(v.trim());
-                                    if (n == null || n <= 0) return 'Musbat raqam!';
+                                    if (n == null || n <= 0)
+                                      return 'Musbat raqam!';
                                     return null;
                                   },
                                   decoration: const InputDecoration(
@@ -486,12 +608,20 @@ class _InventoryReceiveViewState extends State<InventoryReceiveView> {
                               Expanded(
                                 child: TextFormField(
                                   controller: _costController,
-                                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                  style: TextStyle(color: textColor, fontWeight: FontWeight.bold),
+                                  keyboardType:
+                                      const TextInputType.numberWithOptions(
+                                        decimal: true,
+                                      ),
+                                  style: TextStyle(
+                                    color: textColor,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                   validator: (v) {
-                                    if (v == null || v.trim().isEmpty) return 'Tannarx majburiy!';
+                                    if (v == null || v.trim().isEmpty)
+                                      return 'Tannarx majburiy!';
                                     final n = double.tryParse(v.trim());
-                                    if (n == null || n < 0) return 'To\'g\'ri narx!';
+                                    if (n == null || n < 0)
+                                      return 'To\'g\'ri narx!';
                                     return null;
                                   },
                                   decoration: const InputDecoration(
@@ -507,12 +637,20 @@ class _InventoryReceiveViewState extends State<InventoryReceiveView> {
                                 ? const SizedBox(
                                     width: 20,
                                     height: 20,
-                                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                                    child: CircularProgressIndicator(
+                                      color: Colors.white,
+                                      strokeWidth: 2.5,
+                                    ),
                                   )
                                 : const Icon(Icons.add_shopping_cart),
                             label: Text(
-                              _submitting ? 'Saqlanmoqda...' : 'Kirimni Saqlash',
-                              style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold),
+                              _submitting
+                                  ? 'Saqlanmoqda...'
+                                  : 'Kirimni Saqlash',
+                              style: GoogleFonts.outfit(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                             style: ElevatedButton.styleFrom(
                               padding: const EdgeInsets.symmetric(vertical: 16),

@@ -28,7 +28,9 @@ class _InventoryAdjustViewState extends State<InventoryAdjustView> {
   String _adjustType = 'OUT';
 
   final _quantityController = TextEditingController();
-  final _reasonController = TextEditingController(text: 'Yaroqsiz / Buzilgan mahsulot');
+  final _reasonController = TextEditingController(
+    text: 'Yaroqsiz / Buzilgan mahsulot',
+  );
 
   final List<String> _quickReasonsOut = [
     'Yaroqsiz / Buzilgan mahsulot',
@@ -138,7 +140,9 @@ class _InventoryAdjustViewState extends State<InventoryAdjustView> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           backgroundColor: Colors.red,
-          content: Text('Chiqim miqdori ($qtyNum) mavjud qoldiqdan ($currentStock) oshib ketolmaydi!'),
+          content: Text(
+            'Chiqim miqdori ($qtyNum) mavjud qoldiqdan ($currentStock) oshib ketolmaydi!',
+          ),
         ),
       );
       return;
@@ -180,7 +184,13 @@ class _InventoryAdjustViewState extends State<InventoryAdjustView> {
           );
           _quantityController.clear();
           await _loadDependencies();
-          setState(() => _submitting = false);
+          // Otherwise the Form stays in AutovalidateMode.always from this
+          // submit and immediately flags the field it just cleared as
+          // "required" — right under a success message.
+          setState(() {
+            _submitting = false;
+            _submitted = false;
+          });
         }
       }
     } catch (e) {
@@ -222,7 +232,9 @@ class _InventoryAdjustViewState extends State<InventoryAdjustView> {
                 ),
                 child: Form(
                   key: _formKey,
-                  autovalidateMode: _submitted ? AutovalidateMode.always : AutovalidateMode.disabled,
+                  autovalidateMode: _submitted
+                      ? AutovalidateMode.always
+                      : AutovalidateMode.disabled,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
@@ -240,26 +252,39 @@ class _InventoryAdjustViewState extends State<InventoryAdjustView> {
                                 onTap: () {
                                   setState(() {
                                     _adjustType = 'OUT';
-                                    _reasonController.text = _quickReasonsOut.first;
+                                    _reasonController.text =
+                                        _quickReasonsOut.first;
                                   });
                                 },
                                 borderRadius: BorderRadius.circular(10),
                                 child: Container(
-                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                  ),
                                   decoration: BoxDecoration(
-                                    color: isOut ? Colors.red : Colors.transparent,
+                                    color: isOut
+                                        ? Colors.red
+                                        : Colors.transparent,
                                     borderRadius: BorderRadius.circular(10),
                                   ),
                                   child: Row(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
-                                      Icon(Icons.remove_circle_outline, color: isOut ? Colors.white : Colors.grey, size: 18),
+                                      Icon(
+                                        Icons.remove_circle_outline,
+                                        color: isOut
+                                            ? Colors.white
+                                            : Colors.grey,
+                                        size: 18,
+                                      ),
                                       const SizedBox(width: 8),
                                       Text(
                                         'Chiqim (Kamaytirish)',
                                         style: GoogleFonts.outfit(
                                           fontWeight: FontWeight.bold,
-                                          color: isOut ? Colors.white : theme.colorScheme.onSurface,
+                                          color: isOut
+                                              ? Colors.white
+                                              : theme.colorScheme.onSurface,
                                         ),
                                       ),
                                     ],
@@ -272,26 +297,39 @@ class _InventoryAdjustViewState extends State<InventoryAdjustView> {
                                 onTap: () {
                                   setState(() {
                                     _adjustType = 'IN';
-                                    _reasonController.text = _quickReasonsIn.first;
+                                    _reasonController.text =
+                                        _quickReasonsIn.first;
                                   });
                                 },
                                 borderRadius: BorderRadius.circular(10),
                                 child: Container(
-                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                  ),
                                   decoration: BoxDecoration(
-                                    color: !isOut ? Colors.green : Colors.transparent,
+                                    color: !isOut
+                                        ? Colors.green
+                                        : Colors.transparent,
                                     borderRadius: BorderRadius.circular(10),
                                   ),
                                   child: Row(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
-                                      Icon(Icons.add_circle_outline, color: !isOut ? Colors.white : Colors.grey, size: 18),
+                                      Icon(
+                                        Icons.add_circle_outline,
+                                        color: !isOut
+                                            ? Colors.white
+                                            : Colors.grey,
+                                        size: 18,
+                                      ),
                                       const SizedBox(width: 8),
                                       Text(
                                         'Kirim (Qo\'shish)',
                                         style: GoogleFonts.outfit(
                                           fontWeight: FontWeight.bold,
-                                          color: !isOut ? Colors.white : theme.colorScheme.onSurface,
+                                          color: !isOut
+                                              ? Colors.white
+                                              : theme.colorScheme.onSurface,
                                         ),
                                       ),
                                     ],
@@ -316,14 +354,18 @@ class _InventoryAdjustViewState extends State<InventoryAdjustView> {
                               DropdownButtonFormField<Map<String, dynamic>>(
                                 value: _selectedProduct,
                                 isExpanded: true,
-                                validator: (v) => v == null ? 'Mahsulot tanlanishi majburiy!' : null,
+                                validator: (v) => v == null
+                                    ? 'Mahsulot tanlanishi majburiy!'
+                                    : null,
                                 decoration: const InputDecoration(
                                   labelText: 'Mahsulot *',
                                   prefixIcon: Icon(Icons.inventory_2_outlined),
                                   border: OutlineInputBorder(),
                                 ),
                                 items: _products.map((p) {
-                                  final stockVal = _getProductStock(p as Map<String, dynamic>);
+                                  final stockVal = _getProductStock(
+                                    p as Map<String, dynamic>,
+                                  );
                                   return DropdownMenuItem(
                                     value: p,
                                     child: Text(
@@ -332,26 +374,38 @@ class _InventoryAdjustViewState extends State<InventoryAdjustView> {
                                     ),
                                   );
                                 }).toList(),
-                                onChanged: (val) => setState(() => _selectedProduct = val),
+                                onChanged: (val) =>
+                                    setState(() => _selectedProduct = val),
                               ),
                               const SizedBox(height: 12),
 
                               // Current Stock Info Banner
                               if (_selectedProduct != null)
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 8,
+                                  ),
                                   decoration: BoxDecoration(
-                                    color: currentStock > 0 ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
+                                    color: currentStock > 0
+                                        ? Colors.green.withOpacity(0.1)
+                                        : Colors.red.withOpacity(0.1),
                                     borderRadius: BorderRadius.circular(8),
                                     border: Border.all(
-                                      color: currentStock > 0 ? Colors.green.withOpacity(0.3) : Colors.red.withOpacity(0.3),
+                                      color: currentStock > 0
+                                          ? Colors.green.withOpacity(0.3)
+                                          : Colors.red.withOpacity(0.3),
                                     ),
                                   ),
                                   child: Row(
                                     children: [
                                       Icon(
-                                        currentStock > 0 ? Icons.check_circle_outline : Icons.warning_amber_rounded,
-                                        color: currentStock > 0 ? Colors.green : Colors.red,
+                                        currentStock > 0
+                                            ? Icons.check_circle_outline
+                                            : Icons.warning_amber_rounded,
+                                        color: currentStock > 0
+                                            ? Colors.green
+                                            : Colors.red,
                                         size: 18,
                                       ),
                                       const SizedBox(width: 8),
@@ -364,7 +418,9 @@ class _InventoryAdjustViewState extends State<InventoryAdjustView> {
                                         style: GoogleFonts.outfit(
                                           fontSize: 13,
                                           fontWeight: FontWeight.bold,
-                                          color: currentStock > 0 ? Colors.green : Colors.red,
+                                          color: currentStock > 0
+                                              ? Colors.green
+                                              : Colors.red,
                                         ),
                                       ),
                                     ],
@@ -376,7 +432,9 @@ class _InventoryAdjustViewState extends State<InventoryAdjustView> {
                               DropdownButtonFormField<Map<String, dynamic>>(
                                 value: _selectedWarehouse,
                                 isExpanded: true,
-                                validator: (v) => v == null ? 'Ombor tanlanishi majburiy!' : null,
+                                validator: (v) => v == null
+                                    ? 'Ombor tanlanishi majburiy!'
+                                    : null,
                                 decoration: const InputDecoration(
                                   labelText: 'Ombor *',
                                   prefixIcon: Icon(Icons.warehouse_outlined),
@@ -385,31 +443,49 @@ class _InventoryAdjustViewState extends State<InventoryAdjustView> {
                                 items: _warehouses.map((w) {
                                   return DropdownMenuItem(
                                     value: w as Map<String, dynamic>,
-                                    child: Text(w['name'] ?? 'Ombor', overflow: TextOverflow.ellipsis),
+                                    child: Text(
+                                      w['name'] ?? 'Ombor',
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
                                   );
                                 }).toList(),
-                                onChanged: (val) => setState(() => _selectedWarehouse = val),
+                                onChanged: (val) =>
+                                    setState(() => _selectedWarehouse = val),
                               ),
                               const SizedBox(height: 14),
 
                               // Quantity Input
                               TextFormField(
                                 controller: _quantityController,
-                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                keyboardType:
+                                    const TextInputType.numberWithOptions(
+                                      decimal: true,
+                                    ),
                                 validator: (v) {
-                                  if (v == null || v.trim().isEmpty) return 'Miqdor majburiy!';
+                                  if (v == null || v.trim().isEmpty)
+                                    return 'Miqdor majburiy!';
                                   final n = double.tryParse(v.trim());
-                                  if (n == null || n <= 0) return 'Musbat raqam kiriting!';
+                                  if (n == null || n <= 0)
+                                    return 'Musbat raqam kiriting!';
                                   if (isOut && n > currentStock) {
                                     return 'Qoldiqdan ($currentStock) ko\'p chiqim qilib bo\'lmaydi!';
                                   }
                                   return null;
                                 },
                                 decoration: InputDecoration(
-                                  labelText: isOut ? 'Chiqim Miqdori *' : 'Qo\'shiladigan Miqdor *',
-                                  prefixIcon: Icon(isOut ? Icons.remove_circle : Icons.add_circle, color: isOut ? Colors.red : Colors.green),
+                                  labelText: isOut
+                                      ? 'Chiqim Miqdori *'
+                                      : 'Qo\'shiladigan Miqdor *',
+                                  prefixIcon: Icon(
+                                    isOut
+                                        ? Icons.remove_circle
+                                        : Icons.add_circle,
+                                    color: isOut ? Colors.red : Colors.green,
+                                  ),
                                   border: const OutlineInputBorder(),
-                                  helperText: isOut ? 'Ombordagi zaxiradan ayirib tashlanadi' : 'Ombordagi zaxiraga qo\'shiladi',
+                                  helperText: isOut
+                                      ? 'Ombordagi zaxiradan ayirib tashlanadi'
+                                      : 'Ombordagi zaxiraga qo\'shiladi',
                                 ),
                               ),
                               const SizedBox(height: 14),
@@ -417,32 +493,57 @@ class _InventoryAdjustViewState extends State<InventoryAdjustView> {
                               // Quick Reason Selection Chips
                               Text(
                                 'Sabab / Izoh:',
-                                style: GoogleFonts.outfit(fontWeight: FontWeight.w600, fontSize: 13),
+                                style: GoogleFonts.outfit(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                ),
                               ),
                               const SizedBox(height: 6),
                               Wrap(
                                 spacing: 6,
                                 runSpacing: 6,
-                                children: (isOut ? _quickReasonsOut : _quickReasonsIn).map((r) {
-                                  final isSelected = _reasonController.text == r;
-                                  return ChoiceChip(
-                                    label: Text(r, style: TextStyle(fontSize: 12, color: isSelected ? Colors.white : theme.colorScheme.onSurface)),
-                                    selected: isSelected,
-                                    selectedColor: isOut ? Colors.red : Colors.green,
-                                    onSelected: (selected) {
-                                      if (selected) {
-                                        setState(() => _reasonController.text = r);
-                                      }
-                                    },
-                                  );
-                                }).toList(),
+                                children:
+                                    (isOut ? _quickReasonsOut : _quickReasonsIn)
+                                        .map((r) {
+                                          final isSelected =
+                                              _reasonController.text == r;
+                                          return ChoiceChip(
+                                            label: Text(
+                                              r,
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: isSelected
+                                                    ? Colors.white
+                                                    : theme
+                                                          .colorScheme
+                                                          .onSurface,
+                                              ),
+                                            ),
+                                            selected: isSelected,
+                                            selectedColor: isOut
+                                                ? Colors.red
+                                                : Colors.green,
+                                            onSelected: (selected) {
+                                              if (selected) {
+                                                setState(
+                                                  () => _reasonController.text =
+                                                      r,
+                                                );
+                                              }
+                                            },
+                                          );
+                                        })
+                                        .toList(),
                               ),
                               const SizedBox(height: 10),
 
                               // Custom Reason Input
                               TextFormField(
                                 controller: _reasonController,
-                                validator: (v) => (v == null || v.trim().isEmpty) ? 'Sabab kiritilishi shart!' : null,
+                                validator: (v) =>
+                                    (v == null || v.trim().isEmpty)
+                                    ? 'Sabab kiritilishi shart!'
+                                    : null,
                                 decoration: const InputDecoration(
                                   labelText: 'Tafsilot / Izoh *',
                                   prefixIcon: Icon(Icons.notes_outlined),
@@ -457,18 +558,30 @@ class _InventoryAdjustViewState extends State<InventoryAdjustView> {
                                     ? const SizedBox(
                                         width: 20,
                                         height: 20,
-                                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                                        child: CircularProgressIndicator(
+                                          color: Colors.white,
+                                          strokeWidth: 2.5,
+                                        ),
                                       )
                                     : Icon(isOut ? Icons.output : Icons.input),
                                 label: Text(
                                   _submitting
                                       ? 'Saqlanmoqda...'
-                                      : (isOut ? 'Chiqimni Saqlash' : 'Kirimni Saqlash'),
-                                  style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold),
+                                      : (isOut
+                                            ? 'Chiqimni Saqlash'
+                                            : 'Kirimni Saqlash'),
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                                 style: ElevatedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(vertical: 16),
-                                  backgroundColor: isOut ? Colors.red : Colors.green,
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 16,
+                                  ),
+                                  backgroundColor: isOut
+                                      ? Colors.red
+                                      : Colors.green,
                                   foregroundColor: Colors.white,
                                 ),
                                 onPressed: _submitting ? null : _handleAdjust,
