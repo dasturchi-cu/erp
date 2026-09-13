@@ -42,7 +42,9 @@ class _SuppliersViewState extends State<SuppliersView> {
   Future<void> _load([String? q]) async {
     setState(() => _loading = true);
     try {
-      final qParam = q != null && q.isNotEmpty ? '&q=${Uri.encodeComponent(q)}' : '';
+      final qParam = q != null && q.isNotEmpty
+          ? '&q=${Uri.encodeComponent(q)}'
+          : '';
       final res = await _api.get('/suppliers?limit=100$qParam');
       final sumRes = await _api.get('/suppliers/summary');
       if (mounted) {
@@ -81,22 +83,34 @@ class _SuppliersViewState extends State<SuppliersView> {
         builder: (ctx, setModalState) {
           return Padding(
             padding: EdgeInsets.only(
-              left: 20, right: 20, top: 20,
+              left: 20,
+              right: 20,
+              top: 20,
               bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
             ),
             child: SingleChildScrollView(
               child: Form(
                 key: formKey,
-                autovalidateMode: submitted ? AutovalidateMode.always : AutovalidateMode.disabled,
+                autovalidateMode: submitted
+                    ? AutovalidateMode.always
+                    : AutovalidateMode.disabled,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text('Yangi Ta\'minotchi Qo\'shish', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold)),
+                    Text(
+                      'Yangi Ta\'minotchi Qo\'shish',
+                      style: GoogleFonts.outfit(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                     const SizedBox(height: 12),
                     TextFormField(
                       controller: _nameCtrl,
-                      validator: (v) => (v == null || v.trim().isEmpty) ? 'Ta\'minotchi / firma nomi majburiy!' : null,
+                      validator: (v) => (v == null || v.trim().isEmpty)
+                          ? 'Ta\'minotchi / firma nomi majburiy!'
+                          : null,
                       decoration: const InputDecoration(
                         labelText: 'Ta\'minotchi Nomi / Firma *',
                         prefixIcon: Icon(Icons.store),
@@ -107,7 +121,9 @@ class _SuppliersViewState extends State<SuppliersView> {
                     TextFormField(
                       controller: _phoneCtrl,
                       keyboardType: TextInputType.phone,
-                      validator: (v) => (v == null || v.trim().isEmpty) ? 'Telefon raqam majburiy!' : null,
+                      validator: (v) => (v == null || v.trim().isEmpty)
+                          ? 'Telefon raqam majburiy!'
+                          : null,
                       decoration: const InputDecoration(
                         labelText: 'Telefon Raqam *',
                         prefixIcon: Icon(Icons.phone),
@@ -147,14 +163,20 @@ class _SuppliersViewState extends State<SuppliersView> {
                           final res = await _api.post('/suppliers', {
                             'name': name,
                             'phone': phone,
-                            if (_contactCtrl.text.trim().isNotEmpty) 'contactPerson': _contactCtrl.text.trim(),
-                            if (_notesCtrl.text.trim().isNotEmpty) 'notes': _notesCtrl.text.trim(),
+                            if (_contactCtrl.text.trim().isNotEmpty)
+                              'contactPerson': _contactCtrl.text.trim(),
+                            if (_notesCtrl.text.trim().isNotEmpty)
+                              'notes': _notesCtrl.text.trim(),
                           });
                           if (res.statusCode == 200 || res.statusCode == 201) {
                             if (mounted) {
                               Navigator.pop(ctx);
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Ta\'minotchi muvaffaqiyatli qo\'shildi!')),
+                                const SnackBar(
+                                  content: Text(
+                                    'Ta\'minotchi muvaffaqiyatli qo\'shildi!',
+                                  ),
+                                ),
                               );
                               _load(_searchQuery);
                             }
@@ -162,13 +184,25 @@ class _SuppliersViewState extends State<SuppliersView> {
                         } catch (e) {
                           if (mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Xatolik: ${ApiService.parseError(e)}')),
+                              SnackBar(
+                                content: Text(
+                                  'Xatolik: ${ApiService.parseError(e)}',
+                                ),
+                              ),
                             );
                           }
                         }
                       },
-                      style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
-                      child: Text('Saqlash', style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold)),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      child: Text(
+                        'Saqlash',
+                        style: GoogleFonts.outfit(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -199,22 +233,34 @@ class _SuppliersViewState extends State<SuppliersView> {
         builder: (ctx, setModalState) {
           return Padding(
             padding: EdgeInsets.only(
-              left: 20, right: 20, top: 20,
+              left: 20,
+              right: 20,
+              top: 20,
               bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
             ),
             child: SingleChildScrollView(
               child: Form(
                 key: formKey,
-                autovalidateMode: submitted ? AutovalidateMode.always : AutovalidateMode.disabled,
+                autovalidateMode: submitted
+                    ? AutovalidateMode.always
+                    : AutovalidateMode.disabled,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text('Ta\'minotchini Tahrirlash', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold)),
+                    Text(
+                      'Ta\'minotchini Tahrirlash',
+                      style: GoogleFonts.outfit(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                     const SizedBox(height: 12),
                     TextFormField(
                       controller: _nameCtrl,
-                      validator: (v) => (v == null || v.trim().isEmpty) ? 'Ta\'minotchi nomi majburiy!' : null,
+                      validator: (v) => (v == null || v.trim().isEmpty)
+                          ? 'Ta\'minotchi nomi majburiy!'
+                          : null,
                       decoration: const InputDecoration(
                         labelText: 'Ta\'minotchi Nomi *',
                         prefixIcon: Icon(Icons.store),
@@ -225,7 +271,9 @@ class _SuppliersViewState extends State<SuppliersView> {
                     TextFormField(
                       controller: _phoneCtrl,
                       keyboardType: TextInputType.phone,
-                      validator: (v) => (v == null || v.trim().isEmpty) ? 'Telefon raqam majburiy!' : null,
+                      validator: (v) => (v == null || v.trim().isEmpty)
+                          ? 'Telefon raqam majburiy!'
+                          : null,
                       decoration: const InputDecoration(
                         labelText: 'Telefon Raqam *',
                         prefixIcon: Icon(Icons.phone),
@@ -262,17 +310,22 @@ class _SuppliersViewState extends State<SuppliersView> {
                         final phone = _phoneCtrl.text.trim();
 
                         try {
-                          final res = await _api.patch('/suppliers/${s['id']}', {
-                            'name': name,
-                            'phone': phone,
-                            'contactPerson': _contactCtrl.text.trim(),
-                            'notes': _notesCtrl.text.trim(),
-                          });
+                          final res = await _api
+                              .patch('/suppliers/${s['id']}', {
+                                'name': name,
+                                'phone': phone,
+                                'contactPerson': _contactCtrl.text.trim(),
+                                'notes': _notesCtrl.text.trim(),
+                              });
                           if (res.statusCode == 200 || res.statusCode == 204) {
                             if (mounted) {
                               Navigator.pop(ctx);
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Ta\'minotchi ma\'lumotlari yangilandi!')),
+                                const SnackBar(
+                                  content: Text(
+                                    'Ta\'minotchi ma\'lumotlari yangilandi!',
+                                  ),
+                                ),
                               );
                               _load(_searchQuery);
                             }
@@ -280,13 +333,25 @@ class _SuppliersViewState extends State<SuppliersView> {
                         } catch (e) {
                           if (mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Xatolik: ${ApiService.parseError(e)}')),
+                              SnackBar(
+                                content: Text(
+                                  'Xatolik: ${ApiService.parseError(e)}',
+                                ),
+                              ),
                             );
                           }
                         }
                       },
-                      style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
-                      child: Text('O\'zgarishlarni Saqlash', style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold)),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      child: Text(
+                        'O\'zgarishlarni Saqlash',
+                        style: GoogleFonts.outfit(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -303,14 +368,19 @@ class _SuppliersViewState extends State<SuppliersView> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Ta\'minotchini o\'chirish'),
-        content: Text('Haqiqatan ham "${s['name']}" ta\'minotchisini o\'chirmoqchimisiz (arxivlamoqchimisiz)?'),
+        content: Text(
+          'Haqiqatan ham "${s['name']}" ta\'minotchisini o\'chirmoqchimisiz (arxivlamoqchimisiz)?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text('Bekor qilish'),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
             onPressed: () async {
               Navigator.pop(ctx);
               try {
@@ -318,7 +388,11 @@ class _SuppliersViewState extends State<SuppliersView> {
                 if (res.statusCode == 200 || res.statusCode == 204) {
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Ta\'minotchi muvaffaqiyatli o\'chirildi!')),
+                      const SnackBar(
+                        content: Text(
+                          'Ta\'minotchi muvaffaqiyatli o\'chirildi!',
+                        ),
+                      ),
                     );
                     _load(_searchQuery);
                   }
@@ -326,7 +400,9 @@ class _SuppliersViewState extends State<SuppliersView> {
               } catch (e) {
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Xatolik: ${ApiService.parseError(e)}')),
+                    SnackBar(
+                      content: Text('Xatolik: ${ApiService.parseError(e)}'),
+                    ),
                   );
                 }
               }
@@ -340,10 +416,14 @@ class _SuppliersViewState extends State<SuppliersView> {
 
   void _showSupplierDetail(Map<String, dynamic> s) {
     final theme = Theme.of(context);
-    final debt = (s['balance'] ?? s['totalDebt'] ?? s['debtUzs'] ?? 0.0);
-    final debtNum = (debt is num) ? debt.toDouble() : (double.tryParse(debt.toString()) ?? 0.0);
+    final debt = (s['remainingDebtUzs'] ?? s['totalDebtUzs'] ?? 0.0);
+    final debtNum = (debt is num)
+        ? debt.toDouble()
+        : (double.tryParse(debt.toString()) ?? 0.0);
 
-    final payCtrl = TextEditingController(text: debtNum > 0 ? debtNum.toStringAsFixed(0) : '');
+    final payCtrl = TextEditingController(
+      text: debtNum > 0 ? debtNum.toStringAsFixed(0) : '',
+    );
     String payMethod = 'CASH';
 
     showModalBottomSheet(
@@ -355,7 +435,9 @@ class _SuppliersViewState extends State<SuppliersView> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setModalState) => Padding(
           padding: EdgeInsets.only(
-            left: 20, right: 20, top: 20,
+            left: 20,
+            right: 20,
+            top: 20,
             bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
           ),
           child: SingleChildScrollView(
@@ -368,19 +450,37 @@ class _SuppliersViewState extends State<SuppliersView> {
                     CircleAvatar(
                       radius: 24,
                       backgroundColor: theme.colorScheme.primaryContainer,
-                      child: Icon(Icons.store, color: theme.colorScheme.onPrimaryContainer, size: 28),
+                      child: Icon(
+                        Icons.store,
+                        color: theme.colorScheme.onPrimaryContainer,
+                        size: 28,
+                      ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(s['name'] ?? '', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold)),
-                          Text(s['phone'] ?? '', style: GoogleFonts.outfit(color: theme.colorScheme.onSurfaceVariant)),
+                          Text(
+                            s['name'] ?? '',
+                            style: GoogleFonts.outfit(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            s['phone'] ?? '',
+                            style: GoogleFonts.outfit(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
                         ],
                       ),
                     ),
-                    IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx)),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 12),
@@ -399,8 +499,15 @@ class _SuppliersViewState extends State<SuppliersView> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: OutlinedButton.icon(
-                        icon: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
-                        label: const Text('O\'chirish', style: TextStyle(color: Colors.red)),
+                        icon: const Icon(
+                          Icons.delete_outline,
+                          color: Colors.red,
+                          size: 18,
+                        ),
+                        label: const Text(
+                          'O\'chirish',
+                          style: TextStyle(color: Colors.red),
+                        ),
                         style: OutlinedButton.styleFrom(
                           side: const BorderSide(color: Colors.red),
                         ),
@@ -414,23 +521,36 @@ class _SuppliersViewState extends State<SuppliersView> {
                 ),
                 const Divider(height: 24),
                 Card(
-                  color: debtNum > 0 ? Colors.red.withOpacity(0.1) : Colors.green.withOpacity(0.1),
+                  color: debtNum > 0
+                      ? Colors.red.withOpacity(0.1)
+                      : Colors.green.withOpacity(0.1),
                   child: Padding(
                     padding: const EdgeInsets.all(12),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Qarz balansi', style: TextStyle(color: debtNum > 0 ? Colors.red : Colors.green, fontSize: 12)),
+                        Text(
+                          'Qarz balansi',
+                          style: TextStyle(
+                            color: debtNum > 0 ? Colors.red : Colors.green,
+                            fontSize: 12,
+                          ),
+                        ),
                         const SizedBox(height: 4),
                         Text(
                           '${_formatAmount(debtNum)} UZS',
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: debtNum > 0 ? Colors.red : Colors.green),
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: debtNum > 0 ? Colors.red : Colors.green,
+                          ),
                         ),
                       ],
                     ),
                   ),
                 ),
-                if (s['contactPerson'] != null && s['contactPerson'].toString().isNotEmpty)
+                if (s['contactPerson'] != null &&
+                    s['contactPerson'].toString().isNotEmpty)
                   ListTile(
                     dense: true,
                     leading: const Icon(Icons.person_outline),
@@ -446,28 +566,71 @@ class _SuppliersViewState extends State<SuppliersView> {
                   ),
                 const SizedBox(height: 16),
                 if (debtNum > 0) ...[
-                  Text('Ta\'minotchiga To\'lov Qilish', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 15)),
+                  Text(
+                    'Ta\'minotchiga To\'lov Qilish',
+                    style: GoogleFonts.outfit(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                    ),
+                  ),
                   const SizedBox(height: 8),
                   Row(
                     children: [
                       Expanded(
                         child: TextField(
                           controller: payCtrl,
-                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                          style: TextStyle(color: theme.colorScheme.onSurface, fontWeight: FontWeight.bold),
-                          decoration: const InputDecoration(labelText: 'Summa (so\'m)', border: OutlineInputBorder(), isDense: true),
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          style: TextStyle(
+                            color: theme.colorScheme.onSurface,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          decoration: const InputDecoration(
+                            labelText: 'Summa (so\'m)',
+                            border: OutlineInputBorder(),
+                            isDense: true,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 8),
                       DropdownButton<String>(
                         value: payMethod,
                         dropdownColor: theme.colorScheme.surface,
-                        style: TextStyle(color: theme.colorScheme.onSurface, fontSize: 14, fontWeight: FontWeight.w500),
+                        style: TextStyle(
+                          color: theme.colorScheme.onSurface,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
                         iconEnabledColor: theme.colorScheme.onSurface,
                         items: [
-                          DropdownMenuItem(value: 'CASH', child: Text('Naqd', style: TextStyle(color: theme.colorScheme.onSurface))),
-                          DropdownMenuItem(value: 'CARD', child: Text('Karta', style: TextStyle(color: theme.colorScheme.onSurface))),
-                          DropdownMenuItem(value: 'BANK_TRANSFER', child: Text('O\'tkazma', style: TextStyle(color: theme.colorScheme.onSurface))),
+                          DropdownMenuItem(
+                            value: 'CASH',
+                            child: Text(
+                              'Naqd',
+                              style: TextStyle(
+                                color: theme.colorScheme.onSurface,
+                              ),
+                            ),
+                          ),
+                          DropdownMenuItem(
+                            value: 'CARD',
+                            child: Text(
+                              'Karta',
+                              style: TextStyle(
+                                color: theme.colorScheme.onSurface,
+                              ),
+                            ),
+                          ),
+                          DropdownMenuItem(
+                            value: 'BANK_TRANSFER',
+                            child: Text(
+                              'O\'tkazma',
+                              style: TextStyle(
+                                color: theme.colorScheme.onSurface,
+                              ),
+                            ),
+                          ),
                         ],
                         onChanged: (v) => setModalState(() => payMethod = v!),
                       ),
@@ -477,26 +640,44 @@ class _SuppliersViewState extends State<SuppliersView> {
                   ElevatedButton.icon(
                     icon: const Icon(Icons.payment),
                     label: const Text('To\'lovni Amalga Oshirish'),
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.blue, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 12)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
                     onPressed: () async {
                       final payAmt = payCtrl.text.trim();
                       if (payAmt.isEmpty) return;
                       try {
-                        final res = await _api.post('/suppliers/${s['id']}/payments', {
-                          'amount': payAmt,
-                          'paymentMethod': payMethod,
-                          'currency': 'UZS',
-                          'notes': 'Mobil ilovadan ta\'minotchi to\'lovi',
-                        });
+                        final res = await _api
+                            .post('/suppliers/${s['id']}/payments', {
+                              'amount': payAmt,
+                              'paymentMethod': payMethod,
+                              'currency': 'UZS',
+                              'notes': 'Mobil ilovadan ta\'minotchi to\'lovi',
+                            });
                         if (res.statusCode == 200 || res.statusCode == 201) {
                           if (mounted) {
                             Navigator.pop(ctx);
-                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('To\'lov muvaffaqiyatli qilindi!')));
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'To\'lov muvaffaqiyatli qilindi!',
+                                ),
+                              ),
+                            );
                             _load(_searchQuery);
                           }
                         }
                       } catch (e) {
-                        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Xatolik: ${ApiService.parseError(e)}')));
+                        if (mounted)
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'Xatolik: ${ApiService.parseError(e)}',
+                              ),
+                            ),
+                          );
                       }
                     },
                   ),
@@ -514,9 +695,15 @@ class _SuppliersViewState extends State<SuppliersView> {
     final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: Text('Ta\'minotchilar', style: GoogleFonts.outfit(fontWeight: FontWeight.w600)),
+        title: Text(
+          'Ta\'minotchilar',
+          style: GoogleFonts.outfit(fontWeight: FontWeight.w600),
+        ),
         actions: [
-          IconButton(icon: const Icon(Icons.refresh), onPressed: () => _load(_searchQuery)),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () => _load(_searchQuery),
+          ),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
@@ -558,7 +745,10 @@ class _SuppliersViewState extends State<SuppliersView> {
                   ),
                   // Summary cards
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 4,
+                    ),
                     child: Row(
                       children: [
                         Expanded(
@@ -590,9 +780,16 @@ class _SuppliersViewState extends State<SuppliersView> {
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(Icons.store_outlined, size: 64, color: theme.colorScheme.outline),
+                                Icon(
+                                  Icons.store_outlined,
+                                  size: 64,
+                                  color: theme.colorScheme.outline,
+                                ),
                                 const SizedBox(height: 12),
-                                Text('Ta\'minotchilar topilmadi', style: GoogleFonts.outfit(fontSize: 16)),
+                                Text(
+                                  'Ta\'minotchilar topilmadi',
+                                  style: GoogleFonts.outfit(fontSize: 16),
+                                ),
                               ],
                             ),
                           )
@@ -601,25 +798,35 @@ class _SuppliersViewState extends State<SuppliersView> {
                             itemCount: _suppliers.length,
                             itemBuilder: (ctx, i) {
                               final s = _suppliers[i];
-                              final debt = (s['balance'] ?? s['totalDebt'] ?? s['debtUzs'] ?? 0.0);
-                              final debtNum = (debt is num) ? debt.toDouble() : (double.tryParse(debt.toString()) ?? 0.0);
+                              final debt =
+                                  (s['remainingDebtUzs'] ??
+                                  s['totalDebtUzs'] ??
+                                  0.0);
+                              final debtNum = (debt is num)
+                                  ? debt.toDouble()
+                                  : (double.tryParse(debt.toString()) ?? 0.0);
                               return Card(
                                 margin: const EdgeInsets.only(bottom: 10),
                                 child: ListTile(
                                   onTap: () => _showSupplierDetail(s),
                                   leading: CircleAvatar(
-                                    backgroundColor: theme.colorScheme.primaryContainer,
+                                    backgroundColor:
+                                        theme.colorScheme.primaryContainer,
                                     child: Text(
                                       (s['name'] ?? '?')[0].toUpperCase(),
                                       style: TextStyle(
-                                        color: theme.colorScheme.onPrimaryContainer,
+                                        color: theme
+                                            .colorScheme
+                                            .onPrimaryContainer,
                                         fontWeight: FontWeight.bold,
                                       ),
                                     ),
                                   ),
                                   title: Text(
                                     s['name'] ?? 'Noma\'lum',
-                                    style: GoogleFonts.outfit(fontWeight: FontWeight.w600),
+                                    style: GoogleFonts.outfit(
+                                      fontWeight: FontWeight.w600,
+                                    ),
                                   ),
                                   subtitle: Text(
                                     s['phone'] ?? s['contactPerson'] ?? '',
@@ -632,12 +839,20 @@ class _SuppliersViewState extends State<SuppliersView> {
                                           ? Chip(
                                               label: Text(
                                                 '${debtNum > 0 ? '-' : '+'}${_formatAmount(debtNum.abs())}',
-                                                style: const TextStyle(fontSize: 12, color: Colors.white),
+                                                style: const TextStyle(
+                                                  fontSize: 12,
+                                                  color: Colors.white,
+                                                ),
                                               ),
-                                              backgroundColor: debtNum < 0 ? Colors.green : Colors.red,
+                                              backgroundColor: debtNum < 0
+                                                  ? Colors.green
+                                                  : Colors.red,
                                               padding: EdgeInsets.zero,
                                             )
-                                          : const Icon(Icons.check_circle_outline, color: Colors.green),
+                                          : const Icon(
+                                              Icons.check_circle_outline,
+                                              color: Colors.green,
+                                            ),
                                       const SizedBox(width: 4),
                                       PopupMenuButton<String>(
                                         icon: const Icon(Icons.more_vert),
@@ -663,9 +878,18 @@ class _SuppliersViewState extends State<SuppliersView> {
                                             value: 'delete',
                                             child: Row(
                                               children: [
-                                                Icon(Icons.delete_outline, color: Colors.red, size: 18),
+                                                Icon(
+                                                  Icons.delete_outline,
+                                                  color: Colors.red,
+                                                  size: 18,
+                                                ),
                                                 SizedBox(width: 8),
-                                                Text('O\'chirish', style: TextStyle(color: Colors.red)),
+                                                Text(
+                                                  'O\'chirish',
+                                                  style: TextStyle(
+                                                    color: Colors.red,
+                                                  ),
+                                                ),
                                               ],
                                             ),
                                           ),
@@ -684,7 +908,13 @@ class _SuppliersViewState extends State<SuppliersView> {
     );
   }
 
-  Widget _summaryCard(String label, String value, IconData icon, Color color, ThemeData theme) {
+  Widget _summaryCard(
+    String label,
+    String value,
+    IconData icon,
+    Color color,
+    ThemeData theme,
+  ) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(12),
@@ -700,8 +930,20 @@ class _SuppliersViewState extends State<SuppliersView> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(label, style: GoogleFonts.outfit(fontSize: 12, color: theme.colorScheme.onSurfaceVariant)),
-                  Text(value, style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold)),
+                  Text(
+                    label,
+                    style: GoogleFonts.outfit(
+                      fontSize: 12,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  Text(
+                    value,
+                    style: GoogleFonts.outfit(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -713,7 +955,9 @@ class _SuppliersViewState extends State<SuppliersView> {
 
   String _formatAmount(dynamic val) {
     if (val == null) return '0';
-    final n = (val is num) ? val.toDouble() : (double.tryParse(val.toString()) ?? 0.0);
+    final n = (val is num)
+        ? val.toDouble()
+        : (double.tryParse(val.toString()) ?? 0.0);
     if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M';
     if (n >= 1000) return '${(n / 1000).toStringAsFixed(0)}K';
     return n.toStringAsFixed(0);

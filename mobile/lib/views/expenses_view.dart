@@ -23,11 +23,27 @@ class _ExpensesViewState extends State<ExpensesView> {
   final _categories = [
     {'value': 'RENT', 'label': 'Ijara', 'icon': Icons.home_outlined},
     {'value': 'SALARY', 'label': 'Maosh', 'icon': Icons.payments_outlined},
-    {'value': 'UTILITIES', 'label': 'Kommunal', 'icon': Icons.electrical_services_outlined},
-    {'value': 'SUPPLIES', 'label': 'Jihozlar / Zaxira', 'icon': Icons.shopping_bag_outlined},
+    {
+      'value': 'UTILITIES',
+      'label': 'Kommunal',
+      'icon': Icons.electrical_services_outlined,
+    },
+    {
+      'value': 'SUPPLIES',
+      'label': 'Jihozlar / Zaxira',
+      'icon': Icons.shopping_bag_outlined,
+    },
     {'value': 'MARKETING', 'label': 'Reklama', 'icon': Icons.campaign_outlined},
-    {'value': 'TRANSPORT', 'label': 'Transport', 'icon': Icons.directions_car_outlined},
-    {'value': 'MAINTENANCE', 'label': 'Ta\'mirlash', 'icon': Icons.build_outlined},
+    {
+      'value': 'TRANSPORT',
+      'label': 'Transport',
+      'icon': Icons.directions_car_outlined,
+    },
+    {
+      'value': 'MAINTENANCE',
+      'label': 'Ta\'mirlash',
+      'icon': Icons.build_outlined,
+    },
     {'value': 'OTHER', 'label': 'Boshqa', 'icon': Icons.category_outlined},
   ];
 
@@ -52,7 +68,9 @@ class _ExpensesViewState extends State<ExpensesView> {
       if (mounted) {
         setState(() {
           final raw = res.data;
-          _expenses = raw is Map && raw.containsKey('data') ? raw['data'] : (raw is List ? raw : []);
+          _expenses = raw is Map && raw.containsKey('data')
+              ? raw['data']
+              : (raw is List ? raw : []);
           _cashBalance = cashRes.data ?? {};
           _loading = false;
         });
@@ -69,13 +87,18 @@ class _ExpensesViewState extends State<ExpensesView> {
     final parsedAmt = double.tryParse(amtText);
     if (parsedAmt == null || parsedAmt <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Xarajat summasi musbat raqam bo\'lishi kerak!')),
+        const SnackBar(
+          content: Text('Xarajat summasi musbat raqam bo\'lishi kerak!'),
+        ),
       );
       return;
     }
 
     final note = _noteCtrl.text.trim();
-    final catObj = _categories.firstWhere((c) => c['value'] == _selectedCategory, orElse: () => _categories.last);
+    final catObj = _categories.firstWhere(
+      (c) => c['value'] == _selectedCategory,
+      orElse: () => _categories.last,
+    );
     final desc = note.isNotEmpty ? note : (catObj['label'] as String);
 
     try {
@@ -123,23 +146,34 @@ class _ExpensesViewState extends State<ExpensesView> {
 
           return Padding(
             padding: EdgeInsets.only(
-              left: 20, right: 20, top: 20,
+              left: 20,
+              right: 20,
+              top: 20,
               bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
             ),
             child: Form(
               key: formKey,
-              autovalidateMode: submitted ? AutovalidateMode.always : AutovalidateMode.disabled,
+              autovalidateMode: submitted
+                  ? AutovalidateMode.always
+                  : AutovalidateMode.disabled,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text('Xarajat Qo\'shish', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold)),
+                  Text(
+                    'Xarajat Qo\'shish',
+                    style: GoogleFonts.outfit(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: _amountCtrl,
                     keyboardType: TextInputType.number,
                     validator: (v) {
-                      if (v == null || v.trim().isEmpty) return 'Xarajat summasi majburiy!';
+                      if (v == null || v.trim().isEmpty)
+                        return 'Xarajat summasi majburiy!';
                       final n = double.tryParse(v.trim());
                       if (n == null || n <= 0) return 'Musbat raqam kiriting!';
                       return null;
@@ -153,18 +187,32 @@ class _ExpensesViewState extends State<ExpensesView> {
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
                     value: _selectedCategory,
-                    style: TextStyle(color: theme.colorScheme.onSurface, fontSize: 14, fontWeight: FontWeight.w500),
+                    style: TextStyle(
+                      color: theme.colorScheme.onSurface,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
                     dropdownColor: theme.colorScheme.surface,
                     iconEnabledColor: theme.colorScheme.onSurface,
                     decoration: const InputDecoration(
                       labelText: 'Kategoriya *',
                       border: OutlineInputBorder(),
                     ),
-                    items: _categories.map((c) => DropdownMenuItem(
-                      value: c['value'] as String,
-                      child: Text(c['label'] as String, style: TextStyle(color: theme.colorScheme.onSurface)),
-                    )).toList(),
-                    onChanged: (v) => setModalState(() => _selectedCategory = v!),
+                    items: _categories
+                        .map(
+                          (c) => DropdownMenuItem(
+                            value: c['value'] as String,
+                            child: Text(
+                              c['label'] as String,
+                              style: TextStyle(
+                                color: theme.colorScheme.onSurface,
+                              ),
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (v) =>
+                        setModalState(() => _selectedCategory = v!),
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
@@ -184,7 +232,13 @@ class _ExpensesViewState extends State<ExpensesView> {
                       }
                     },
                     icon: const Icon(Icons.add),
-                    label: Text('Saqlash', style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.w600)),
+                    label: Text(
+                      'Saqlash',
+                      style: GoogleFonts.outfit(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
@@ -200,7 +254,9 @@ class _ExpensesViewState extends State<ExpensesView> {
 
   String _formatNumber(dynamic val) {
     if (val == null) return '0';
-    final n = (val is num) ? val.toDouble() : (double.tryParse(val.toString()) ?? 0.0);
+    final n = (val is num)
+        ? val.toDouble()
+        : (double.tryParse(val.toString()) ?? 0.0);
     final str = n.abs().toStringAsFixed(0);
     final buffer = StringBuffer();
     for (int i = 0; i < str.length; i++) {
@@ -215,11 +271,14 @@ class _ExpensesViewState extends State<ExpensesView> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final cashBalance = (_cashBalance['balance'] ?? 0.0);
+    final cashBalance = (_cashBalance['balanceUzs'] ?? 0.0);
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Xarajatlar', style: GoogleFonts.outfit(fontWeight: FontWeight.w600)),
+        title: Text(
+          'Xarajatlar',
+          style: GoogleFonts.outfit(fontWeight: FontWeight.w600),
+        ),
         actions: [
           IconButton(icon: const Icon(Icons.refresh), onPressed: _load),
         ],
@@ -241,7 +300,10 @@ class _ExpensesViewState extends State<ExpensesView> {
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
-                        colors: [theme.colorScheme.primary, theme.colorScheme.tertiary],
+                        colors: [
+                          theme.colorScheme.primary,
+                          theme.colorScheme.tertiary,
+                        ],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       ),
@@ -249,15 +311,29 @@ class _ExpensesViewState extends State<ExpensesView> {
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.account_balance_wallet, color: Colors.white, size: 36),
+                        const Icon(
+                          Icons.account_balance_wallet,
+                          color: Colors.white,
+                          size: 36,
+                        ),
                         const SizedBox(width: 16),
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('Kassa Balansi', style: GoogleFonts.outfit(color: Colors.white70, fontSize: 14)),
+                            Text(
+                              'Kassa Balansi',
+                              style: GoogleFonts.outfit(
+                                color: Colors.white70,
+                                fontSize: 14,
+                              ),
+                            ),
                             Text(
                               '${_formatNumber(cashBalance)} so\'m',
-                              style: GoogleFonts.outfit(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+                              style: GoogleFonts.outfit(
+                                color: Colors.white,
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ],
                         ),
@@ -271,9 +347,16 @@ class _ExpensesViewState extends State<ExpensesView> {
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(Icons.receipt_long_outlined, size: 64, color: theme.colorScheme.outline),
+                                Icon(
+                                  Icons.receipt_long_outlined,
+                                  size: 64,
+                                  color: theme.colorScheme.outline,
+                                ),
                                 const SizedBox(height: 12),
-                                Text('Xarajatlar topilmadi', style: GoogleFonts.outfit(fontSize: 16)),
+                                Text(
+                                  'Xarajatlar topilmadi',
+                                  style: GoogleFonts.outfit(fontSize: 16),
+                                ),
                               ],
                             ),
                           )
@@ -286,21 +369,37 @@ class _ExpensesViewState extends State<ExpensesView> {
                                 (c) => c['value'] == e['category'],
                                 orElse: () => _categories.last,
                               );
-                              final amt = e['amount'] ?? 0;
+                              final amt = e['amountUzs'] ?? 0;
                               return Card(
                                 margin: const EdgeInsets.only(bottom: 8),
                                 child: ListTile(
                                   leading: CircleAvatar(
-                                    backgroundColor: Colors.red.withOpacity(0.15),
-                                    child: Icon(cat['icon'] as IconData, color: Colors.red, size: 20),
+                                    backgroundColor: Colors.red.withOpacity(
+                                      0.15,
+                                    ),
+                                    child: Icon(
+                                      cat['icon'] as IconData,
+                                      color: Colors.red,
+                                      size: 20,
+                                    ),
                                   ),
                                   title: Text(
-                                    (e['description'] != null && e['description'].toString().isNotEmpty)
+                                    (e['description'] != null &&
+                                            e['description']
+                                                .toString()
+                                                .isNotEmpty)
                                         ? e['description']
                                         : (cat['label'] as String),
-                                    style: GoogleFonts.outfit(fontWeight: FontWeight.w600),
+                                    style: GoogleFonts.outfit(
+                                      fontWeight: FontWeight.w600,
+                                    ),
                                   ),
-                                  subtitle: Text(e['notes'] ?? e['note'] ?? cat['label'] as String, style: GoogleFonts.outfit(fontSize: 13)),
+                                  subtitle: Text(
+                                    e['notes'] ??
+                                        e['note'] ??
+                                        cat['label'] as String,
+                                    style: GoogleFonts.outfit(fontSize: 13),
+                                  ),
                                   trailing: Text(
                                     '-${_formatNumber(amt)} so\'m',
                                     style: GoogleFonts.outfit(
