@@ -601,6 +601,8 @@ export class AnalyticsService {
       prevYearAgg,
       cogsAgg,
       prevCogsAgg,
+      expenseAgg,
+      prevExpenseAgg,
       topProducts,
       topCustomers,
       dailyChartData
@@ -765,6 +767,21 @@ export class AnalyticsService {
             JOIN sales s ON s.id = sfa.sale_id
             WHERE s.company_id = ${companyId}::uuid AND s.status = 'COMPLETED' AND s.created_at >= ${prevMonthStart} AND s.created_at < ${monthStart}
           `,
+      // Recorded expenses in last 30 days — netProfit below must subtract
+      // these, otherwise it's just gross profit (revenue - COGS) mislabeled
+      // as net profit, and recording an expense would never move the
+      // dashboard number at all.
+      this.prisma.$queryRaw<Array<{ total: number }>>`
+        SELECT COALESCE(SUM(amount_uzs), 0)::float as total
+        FROM expenses
+        WHERE company_id = ${companyId}::uuid AND deleted_at IS NULL AND expense_date >= ${monthStart}
+      `,
+      // Prev-month expenses, for the same trend comparison the other KPIs get
+      this.prisma.$queryRaw<Array<{ total: number }>>`
+        SELECT COALESCE(SUM(amount_uzs), 0)::float as total
+        FROM expenses
+        WHERE company_id = ${companyId}::uuid AND deleted_at IS NULL AND expense_date >= ${prevMonthStart} AND expense_date < ${monthStart}
+      `,
       // Top products (revenue-based) in last 30 days
       cashierId
         ? this.prisma.$queryRaw<Array<{ name: string, quantity: number, revenue_uzs: number }>>`
@@ -871,10 +888,12 @@ export class AnalyticsService {
     const yearTrend = pctChange(yearRev, prevYearRev);
 
     const monthCogs = cogsAgg[0]?.total ?? 0;
-    const monthProfit = monthRev - monthCogs;
+    const monthExpenses = expenseAgg[0]?.total ?? 0;
+    const monthProfit = monthRev - monthCogs - monthExpenses;
 
     const prevMonthCogs = prevCogsAgg[0]?.total ?? 0;
-    const prevMonthProfit = prevMonthRev - prevMonthCogs;
+    const prevMonthExpenses = prevExpenseAgg[0]?.total ?? 0;
+    const prevMonthProfit = prevMonthRev - prevMonthCogs - prevMonthExpenses;
     const profitTrend = pctChange(monthProfit, prevMonthProfit);
 
     return {
