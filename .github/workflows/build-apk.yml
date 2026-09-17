@@ -38,16 +38,18 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Build Release APK
-        run: flutter build apk --release
+      - name: Build Universal and Split APKs
+        run: |
+          flutter build apk --release
+          flutter build apk --release --split-per-abi
 
-      - name: Upload APK Artifact
+      - name: Upload APK Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: erp-mobile-release-apk
-          path: mobile/build/app/outputs/flutter-apk/app-release.apk
+          name: erp-mobile-apks
+          path: mobile/build/app/outputs/flutter-apk/*.apk
 
-      - name: Release APK to GitHub Releases
+      - name: Release APKs to GitHub Releases
         uses: softprops/action-gh-release@v2
         if: github.ref == 'refs/heads/main'
         with:
@@ -55,10 +57,14 @@ jobs:
           name: ERP Mobile v2.1.0 APK
           body: |
             ## ERP Mobile Release APK (Android)
-            Avtomatik yig'ilgan rasmiy release APK fayli.
+            Avtomatik yig'ilgan rasmiy release APK fayllari.
             
-            - **Yuklab olish:** Quyidagi `app-release.apk` faylini telefoningizga o'rnating.
-            - **Platforma:** Android 8.0+
-          files: mobile/build/app/outputs/flutter-apk/app-release.apk
+            - **app-release.apk:** Barcha Android qurilmalar uchun universal APK.
+            - **app-arm64-v8a-release.apk:** Zamonaviy 64-bit Android telefonlar uchun (tavsiya etiladi).
+            - **app-armeabi-v7a-release.apk:** 32-bit Android qurilmalar uchun.
+          files: |
+            mobile/build/app/outputs/flutter-apk/app-release.apk
+            mobile/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+            mobile/build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
