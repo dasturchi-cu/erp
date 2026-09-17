@@ -1,5 +1,6 @@
 import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class PrinterDevice {
@@ -147,6 +148,49 @@ class PrinterService {
     bytes += generator.cut();
 
     return PrintBluetoothThermal.writeBytes(bytes);
+  }
+
+  /// Plain-text rendering of the same receipt, for devices without a paired
+  /// Bluetooth thermal printer — shared via the OS share sheet so it can be
+  /// saved, printed (e.g. via a Google Cloud/AirPrint share target) or sent.
+  String buildReceiptText({
+    required String companyName,
+    required String saleNumber,
+    required DateTime date,
+    required List<ReceiptItem> items,
+    required double totalUzs,
+    String? cashierName,
+    String? customerName,
+    String paymentLabel = 'Naqd',
+  }) {
+    final buffer = StringBuffer();
+    const divider = '------------------------------';
+    buffer.writeln(companyName);
+    buffer.writeln('Chek: $saleNumber');
+    buffer.writeln(_formatDate(date));
+    if (cashierName != null && cashierName.isNotEmpty) {
+      buffer.writeln('Kassir: $cashierName');
+    }
+    if (customerName != null && customerName.isNotEmpty) {
+      buffer.writeln('Mijoz: $customerName');
+    }
+    buffer.writeln(divider);
+    for (final item in items) {
+      buffer.writeln(item.name);
+      buffer.writeln(
+        '  ${_formatQty(item.quantity)} ${item.unit} x ${_formatMoney(item.unitPrice)} = ${_formatMoney(item.total)}',
+      );
+    }
+    buffer.writeln(divider);
+    buffer.writeln('JAMI: ${_formatMoney(totalUzs)} so\'m');
+    buffer.writeln('To\'lov turi: $paymentLabel');
+    buffer.writeln();
+    buffer.writeln('Xaridingiz uchun rahmat!');
+    return buffer.toString();
+  }
+
+  Future<void> shareReceiptText(String text, {String subject = 'Chek'}) {
+    return SharePlus.instance.share(ShareParams(text: text, subject: subject));
   }
 
   String _formatMoney(double amount) {

@@ -376,19 +376,17 @@ class _PosViewState extends State<PosView> {
       SnackBar(
         content: const Text('Xarid muvaffaqiyatli yakunlandi!'),
         backgroundColor: Colors.green,
-        action: _printer.hasSavedPrinter
-            ? SnackBarAction(
-                label: 'Chek chiqarish',
-                textColor: Colors.white,
-                onPressed: () => _printReceipt(
-                  saleNumber: saleNumber,
-                  items: items,
-                  total: total,
-                  customerName: customerName,
-                  paymentLabel: paymentLabel,
-                ),
-              )
-            : null,
+        action: SnackBarAction(
+          label: 'Chek chiqarish',
+          textColor: Colors.white,
+          onPressed: () => _printReceipt(
+            saleNumber: saleNumber,
+            items: items,
+            total: total,
+            customerName: customerName,
+            paymentLabel: paymentLabel,
+          ),
+        ),
       ),
     );
     setState(() {
@@ -407,29 +405,51 @@ class _PosViewState extends State<PosView> {
     String? customerName,
     required String paymentLabel,
   }) async {
-    bool ok = false;
+    final date = DateTime.now();
+    bool printedOnPaper = false;
+    if (_printer.hasSavedPrinter) {
+      try {
+        printedOnPaper = await _printer.printReceipt(
+          companyName: 'ERP',
+          saleNumber: saleNumber,
+          date: date,
+          items: items,
+          totalUzs: total,
+          customerName: customerName,
+          paymentLabel: paymentLabel,
+        );
+      } catch (_) {
+        printedOnPaper = false;
+      }
+    }
+    if (printedOnPaper) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Chek chiqarildi'), backgroundColor: Colors.green),
+      );
+      return;
+    }
+
+    // No paired Bluetooth printer (or it failed) — fall back to sharing the
+    // receipt as text so it can still be saved, sent, or printed via the OS
+    // share sheet instead of silently offering nothing.
     try {
-      ok = await _printer.printReceipt(
+      final text = _printer.buildReceiptText(
         companyName: 'ERP',
         saleNumber: saleNumber,
-        date: DateTime.now(),
+        date: date,
         items: items,
         totalUzs: total,
         customerName: customerName,
         paymentLabel: paymentLabel,
       );
-    } catch (_) {
-      ok = false;
+      await _printer.shareReceiptText(text, subject: 'Chek #$saleNumber');
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Chek chiqmadi: ${e.toString()}'), backgroundColor: Colors.red),
+      );
     }
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          ok ? 'Chek chiqarildi' : 'Chek chiqmadi. Printerni tekshiring',
-        ),
-        backgroundColor: ok ? Colors.green : Colors.red,
-      ),
-    );
   }
 
   void _queueOffline(Map<String, dynamic> salePayload) async {

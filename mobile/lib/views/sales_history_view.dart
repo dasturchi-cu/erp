@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/api_service.dart';
+import '../services/printer_service.dart';
 
 class SalesHistoryView extends StatefulWidget {
   const SalesHistoryView({super.key});
@@ -11,6 +12,7 @@ class SalesHistoryView extends StatefulWidget {
 
 class _SalesHistoryViewState extends State<SalesHistoryView> {
   final _api = ApiService();
+  final _printer = PrinterService();
   bool _loading = true;
   List<dynamic> _sales = [];
 
@@ -137,6 +139,70 @@ class _SalesHistoryViewState extends State<SalesHistoryView> {
     }
   }
 
+  Future<void> _reprintSale({
+    required String saleNumber,
+    required List<dynamic> items,
+    required double total,
+    String? customerName,
+    required String paymentLabel,
+  }) async {
+    final receiptItems = items.map((it) {
+      final name = (it['productName'] ?? it['product']?['name'] ?? 'Mahsulot').toString();
+      final rawQty = it['quantity'] ?? 1;
+      final qty = (rawQty is num) ? rawQty.toDouble() : (double.tryParse(rawQty.toString()) ?? 1.0);
+      final rawPrice = it['unitPriceUzs'] ?? it['price'] ?? 0;
+      final price = (rawPrice is num) ? rawPrice.toDouble() : (double.tryParse(rawPrice.toString()) ?? 0.0);
+      final rawItemTotal = it['totalUzs'];
+      final itemTotal = rawItemTotal != null
+          ? ((rawItemTotal is num) ? rawItemTotal.toDouble() : (double.tryParse(rawItemTotal.toString()) ?? (price * qty)))
+          : (price * qty);
+      return ReceiptItem(name: name, quantity: qty, unit: 'dona', unitPrice: price, total: itemTotal);
+    }).toList();
+
+    final date = DateTime.now();
+    bool printedOnPaper = false;
+    if (_printer.hasSavedPrinter) {
+      try {
+        printedOnPaper = await _printer.printReceipt(
+          companyName: 'ERP',
+          saleNumber: saleNumber,
+          date: date,
+          items: receiptItems,
+          totalUzs: total,
+          customerName: customerName,
+          paymentLabel: paymentLabel,
+        );
+      } catch (_) {
+        printedOnPaper = false;
+      }
+    }
+    if (printedOnPaper) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Chek chiqarildi'), backgroundColor: Colors.green),
+      );
+      return;
+    }
+
+    try {
+      final text = _printer.buildReceiptText(
+        companyName: 'ERP',
+        saleNumber: saleNumber,
+        date: date,
+        items: receiptItems,
+        totalUzs: total,
+        customerName: customerName,
+        paymentLabel: paymentLabel,
+      );
+      await _printer.shareReceiptText(text, subject: 'Chek #$saleNumber');
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Chek chiqmadi: ${e.toString()}'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
   void _showSaleDetails(Map<String, dynamic> sale) {
     final theme = Theme.of(context);
     final items = sale['lineItems'] is List
@@ -219,6 +285,18 @@ class _SalesHistoryViewState extends State<SalesHistoryView> {
                     style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: theme.colorScheme.primary),
                   ),
                 ],
+              ),
+              const SizedBox(height: 12),
+              ElevatedButton.icon(
+                onPressed: () => _reprintSale(
+                  saleNumber: saleNumber.toString(),
+                  items: items,
+                  total: total,
+                  customerName: customerName?.toString(),
+                  paymentLabel: _paymentLabel(paymentType as String?),
+                ),
+                icon: const Icon(Icons.receipt_long_outlined),
+                label: const Text('Chek chiqarish'),
               ),
               if (sale['status'] == 'COMPLETED') ...[
                 const SizedBox(height: 12),
