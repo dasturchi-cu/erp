@@ -1,10 +1,11 @@
 import { apiClient } from '@/api/client';
 import { API_ENDPOINTS } from '@/api/endpoints';
-import { mapSaleDetail, mapSaleListItem, mapSaleReturn } from '@/api/mappers';
+import { mapSaleDetail, mapSaleReturn } from '@/api/mappers';
 import { toMoneyString } from '@/utils/money';
 import { newIdempotencyKey } from '@/utils/idempotency';
+import { fetchAllPages } from '@/api/pagination';
 import type { PaginatedResponse, ListParams } from '@/types/api';
-import type { Sale, SaleReturn } from '@/types/entities';
+import type { SaleReturn } from '@/types/entities';
 import type { SaleDetail } from '@/types/sales';
 
 export interface CreateSaleInput {
@@ -18,11 +19,23 @@ export interface CreateSaleInput {
 }
 
 export const salesApi = {
-  list: async (params?: ListParams): Promise<Sale[]> => {
+  // The list endpoint returns the same full shape as GET /sales/:id, so rows
+  // are mapped as details — the store mixes them with fetched details.
+  list: async (params?: ListParams): Promise<SaleDetail[]> => {
     const { data } = await apiClient.get<PaginatedResponse<unknown>>(API_ENDPOINTS.sales, {
       params: { limit: 100, ...params },
     });
-    return data.data.map((row) => mapSaleListItem(row as Parameters<typeof mapSaleListItem>[0]));
+    return data.data.map((row) => mapSaleDetail(row as Parameters<typeof mapSaleDetail>[0]));
+  },
+
+  listPaginated: async (params?: ListParams): Promise<PaginatedResponse<SaleDetail>> => {
+    const { data } = await apiClient.get<PaginatedResponse<unknown>>(API_ENDPOINTS.sales, {
+      params: { limit: 100, ...params },
+    });
+    return {
+      data: data.data.map((row) => mapSaleDetail(row as Parameters<typeof mapSaleDetail>[0])),
+      meta: data.meta,
+    };
   },
 
   getById: async (id: string): Promise<SaleDetail> => {
@@ -66,6 +79,18 @@ export const salesApi = {
     });
     return data.data.map((row) => mapSaleReturn(row as Parameters<typeof mapSaleReturn>[0]));
   },
+
+  /** Every return (all pages); the API has no saleId filter, so callers filter. */
+  listAllReturns: (params?: ListParams): Promise<SaleReturn[]> =>
+    fetchAllPages(async (page, limit) => {
+      const { data } = await apiClient.get<PaginatedResponse<unknown>>(API_ENDPOINTS.salesReturns, {
+        params: { ...params, page, limit },
+      });
+      return {
+        data: data.data.map((row) => mapSaleReturn(row as Parameters<typeof mapSaleReturn>[0])),
+        meta: data.meta,
+      };
+    }, 200, 25),
 
   getReturnById: async (id: string): Promise<SaleReturn> => {
     const { data } = await apiClient.get(`${API_ENDPOINTS.salesReturns}/${id}`);

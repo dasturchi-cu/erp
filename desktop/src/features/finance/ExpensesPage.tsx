@@ -25,6 +25,7 @@ import { FormDialog } from '@/components/forms/FormDialog';
 import { useNotification } from '@/components/feedback/NotificationProvider';
 import { apiClient } from '@/api/client';
 import { formatUzs, formatUsd } from '@/utils/format';
+import { getErrorMessage } from '@/utils/errors';
 
 const categoryLabels: Record<string, string> = {
   RENT: 'Ijara',
@@ -178,7 +179,7 @@ export function ExpensesPage() {
       // Reload
       loadAll();
     } catch (err: any) {
-      notifyError(err?.response?.data?.message || 'Xarajatni saqlashda xatolik');
+      notifyError(getErrorMessage(err, 'Xarajatni saqlashda xatolik'));
     }
   };
 
@@ -189,7 +190,7 @@ export function ExpensesPage() {
       success('Xarajat o\'chirildi');
       loadAll();
     } catch (err: any) {
-      notifyError(err?.response?.data?.message || 'O\'chirishda xatolik');
+      notifyError(getErrorMessage(err, 'O\'chirishda xatolik'));
     }
   };
 

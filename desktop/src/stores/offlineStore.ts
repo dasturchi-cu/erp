@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { apiClient } from '@/api/client';
+import { getRandomUUID } from '@/utils/uuid';
+import { getErrorMessage } from '@/utils/errors';
 
 export interface OfflineAction {
   id: string;
@@ -37,7 +39,7 @@ export const useOfflineStore = create<OfflineState>()(
       conflicts: [],
       isSyncing: false,
       enqueueAction: (action) => {
-        const id = Math.random().toString(36).substring(2, 15);
+        const id = getRandomUUID();
         const idempotencyKey = `offline-${id}`;
         const newAction: OfflineAction = {
           ...action,
@@ -87,54 +89,63 @@ export const useOfflineStore = create<OfflineState>()(
         void get().processSync();
       },
       processSync: async () => {
-        const { queue, isSyncing, conflicts } = get();
+        const { queue, isSyncing } = get();
         if (isSyncing || queue.length === 0) return;
 
         set({ isSyncing: true });
 
+        // Snapshot what we process; actions enqueued while syncing stay in the
+        // live queue and are picked up by the follow-up run below.
         const activeQueue = [...queue];
-        const remainingQueue: OfflineAction[] = [];
-        const newConflicts: OfflineConflict[] = [...conflicts];
+        const doneIds = new Set<string>();
+        const newConflicts: OfflineConflict[] = [];
 
-        for (const action of activeQueue) {
-          try {
-            await apiClient.request({
-              url: action.url,
-              method: action.method,
-              data: action.payload,
-              headers: {
-                'Idempotency-Key': action.idempotencyKey,
-              },
-            });
-          } catch (err: any) {
-            if (!err.status || err.status >= 500) {
-              remainingQueue.push(action);
-              const idx = activeQueue.indexOf(action);
-              const unprocessed = activeQueue.slice(idx + 1);
-              remainingQueue.push(...unprocessed);
-              break;
-            } else {
-              console.warn('Sync conflict/validation error occurred:', err);
-              if (!newConflicts.some((c) => c.id === action.id)) {
-                newConflicts.push({
-                  ...action,
-                  status: err.status,
-                  error: err.response?.data?.message || err.message || 'Validation failed',
-                });
+        try {
+          for (const action of activeQueue) {
+            try {
+              await apiClient.request({
+                url: action.url,
+                method: action.method,
+                data: action.payload,
+                headers: {
+                  'Idempotency-Key': action.idempotencyKey,
+                },
+              });
+              doneIds.add(action.id);
+            } catch (err: any) {
+              if (!err?.status || err.status >= 500) {
+                // Transient: keep this and the rest, in order, for the next run.
+                break;
               }
+              console.warn('Sync conflict/validation error occurred:', err);
+              doneIds.add(action.id);
+              newConflicts.push({
+                ...action,
+                status: err.status,
+                error: getErrorMessage(err, 'Validation failed'),
+              });
             }
           }
+        } finally {
+          set((state) => ({
+            queue: state.queue.filter((a) => !doneIds.has(a.id)),
+            conflicts: [
+              ...state.conflicts,
+              ...newConflicts.filter((c) => !state.conflicts.some((x) => x.id === c.id)),
+            ],
+            isSyncing: false,
+          }));
         }
 
-        set({
-          queue: remainingQueue,
-          conflicts: newConflicts,
-          isSyncing: false,
-        });
+        const enqueuedMeanwhile = get().queue.some((a) => !activeQueue.some((x) => x.id === a.id));
+        if (enqueuedMeanwhile) void get().processSync();
       },
     }),
     {
       name: 'erp-offline-storage',
+      // isSyncing is runtime-only; persisting `true` (app closed mid-sync)
+      // would block every later sync.
+      partialize: (state) => ({ queue: state.queue, conflicts: state.conflicts }),
     }
   )
 );

@@ -54,7 +54,8 @@ export function InventoryPage() {
   }, [warehouseFilter, fetchStockLevels]);
 
   const productPriceMap = useMemo(
-    () => new Map(products.map((p) => [p.id, p.priceUzs * 0.72])),
+    // Value stock at the real purchase cost (it used to assume 72% of the sale price).
+    () => new Map(products.map((p) => [p.id, p.purchasePriceUzs])),
     [products],
   );
 

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { notificationsApi } from '@/api/services/notificationsApi';
 import type { Notification } from '@/types/entities';
+import { getErrorMessage } from '@/utils/errors';
 
 interface UseNotificationsResult {
   items: Notification[];
@@ -30,7 +31,7 @@ export function useNotifications(): UseNotificationsResult {
       setItems(listRes.data);
       setUnreadCount(count);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Bildirishnomalar yuklanmadi');
+      setError(getErrorMessage(err, 'Bildirishnomalar yuklanmadi'));
     } finally {
       setLoading(false);
     }

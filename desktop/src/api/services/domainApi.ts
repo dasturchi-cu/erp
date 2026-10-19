@@ -10,6 +10,7 @@ import {
   mapWarehouse,
 } from '@/api/mappers';
 import { toMoneyString } from '@/utils/money';
+import { fetchAllPages } from '@/api/pagination';
 import type { PaginatedResponse, ListParams } from '@/types/api';
 import type { Customer, DebtHistoryEntry, ExchangeRate, Payment, ProductBatch, StockMovement, Warehouse } from '@/types/entities';
 
@@ -199,6 +200,18 @@ export const customersApi = {
     });
     return data.data.map((row) => mapCustomer(row as Parameters<typeof mapCustomer>[0]));
   },
+
+  /** Every customer (all pages) — a single page stops at 100. */
+  listAll: (params?: ListParams): Promise<Customer[]> =>
+    fetchAllPages(async (page, limit) => {
+      const { data } = await apiClient.get<PaginatedResponse<unknown>>(API_ENDPOINTS.customers, {
+        params: { ...params, page, limit },
+      });
+      return {
+        data: data.data.map((row) => mapCustomer(row as Parameters<typeof mapCustomer>[0])),
+        meta: data.meta,
+      };
+    }),
 
   search: async (q: string): Promise<Customer[]> => {
     const { data } = await apiClient.get<{ data: unknown[] }>(`${API_ENDPOINTS.customers}/search`, {

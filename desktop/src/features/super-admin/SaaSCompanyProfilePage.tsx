@@ -3,6 +3,7 @@ import { Box, Button, Grid, Card, CardContent, Typography, CircularProgress, Ale
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowBack as ArrowBackIcon, Edit as EditIcon, Key as KeyIcon, TrendingUp as SalesIcon, Inventory as ProductIcon, People as PeopleIcon } from '@mui/icons-material';
 import { saasApi } from '@/api/services/saasApi';
+import { getErrorMessage } from '@/utils/errors';
 
 export function SaaSCompanyProfilePage() {
   const { id } = useParams<{ id: string }>();
@@ -59,7 +60,7 @@ export function SaaSCompanyProfilePage() {
         setExpireDate(new Date(profileData.license.endDate).toISOString().split('T')[0]);
       }
     } catch (err: any) {
-      setError(err.response?.data?.message ?? 'Kompaniya ma\'lumotlarini yuklashda xatolik');
+      setError(getErrorMessage(err, 'Kompaniya ma\'lumotlarini yuklashda xatolik'));
     } finally {
       setLoading(false);
     }
@@ -79,7 +80,7 @@ export function SaaSCompanyProfilePage() {
       setLicenseOpen(false);
       fetchProfileAndBranches();
     } catch (err: any) {
-      alert(err.response?.data?.message ?? 'Litsenziyani tahrirlashda xatolik yuz berdi');
+      alert(getErrorMessage(err, 'Litsenziyani tahrirlashda xatolik yuz berdi'));
     }
   };
 
@@ -100,7 +101,7 @@ export function SaaSCompanyProfilePage() {
       setUserBranchOpen(false);
       fetchProfileAndBranches();
     } catch (err: any) {
-      alert(err.response?.data?.message ?? 'Foydalanuvchi filialini o\'zgartirishda xatolik');
+      alert(getErrorMessage(err, 'Foydalanuvchi filialini o\'zgartirishda xatolik'));
     }
   };
 
@@ -116,7 +117,7 @@ export function SaaSCompanyProfilePage() {
       setBranchAddress('');
       fetchProfileAndBranches();
     } catch (err: any) {
-      alert(err.response?.data?.message ?? 'Filial qo\'shishda xatolik yuz berdi');
+      alert(getErrorMessage(err, 'Filial qo\'shishda xatolik yuz berdi'));
     }
   };
 
@@ -145,7 +146,7 @@ export function SaaSCompanyProfilePage() {
         );
       }
     } catch (err: any) {
-      alert(err.response?.data?.message ?? 'Xodim qo\'shishda xatolik yuz berdi');
+      alert(getErrorMessage(err, 'Xodim qo\'shishda xatolik yuz berdi'));
     }
   };
 
@@ -163,7 +164,7 @@ export function SaaSCompanyProfilePage() {
       setUserPasswordOpen(false);
       alert('Parol muvaffaqiyatli o\'zgartirildi');
     } catch (err: any) {
-      alert(err.response?.data?.message ?? 'Parolni o\'zgartirishda xatolik');
+      alert(getErrorMessage(err, 'Parolni o\'zgartirishda xatolik'));
     }
   };
 

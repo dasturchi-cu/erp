@@ -23,6 +23,7 @@ import { useNotification } from '@/components/feedback/NotificationProvider';
 import type { Warehouse } from '@/types/entities';
 import { formatUzs } from '@/utils/format';
 import { usePermissions } from '@/hooks/usePermissions';
+import { getErrorMessage } from '@/utils/errors';
 
 export function WarehousesPage() {
   const navigate = useNavigate();
@@ -66,7 +67,7 @@ export function WarehousesPage() {
       setName('');
       setAddress('');
     } catch (err) {
-      notifyError(err instanceof Error ? err.message : 'Xatolik');
+      notifyError(getErrorMessage(err, 'Xatolik'));
     } finally {
       setSaving(false);
     }

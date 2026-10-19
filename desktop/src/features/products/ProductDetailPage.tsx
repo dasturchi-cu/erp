@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Box,
   Button,
   Card,
   Chip,
+  CircularProgress,
   Grid,
   Tab,
   Table,
@@ -40,20 +41,45 @@ export function ProductDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { can } = usePermissions();
-  const product = useInventoryStore((s) => s.getProductById(id ?? ''));
-  const getBatchesByProduct = useInventoryStore((s) => s.getBatchesByProduct);
-  const getMovementsByProduct = useInventoryStore((s) => s.getMovementsByProduct);
-  const activeRate = useCurrencyStore((s) => s.rates.find((r) => r.status === 'active')?.rate ?? 12_620);
+  const product = useInventoryStore((s) => s.products.find((p) => p.id === id));
+  // Subscribe to the slices so batches/movements recompute when the store fills.
+  const allBatches = useInventoryStore((s) => s.batches);
+  const allMovements = useInventoryStore((s) => s.movements);
+  const fetchProductById = useInventoryStore((s) => s.fetchProductById);
+  const activeRate = useCurrencyStore(
+    (s) => s.activeRate || s.rates.find((r) => r.status === 'active')?.rate || 0,
+  );
   const [tab, setTab] = useState(0);
+  const [loadingProduct, setLoadingProduct] = useState(!product);
+
+  // Not in the cached list (deep link / list not loaded yet): fetch by id.
+  const productLoaded = Boolean(product);
+  useEffect(() => {
+    if (!id || productLoaded) {
+      setLoadingProduct(false);
+      return;
+    }
+    let cancelled = false;
+    setLoadingProduct(true);
+    void fetchProductById(id).finally(() => {
+      if (!cancelled) setLoadingProduct(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [id, productLoaded, fetchProductById]);
 
   const batches = useMemo(
-    () => (id ? getBatchesByProduct(id) : []),
-    [id, getBatchesByProduct],
+    () =>
+      allBatches
+        .filter((b) => b.productId === id && b.remaining > 0)
+        .sort((a, b) => new Date(a.receivedAt).getTime() - new Date(b.receivedAt).getTime()),
+    [id, allBatches],
   );
 
   const movements = useMemo(
-    () => (id ? getMovementsByProduct(id) : []),
-    [id, getMovementsByProduct],
+    () => allMovements.filter((m) => m.productId === id),
+    [id, allMovements],
   );
 
   const batchColumns: Column<ProductBatch>[] = useMemo(
@@ -68,6 +94,13 @@ export function ProductDetailPage() {
   );
 
   if (!product) {
+    if (loadingProduct) {
+      return (
+        <Box sx={{ textAlign: 'center', py: 8 }}>
+          <CircularProgress size={32} />
+        </Box>
+      );
+    }
     return (
       <Box sx={{ textAlign: 'center', py: 8 }}>
         <Typography variant="h6">Mahsulot topilmadi</Typography>
@@ -80,7 +113,7 @@ export function ProductDetailPage() {
     <>
       <PageHeader
         title={product.name}
-        subtitle={`${product.sku} · Kurs: 1 USD = ${activeRate.toLocaleString()} so'm`}
+        subtitle={activeRate > 0 ? `${product.sku} · Kurs: 1 USD = ${activeRate.toLocaleString()} so'm` : product.sku}
         primaryAction={
           can('products.update')
             ? {
@@ -115,7 +148,7 @@ export function ProductDetailPage() {
             <Typography variant="subtitle2" color="text.secondary">Narx (UZS)</Typography>
             <Typography variant="h5" fontWeight={700}>{formatUzs(product.priceUzs)}</Typography>
             <Typography variant="subtitle2" color="text.secondary" sx={{ mt: 2 }}>Narx (USD)</Typography>
-            <Typography variant="h6">{formatUsd(productUsdFromUzs(product.priceUzs, activeRate))}</Typography>
+            <Typography variant="h6">{activeRate > 0 ? formatUsd(productUsdFromUzs(product.priceUzs, activeRate)) : '—'}</Typography>
           </Card>
         </Grid>
       </Grid>

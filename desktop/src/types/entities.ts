@@ -98,6 +98,7 @@ export interface StockLevelRow {
 export interface StockMovement {
   id: string;
   type: 'receive' | 'sale' | 'adjustment' | 'transfer';
+  productId?: string;
   productName: string;
   quantity: number;
   warehouse: string;

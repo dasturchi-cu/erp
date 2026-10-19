@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { customersApi, debtApi } from '@/api/services';
 import type { Customer, DebtHistoryEntry, Payment } from '@/types/entities';
-import { getRandomUUID } from '../utils/uuid';
+import { getErrorMessage } from '@/utils/errors';
 
 export interface CreateCustomerInput {
   name: string;
@@ -16,6 +16,10 @@ export interface RecordPaymentInput {
   method: Payment['method'];
   note?: string;
   recordedBy: string;
+  /** One key per user operation, reused on retry so a timed-out request isn't recorded twice. */
+  idempotencyKey: string;
+  /** Explicit FULL/PARTIAL; derived from the cached debt when omitted. */
+  paymentType?: 'FULL' | 'PARTIAL';
 }
 
 interface CustomerState {
@@ -26,6 +30,7 @@ interface CustomerState {
   error: string | null;
 
   fetchCustomers: () => Promise<void>;
+  fetchCustomerById: (id: string) => Promise<Customer | undefined>;
   fetchPayments: () => Promise<void>;
   fetchDebtHistory: (customerId: string) => Promise<void>;
 
@@ -57,13 +62,27 @@ export const useCustomerStore = create<CustomerState>()((set, get) => ({
   fetchCustomers: async () => {
     set({ isLoading: true, error: null });
     try {
-      const customers = await customersApi.list();
+      const customers = await customersApi.listAll();
       set({ customers, isLoading: false });
     } catch (err: unknown) {
       set({
-        error: err instanceof Error ? err.message : 'Unknown error',
+        error: getErrorMessage(err, 'Unknown error'),
         isLoading: false,
       });
+    }
+  },
+
+  fetchCustomerById: async (id) => {
+    try {
+      const customer = await customersApi.getById(id);
+      set((s) => ({
+        customers: s.customers.some((c) => c.id === id)
+          ? s.customers.map((c) => (c.id === id ? customer : c))
+          : [...s.customers, customer],
+      }));
+      return customer;
+    } catch {
+      return undefined;
     }
   },
 
@@ -113,7 +132,7 @@ export const useCustomerStore = create<CustomerState>()((set, get) => ({
   recordPayment: async (customerId, input) => {
     const customer = get().customers.find((c) => c.id === customerId);
     const currentDebt = customer ? (input.currency === 'UZS' ? customer.debtUzs : customer.debtUsd) : 0;
-    const paymentType = input.amount >= currentDebt ? 'FULL' : 'PARTIAL';
+    const paymentType = input.paymentType ?? (input.amount >= currentDebt ? 'FULL' : 'PARTIAL');
 
     const payment = await debtApi.recordPayment(
       {
@@ -124,7 +143,7 @@ export const useCustomerStore = create<CustomerState>()((set, get) => ({
         paymentType,
         notes: input.note,
       },
-      getRandomUUID(),
+      input.idempotencyKey,
     );
     await Promise.all([get().fetchPayments(), get().fetchCustomers(), get().fetchDebtHistory(customerId)]);
     return payment;

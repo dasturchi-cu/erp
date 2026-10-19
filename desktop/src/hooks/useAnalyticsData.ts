@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { analyticsApi, type AnalyticsQueryParams } from '@/api/services/analyticsApi';
 import type { AnalyticsOverview } from '@/types';
 import type { DashboardPeriod } from '@/types';
+import { getErrorMessage } from '@/utils/errors';
 
 interface UseAnalyticsDataResult {
   data: AnalyticsOverview | null;
@@ -25,7 +26,7 @@ export function useAnalyticsData(
       const overview = await analyticsApi.getOverview({ period, months: 6, ...params });
       setData(overview);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Analitika yuklanmadi');
+      setError(getErrorMessage(err, 'Analitika yuklanmadi'));
       setData(null);
     } finally {
       setLoading(false);

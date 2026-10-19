@@ -13,7 +13,9 @@ export function ReceiptPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { success, error: notifyError } = useNotification();
-  const storeSale = useSalesStore((s) => s.getSaleById(id ?? ''));
+  const cachedSale = useSalesStore((s) => s.getSaleById(id ?? ''));
+  // Only trust a cached sale that has its line items; otherwise fetch the detail.
+  const storeSale = cachedSale && Array.isArray(cachedSale.lineItems) ? cachedSale : undefined;
 
   const [sale, setSale] = useState<SaleDetail | null>(storeSale || null);
   const [loading, setLoading] = useState(!storeSale);
@@ -190,7 +192,7 @@ export function ReceiptPage() {
         </Box>
 
         {/* Line Items */}
-        {sale.lineItems.map((l) => (
+        {(sale.lineItems ?? []).map((l) => (
           <Box key={l.productId} sx={{ mb: 1.5, fontSize: '0.8rem' }}>
             <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 600 }}>
               {l.productName}

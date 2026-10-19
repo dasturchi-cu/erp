@@ -1,6 +1,6 @@
 {
   "name": "erp-desktop",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "ERP Desktop Client",
   "main": "dist-electron/main.js",
   "private": true,
