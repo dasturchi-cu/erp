@@ -66,6 +66,10 @@ export function sortRows<T extends Record<string, unknown>>(
       let cmp = 0;
       if (typeof av === 'number' && typeof bv === 'number') {
         cmp = av - bv;
+      } else if (isNumericString(av) && isNumericString(bv)) {
+        // Money columns are formatted strings; localeCompare put "9.00"
+        // above "10.00".
+        cmp = new Decimal(av).comparedTo(new Decimal(bv));
       } else {
         cmp = String(av ?? '').localeCompare(String(bv ?? ''));
       }
@@ -74,6 +78,12 @@ export function sortRows<T extends Record<string, unknown>>(
     return 0;
   });
   return sorted;
+}
+
+const NUMERIC_STRING = /^-?\d+(\.\d+)?$/;
+
+function isNumericString(value: unknown): value is string {
+  return typeof value === 'string' && NUMERIC_STRING.test(value);
 }
 
 export function buildReportResponse<T extends Record<string, unknown>>(

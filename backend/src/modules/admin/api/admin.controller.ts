@@ -278,7 +278,9 @@ export class AdminController {
   }
 
   @Get('roles')
-  @RequirePermissions('admin.*')
+  // Whoever may create users has to be able to pick their role; admin.*
+  // still passes via the guard's wildcard match.
+  @RequirePermissions('admin.users.create')
   @ApiOperation({ summary: 'List roles' })
   listRoles(@CurrentUser() user: JwtPayload) {
     return this.adminService.listRoles(user.companyId!);

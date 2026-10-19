@@ -128,7 +128,18 @@ export class DebtPaymentsService {
       if (!existing) {
         throw AppException.notFound('DebtPayment', paymentId);
       }
-      if (existing.reversedAt) {
+      // Claim the reversal atomically: the row lock taken by this conditional
+      // update makes a concurrent reverse of the same payment wait, then match
+      // zero rows — otherwise both pass the reversedAt check above and the
+      // debt is restored twice.
+      const claimed = await tx.debtPayment.updateMany({
+        where: { id: paymentId, companyId, reversedAt: null },
+        data: {
+          reversedAt: new Date(),
+          reversalReason: dto.reason ?? null,
+        },
+      });
+      if (claimed.count === 0) {
         throw AppException.businessRule('Payment already reversed');
       }
 
@@ -144,12 +155,8 @@ export class DebtPaymentsService {
         recordedBy: userId,
       });
 
-      const updated = await tx.debtPayment.update({
+      const updated = await tx.debtPayment.findUniqueOrThrow({
         where: { id: paymentId, companyId },
-        data: {
-          reversedAt: new Date(),
-          reversalReason: dto.reason ?? null,
-        },
         include: { customer: true, receiver: true },
       });
 

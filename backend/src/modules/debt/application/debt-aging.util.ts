@@ -21,7 +21,20 @@ export function resolveAgingBucket(ageDays: number): AgingBucketLabel {
   return '120+';
 }
 
+/**
+ * Normalizes the bucket query param. An unencoded '+' in "?bucket=120+"
+ * arrives as a space ("120 "), so the filter never matched and the 120+
+ * view came back empty; accept "120", "120 " and "120+".
+ */
+export function normalizeBucketFilter(filter?: string): string | undefined {
+  const trimmed = filter?.trim();
+  if (!trimmed) return undefined;
+  if (trimmed === '120' || trimmed === '120+') return '120+';
+  return trimmed;
+}
+
 export function matchesBucketFilter(bucket: string, filter?: string): boolean {
-  if (!filter) return true;
-  return bucket === filter;
+  const normalized = normalizeBucketFilter(filter);
+  if (!normalized) return true;
+  return bucket === normalized;
 }

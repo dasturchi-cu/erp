@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { Inject, Injectable } from '@nestjs/common';
 import { Prisma, SupplierStatus, OriginalCurrency } from '@prisma/client';
 import { CurrencyService } from '../../currency/application/currency.service';
@@ -428,13 +429,25 @@ export class SuppliersService {
     const rate = await this.currencyService.getActiveRateOrThrow(companyId);
     const exchangeRate = rate.rate;
 
-    const amountUzs = dto.currency === OriginalCurrency.UZS ? amount : amount.mul(exchangeRate);
-    const amountUsd = dto.currency === OriginalCurrency.USD ? amount : amount.div(exchangeRate);
-
     const payment = await this.basePrisma.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT set_config('app.company_id', ${companyId}, true)`;
+      // Debt is applied first (it locks the supplier row and validates the
+      // amount against the locked balance); the payment row is then written
+      // with the amounts actually booked.
+      const paymentId = randomUUID();
+      const { amountUzs, amountUsd } = await this.supplierDebt.applyPayment(
+        companyId,
+        supplierId,
+        amount,
+        dto.currency,
+        exchangeRate,
+        userId,
+        paymentId,
+        tx,
+      );
       const created = await tx.supplierPayment.create({
         data: {
+          id: paymentId,
           companyId,
           supplierId,
           amount,
@@ -448,8 +461,6 @@ export class SuppliersService {
         },
         include: { supplier: true, recorder: true },
       });
-
-      await this.supplierDebt.applyPayment(companyId, supplierId, amount, dto.currency, exchangeRate, userId, created.id, tx);
 
       await this.audit.log(
         {

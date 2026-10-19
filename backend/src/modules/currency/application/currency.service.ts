@@ -117,16 +117,18 @@ export class CurrencyService {
 
     const created = await this.basePrisma.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT set_config('app.company_id', ${companyId}, true)`;
-      const previous = await tx.exchangeRate.findFirst({
-        where: { companyId, status: ExchangeRateStatus.ACTIVE },
-      });
+      // Serialize rate changes per company: two concurrent setRate calls
+      // both used to read the same ACTIVE row, archive it, and each insert
+      // a new ACTIVE rate — leaving two active rates. The xact lock is held
+      // until commit, so the second caller sees the first one's new row.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'exchange_rate:' + companyId}))`;
 
-      if (previous) {
-        await tx.exchangeRate.update({
-          where: { id: previous.id, companyId },
-          data: { status: ExchangeRateStatus.ARCHIVED },
-        });
-      }
+      // Archive every ACTIVE rate (not just one) so any duplicates left by
+      // the old race are healed too.
+      await tx.exchangeRate.updateMany({
+        where: { companyId, status: ExchangeRateStatus.ACTIVE },
+        data: { status: ExchangeRateStatus.ARCHIVED },
+      });
 
       const rate = await tx.exchangeRate.create({
         data: {

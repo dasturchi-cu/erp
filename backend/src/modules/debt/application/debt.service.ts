@@ -72,7 +72,10 @@ export class DebtService {
     });
 
     const amountUsd = uzsToUsd(params.amountUzs, params.exchangeRate);
-    const newDebtUzs = Decimal.max(0, customer.totalDebtUzs.sub(params.amountUzs));
+    // No floor at zero: clamping here erased the customer's other open debt
+    // and any amount they had already paid toward this sale (a negative
+    // balance is a credit the customer holds, same as applyPayment allows).
+    const newDebtUzs = customer.totalDebtUzs.sub(params.amountUzs);
     const newDebtUsd = uzsToUsd(newDebtUzs, params.exchangeRate);
 
     await tx.debtHistory.create({
@@ -240,7 +243,10 @@ export class DebtService {
     });
 
     const amountUsd = uzsToUsd(params.amountUzs, params.exchangeRate);
-    const newDebtUzs = Decimal.max(0, customer.totalDebtUzs.sub(params.amountUzs));
+    // No floor at zero: clamping here erased the customer's other open debt
+    // and any amount they had already paid toward this sale (a negative
+    // balance is a credit the customer holds, same as applyPayment allows).
+    const newDebtUzs = customer.totalDebtUzs.sub(params.amountUzs);
     const newDebtUsd = uzsToUsd(newDebtUzs, params.exchangeRate);
 
     await tx.debtHistory.create({

@@ -15,6 +15,21 @@ import {
   sortRows,
   sumDecimal,
 } from './report-query.helpers';
+import { loadApprovedReturns } from '../../../sales/application/approved-returns.util';
+
+function sumReturnsBy<T extends { amountUzs: Decimal; amountUsd: Decimal }>(
+  rows: Iterable<T>,
+  keyOf: (row: T) => string,
+): Map<string, { uzs: Decimal; usd: Decimal }> {
+  const out = new Map<string, { uzs: Decimal; usd: Decimal }>();
+  for (const r of rows) {
+    const e = out.get(keyOf(r)) ?? { uzs: new Decimal(0), usd: new Decimal(0) };
+    e.uzs = e.uzs.add(r.amountUzs);
+    e.usd = e.usd.add(r.amountUsd);
+    out.set(keyOf(r), e);
+  }
+  return out;
+}
 
 @Injectable()
 export class SalesReportProvider {
@@ -53,6 +68,7 @@ export class SalesReportProvider {
     const sales = await this.prisma.sale.findMany({
       where: saleDateFilter(ctx),
       select: {
+        id: true,
         createdAt: true,
         totalUzs: true,
         totalUsd: true,
@@ -61,6 +77,7 @@ export class SalesReportProvider {
         exchangeRateUsed: true,
       },
     });
+    const returned = await loadApprovedReturns(this.prisma, ctx.companyId, saleDateFilter(ctx));
 
     const dayMap = new Map<string, { count: number; totalUzs: Decimal; totalUsd: Decimal; creditUzs: Decimal; creditUsd: Decimal }>();
 
@@ -73,12 +90,18 @@ export class SalesReportProvider {
         creditUzs: new Decimal(0),
         creditUsd: new Decimal(0),
       };
+      // Net of approved returns; a return comes off the sale's unpaid
+      // (credit) part first, the rest was refunded from cash.
+      const ret = returned.bySale.get(sale.id);
       existing.count += 1;
-      existing.totalUzs = existing.totalUzs.add(sale.totalUzs);
-      existing.totalUsd = existing.totalUsd.add(sale.totalUsd);
+      existing.totalUzs = existing.totalUzs.add(sale.totalUzs).sub(ret?.amountUzs ?? 0);
+      existing.totalUsd = existing.totalUsd.add(sale.totalUsd).sub(ret?.amountUsd ?? 0);
 
       const paidUzsEquivalent = sale.amountPaidUzs.add(sale.amountPaidUsd.mul(sale.exchangeRateUsed));
-      const saleCreditUzs = Decimal.max(0, sale.totalUzs.sub(paidUzsEquivalent));
+      const saleCreditUzs = Decimal.max(
+        0,
+        sale.totalUzs.sub(paidUzsEquivalent).sub(ret?.amountUzs ?? 0),
+      );
       const saleCreditUsd = sale.exchangeRateUsed.gt(0) ? saleCreditUzs.div(sale.exchangeRateUsed) : new Decimal(0);
       existing.creditUzs = existing.creditUzs.add(saleCreditUzs);
       existing.creditUsd = existing.creditUsd.add(saleCreditUsd);
@@ -161,6 +184,9 @@ export class SalesReportProvider {
       _sum: { totalUzs: true, totalUsd: true },
       _count: { id: true },
     });
+    const returned = await loadApprovedReturns(this.prisma, ctx.companyId, where);
+    const netTotalUzs = new Decimal(agg._sum.totalUzs ?? 0).sub(returned.total.amountUzs);
+    const netTotalUsd = new Decimal(agg._sum.totalUsd ?? 0).sub(returned.total.amountUsd);
 
     const data = sales.map((s) => ({
       saleNumber: s.saleNumber,
@@ -170,6 +196,7 @@ export class SalesReportProvider {
       itemCount: s.items.length,
       totalUzs: formatMoney(s.totalUzs),
       totalUsd: formatMoney(s.totalUsd),
+      returnedUzs: formatMoney(returned.bySale.get(s.id)?.amountUzs ?? 0),
       paymentType: s.paymentType,
     }));
 
@@ -179,11 +206,11 @@ export class SalesReportProvider {
       summary: { template: 'detail' },
       totals: {
         saleCount: agg._count.id,
-        ...moneyFields(agg._sum.totalUzs ?? 0, agg._sum.totalUsd ?? 0, ctx.currency),
+        ...moneyFields(netTotalUzs, netTotalUsd, ctx.currency),
       },
       kpi: [
         { id: 'kpi_count', label: 'Savdolar', value: String(agg._count.id) },
-        { id: 'kpi_total_uzs', label: 'Jami UZS', value: formatMoney(agg._sum.totalUzs) },
+        { id: 'kpi_total_uzs', label: 'Jami UZS', value: formatMoney(netTotalUzs) },
       ],
     };
   }
@@ -212,6 +239,16 @@ export class SalesReportProvider {
       e.cogsUzs = e.cogsUzs.add(item.cogsUzs);
       e.cogsUsd = e.cogsUsd.add(item.cogsUsd);
       map.set(key, e);
+    }
+    const returned = await loadApprovedReturns(this.prisma, ctx.companyId, saleDateFilter(ctx));
+    for (const [productId, r] of returned.byProduct) {
+      const e = map.get(productId);
+      if (!e) continue;
+      e.qty = e.qty.sub(r.qty);
+      e.revenueUzs = e.revenueUzs.sub(r.amountUzs);
+      e.revenueUsd = e.revenueUsd.sub(r.amountUsd);
+      e.cogsUzs = e.cogsUzs.sub(r.cogsUzs);
+      e.cogsUsd = e.cogsUsd.sub(r.cogsUsd);
     }
 
     let rows = Array.from(map.values()).map((v) => ({
@@ -249,13 +286,23 @@ export class SalesReportProvider {
     });
 
     const map = new Map<string, { category: string; qty: Decimal; revenueUzs: Decimal; revenueUsd: Decimal }>();
+    const productCategory = new Map<string, string>();
     for (const item of items) {
       const cat = item.product.category?.name ?? 'Boshqa';
+      productCategory.set(item.productId, cat);
       const e = map.get(cat) ?? { category: cat, qty: new Decimal(0), revenueUzs: new Decimal(0), revenueUsd: new Decimal(0) };
       e.qty = e.qty.add(item.quantity);
       e.revenueUzs = e.revenueUzs.add(item.totalUzs);
       e.revenueUsd = e.revenueUsd.add(item.totalUsd);
       map.set(cat, e);
+    }
+    const returned = await loadApprovedReturns(this.prisma, ctx.companyId, saleDateFilter(ctx));
+    for (const [productId, r] of returned.byProduct) {
+      const e = map.get(productCategory.get(productId) ?? '');
+      if (!e) continue;
+      e.qty = e.qty.sub(r.qty);
+      e.revenueUzs = e.revenueUzs.sub(r.amountUzs);
+      e.revenueUsd = e.revenueUsd.sub(r.amountUsd);
     }
 
     let rows = Array.from(map.values()).map((v) => ({
@@ -291,12 +338,14 @@ export class SalesReportProvider {
       select: { id: true, firstName: true, lastName: true },
     });
     const nameMap = new Map(cashiers.map((c) => [c.id, `${c.firstName} ${c.lastName}`]));
+    const returned = await loadApprovedReturns(this.prisma, ctx.companyId, saleDateFilter(ctx));
+    const returnedBy = sumReturnsBy(returned.bySale.values(), (r) => r.cashierId);
 
     let rows = grouped.map((g) => ({
       cashier: nameMap.get(g.cashierId) ?? g.cashierId,
       saleCount: g._count.id,
-      totalUzs: formatMoney(g._sum.totalUzs),
-      totalUsd: formatMoney(g._sum.totalUsd),
+      totalUzs: formatMoney(new Decimal(g._sum.totalUzs ?? 0).sub(returnedBy.get(g.cashierId)?.uzs ?? 0)),
+      totalUsd: formatMoney(new Decimal(g._sum.totalUsd ?? 0).sub(returnedBy.get(g.cashierId)?.usd ?? 0)),
     }));
 
     rows = sortRows(rows, ctx.sort, ['cashier', 'saleCount', 'totalUzs'], 'totalUzs');
@@ -325,12 +374,14 @@ export class SalesReportProvider {
       select: { id: true, name: true },
     });
     const nameMap = new Map(branches.map((b) => [b.id, b.name]));
+    const returned = await loadApprovedReturns(this.prisma, ctx.companyId, saleDateFilter(ctx));
+    const returnedBy = sumReturnsBy(returned.bySale.values(), (r) => r.branchId);
 
     let rows = grouped.map((g) => ({
       branch: nameMap.get(g.branchId) ?? g.branchId,
       saleCount: g._count.id,
-      totalUzs: formatMoney(g._sum.totalUzs),
-      totalUsd: formatMoney(g._sum.totalUsd),
+      totalUzs: formatMoney(new Decimal(g._sum.totalUzs ?? 0).sub(returnedBy.get(g.branchId)?.uzs ?? 0)),
+      totalUsd: formatMoney(new Decimal(g._sum.totalUsd ?? 0).sub(returnedBy.get(g.branchId)?.usd ?? 0)),
     }));
 
     rows = sortRows(rows, ctx.sort, ['branch', 'saleCount', 'totalUzs'], 'totalUzs');
