@@ -61,6 +61,10 @@ class _InventoryViewState extends State<InventoryView> {
     _warehouseNameCtrl.text = 'Asosiy Ombor';
     String? selectedBranchId = _branches.isNotEmpty ? _branches.first['id'] as String? : null;
 
+    // Outside the StatefulBuilder: declared inside, they were recreated on
+    // every setModalState, so the form never switched to showing errors.
+    final formKey = GlobalKey<FormState>();
+    bool submitted = false;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -70,8 +74,6 @@ class _InventoryViewState extends State<InventoryView> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setModalState) {
           final theme = Theme.of(context);
-          final formKey = GlobalKey<FormState>();
-          bool submitted = false;
 
           return Padding(
             padding: EdgeInsets.only(

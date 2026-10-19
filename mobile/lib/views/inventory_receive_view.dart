@@ -140,6 +140,10 @@ class _InventoryReceiveViewState extends State<InventoryReceiveView> {
         ? _branches.first['id']
         : null;
 
+    // Outside the StatefulBuilder: declared inside, they were recreated on
+    // every setModalState, so the form never switched to showing errors.
+    final whFormKey = GlobalKey<FormState>();
+    bool whSubmitted = false;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -148,8 +152,6 @@ class _InventoryReceiveViewState extends State<InventoryReceiveView> {
       ),
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setModalState) {
-          final whFormKey = GlobalKey<FormState>();
-          bool whSubmitted = false;
 
           return Padding(
             padding: EdgeInsets.only(

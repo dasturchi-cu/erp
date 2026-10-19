@@ -293,7 +293,7 @@ class _SalesHistoryViewState extends State<SalesHistoryView> {
                   items: items,
                   total: total,
                   customerName: customerName?.toString(),
-                  paymentLabel: _paymentLabel(paymentType as String?),
+                  paymentLabel: _paymentLabel(paymentType),
                 ),
                 icon: const Icon(Icons.receipt_long_outlined),
                 label: const Text('Chek chiqarish'),

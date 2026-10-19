@@ -136,6 +136,10 @@ class _ExpensesViewState extends State<ExpensesView> {
 
   void _showAddExpenseDialog() {
     final theme = Theme.of(context);
+    // Outside the StatefulBuilder: declared inside, they were recreated on
+    // every setModalState, so the form never switched to showing errors.
+    final formKey = GlobalKey<FormState>();
+    bool submitted = false;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -144,8 +148,6 @@ class _ExpensesViewState extends State<ExpensesView> {
       ),
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setModalState) {
-          final formKey = GlobalKey<FormState>();
-          bool submitted = false;
 
           return Padding(
             padding: EdgeInsets.only(
