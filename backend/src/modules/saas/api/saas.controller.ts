@@ -2,7 +2,8 @@ import { Controller, Get, Post, Body, Query, UseGuards, UseInterceptors, Req, Ip
 import { SaasService } from '../application/saas.service';
 import { JwtAuthGuard } from '../../../core/guards/jwt-auth.guard';
 import { CurrentUser } from '../../../core/decorators/current-user.decorator';
-import { Public } from '../../../core/decorators/auth.decorators';
+import { Public, RequirePermissions } from '../../../core/decorators/auth.decorators';
+import { CompanyIsolationGuard } from '../../../core/guards/company-isolation.guard';
 import { RlsBypassInterceptor } from '../../../core/company/rls-bypass.interceptor';
 import { Request, Response } from 'express';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
@@ -36,7 +37,10 @@ export class SaasController {
     return this.saasService.getTenantUsage(user.companyId);
   }
 
-  @UseGuards(JwtAuthGuard)
+  // Same gate as the admin backup endpoints: a restore rewrites company
+  // data, so it must not be open to every logged-in user (e.g. cashiers).
+  @UseGuards(JwtAuthGuard, CompanyIsolationGuard)
+  @RequirePermissions('admin.*')
   @ApiBearerAuth()
   @Post('backup/trigger')
   @ApiOperation({ summary: 'Trigger remote encrypted backup' })
@@ -49,7 +53,10 @@ export class SaasController {
     return this.saasService.triggerRemoteBackup(user.companyId, user.sub, ip, reqId);
   }
 
-  @UseGuards(JwtAuthGuard)
+  // Same gate as the admin backup endpoints: a restore rewrites company
+  // data, so it must not be open to every logged-in user (e.g. cashiers).
+  @UseGuards(JwtAuthGuard, CompanyIsolationGuard)
+  @RequirePermissions('admin.*')
   @ApiBearerAuth()
   @Post('backup/restore')
   @ApiOperation({ summary: 'Trigger remote state restore from backup' })

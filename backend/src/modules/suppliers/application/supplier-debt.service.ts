@@ -155,6 +155,12 @@ export class SupplierDebtService {
     }
   }
 
+  /**
+   * Must run inside the caller's transaction: the supplier row is locked
+   * FOR UPDATE before the remaining debt is read, so two concurrent
+   * payments can't both pass the overpay check against the same balance.
+   * Returns the UZS/USD amounts actually booked, for the payment row.
+   */
   async applyPayment(
     companyId: string,
     supplierId: string,
@@ -163,9 +169,14 @@ export class SupplierDebtService {
     exchangeRate: Decimal,
     userId: string,
     paymentId: string,
-    tx?: Prisma.TransactionClient,
-  ): Promise<Decimal> {
-    const db: SupplierDebtDb = tx ?? (this.prisma as unknown as SupplierDebtDb);
+    tx: Prisma.TransactionClient,
+  ): Promise<{ amountUzs: Decimal; amountUsd: Decimal; balanceAfter: Decimal }> {
+    const db: SupplierDebtDb = tx;
+    await tx.$executeRaw`
+      SELECT id FROM suppliers
+      WHERE id = ${supplierId}::uuid AND company_id = ${companyId}::uuid AND deleted_at IS NULL
+      FOR UPDATE
+    `;
     const supplier = await db.supplier.findFirst({
       where: { id: supplierId, companyId, deletedAt: null },
     });
@@ -173,16 +184,36 @@ export class SupplierDebtService {
       throw AppException.notFound('Supplier', supplierId);
     }
 
+    // Compare in the payment's own currency. Debt is booked in both
+    // currencies at each receipt's rate; checking amount × today's rate
+    // against the UZS remainder rejected (or allowed) USD payments purely
+    // because the rate moved since the goods were received.
     const remainingUzs = supplier.totalDebtUzs.sub(supplier.totalPaidUzs);
-    const amountUzs = currency === OriginalCurrency.UZS ? amount : amount.mul(exchangeRate);
-    const amountUsd = currency === OriginalCurrency.USD ? amount : amount.div(exchangeRate);
+    const remainingUsd = supplier.totalDebtUsd.sub(supplier.totalPaidUsd);
+    const remainingInPaidCurrency = currency === OriginalCurrency.UZS ? remainingUzs : remainingUsd;
 
-    if (amountUzs.gt(remainingUzs)) {
-      const remainingInPaidCurrency = currency === OriginalCurrency.UZS ? remainingUzs : remainingUzs.div(exchangeRate);
+    if (amount.gt(remainingInPaidCurrency)) {
       throw AppException.businessRule(`Payment exceeds remaining supplier debt in ${currency}`, {
-        remaining: formatMoney(remainingInPaidCurrency),
+        remaining: formatMoney(Decimal.max(0, remainingInPaidCurrency)),
         amount: formatMoney(amount),
       });
+    }
+
+    // The other currency moves by the same share of its own remainder, so
+    // paying off the debt in either currency clears both totals (instead of
+    // leaving a UZS/USD residue from the rate difference).
+    let amountUzs: Decimal;
+    let amountUsd: Decimal;
+    if (currency === OriginalCurrency.UZS) {
+      amountUzs = amount;
+      amountUsd = remainingUzs.gt(0) && remainingUsd.gt(0)
+        ? remainingUsd.mul(amount).div(remainingUzs).toDecimalPlaces(4)
+        : amount.div(exchangeRate).toDecimalPlaces(4);
+    } else {
+      amountUsd = amount;
+      amountUzs = remainingUsd.gt(0) && remainingUzs.gt(0)
+        ? remainingUzs.mul(amount).div(remainingUsd).toDecimalPlaces(4)
+        : amount.mul(exchangeRate).toDecimalPlaces(4);
     }
 
     const updated = await db.supplier.update({
@@ -210,6 +241,10 @@ export class SupplierDebtService {
       },
     });
 
-    return currency === OriginalCurrency.UZS ? balanceAfterUzs : balanceAfterUsd;
+    return {
+      amountUzs,
+      amountUsd,
+      balanceAfter: currency === OriginalCurrency.UZS ? balanceAfterUzs : balanceAfterUsd,
+    };
   }
 }

@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { PageHeader } from '@/components/common/PageHeader';
 import { useInventoryStore } from '@/stores/inventoryStore';
 import { useNotification } from '@/components/feedback/NotificationProvider';
+import { getErrorMessage } from '@/utils/errors';
 
 const schema = z.object({
   productId: z.string().min(1, 'Mahsulotni tanlang'),
@@ -36,7 +37,7 @@ export function InventoryAdjustmentsPage() {
       success('Tuzatish saqlandi');
       reset({ productId: '', warehouseId: data.warehouseId, quantity: 0, reason: '' });
     } catch (err) {
-      notifyError(err instanceof Error ? err.message : 'Tuzatish xatolik');
+      notifyError(getErrorMessage(err, 'Tuzatish xatolik'));
     }
   };
 

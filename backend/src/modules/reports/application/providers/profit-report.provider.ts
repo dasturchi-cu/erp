@@ -7,6 +7,7 @@ import { formatMoney } from '../../../../core/utils/money.util';
 import { paginationSkip } from '../../../../core/utils/pagination.util';
 import { ReportQueryContext, ReportProviderResult } from '../report.types';
 import { applySearch, moneyFields, paginateRows, saleDateFilter, sortRows, sumDecimal } from './report-query.helpers';
+import { loadApprovedReturns } from '../../../sales/application/approved-returns.util';
 
 @Injectable()
 export class ProfitReportProvider {
@@ -38,19 +39,33 @@ export class ProfitReportProvider {
       _sum: { cogsUzs: true, cogsUsd: true },
     });
 
-    const expenseAgg = await this.prisma.expense.aggregate({
-      where: {
-        companyId: ctx.companyId,
-        deletedAt: null,
-        expenseDate: { gte: ctx.dateFrom, lte: ctx.dateTo },
-      },
-      _sum: { amountUzs: true, amountUsd: true },
-    });
+    // Expenses must cover the same scope as the sales above. With a branch
+    // filter only that branch's expenses count (company-wide expenses with
+    // no branch are excluded). A user without sales.view_all only sees their
+    // own sales, so subtracting the whole company's expenses from them would
+    // both leak company totals and produce a meaningless net profit — in
+    // that case no expenses are included (expensesIncluded=false).
+    const includeExpenses = ctx.canViewAllSales;
+    const expenseAgg = includeExpenses
+      ? await this.prisma.expense.aggregate({
+          where: {
+            companyId: ctx.companyId,
+            deletedAt: null,
+            expenseDate: { gte: ctx.dateFrom, lte: ctx.dateTo },
+            ...(ctx.branchId ? { branchId: ctx.branchId } : {}),
+          },
+          _sum: { amountUzs: true, amountUsd: true },
+        })
+      : { _sum: { amountUzs: null, amountUsd: null } };
 
-    const revenueUzs = new Decimal(salesAgg._sum.totalUzs ?? 0);
-    const revenueUsd = new Decimal(salesAgg._sum.totalUsd ?? 0);
-    const cogsUzs = new Decimal(cogsAgg._sum.cogsUzs ?? 0);
-    const cogsUsd = new Decimal(cogsAgg._sum.cogsUsd ?? 0);
+    // Net of approved returns: refunded revenue and the cost of goods that
+    // came back are not part of this period's sales.
+    const returned = await loadApprovedReturns(this.prisma, ctx.companyId, saleDateFilter(ctx));
+
+    const revenueUzs = new Decimal(salesAgg._sum.totalUzs ?? 0).sub(returned.total.amountUzs);
+    const revenueUsd = new Decimal(salesAgg._sum.totalUsd ?? 0).sub(returned.total.amountUsd);
+    const cogsUzs = new Decimal(cogsAgg._sum.cogsUzs ?? 0).sub(returned.total.cogsUzs);
+    const cogsUsd = new Decimal(cogsAgg._sum.cogsUsd ?? 0).sub(returned.total.cogsUsd);
     const expenseUzs = new Decimal(expenseAgg._sum.amountUzs ?? 0);
     const expenseUsd = new Decimal(expenseAgg._sum.amountUsd ?? 0);
     const grossProfitUzs = revenueUzs.sub(cogsUzs);
@@ -80,7 +95,7 @@ export class ProfitReportProvider {
     return {
       data,
       total: 1,
-      summary: { saleCount: salesAgg._count.id },
+      summary: { saleCount: salesAgg._count.id, expensesIncluded: includeExpenses },
       totals: {
         revenueUzs: formatMoney(revenueUzs),
         cogsUzs: formatMoney(cogsUzs),
@@ -114,6 +129,13 @@ export class ProfitReportProvider {
       e.revenueUzs = e.revenueUzs.add(item.totalUzs);
       e.cogsUzs = e.cogsUzs.add(item.cogsUzs);
       map.set(item.productId, e);
+    }
+    const returned = await loadApprovedReturns(this.prisma, ctx.companyId, saleDateFilter(ctx));
+    for (const [productId, r] of returned.byProduct) {
+      const e = map.get(productId);
+      if (!e) continue;
+      e.revenueUzs = e.revenueUzs.sub(r.amountUzs);
+      e.cogsUzs = e.cogsUzs.sub(r.cogsUzs);
     }
 
     let rows = Array.from(map.values()).map((v) => {
@@ -149,12 +171,21 @@ export class ProfitReportProvider {
     });
 
     const map = new Map<string, { category: string; revenueUzs: Decimal; cogsUzs: Decimal }>();
+    const productCategory = new Map<string, string>();
     for (const item of items) {
       const cat = item.product.category?.name ?? 'Boshqa';
+      productCategory.set(item.productId, cat);
       const e = map.get(cat) ?? { category: cat, revenueUzs: new Decimal(0), cogsUzs: new Decimal(0) };
       e.revenueUzs = e.revenueUzs.add(item.totalUzs);
       e.cogsUzs = e.cogsUzs.add(item.cogsUzs);
       map.set(cat, e);
+    }
+    const returned = await loadApprovedReturns(this.prisma, ctx.companyId, saleDateFilter(ctx));
+    for (const [productId, r] of returned.byProduct) {
+      const e = map.get(productCategory.get(productId) ?? '');
+      if (!e) continue;
+      e.revenueUzs = e.revenueUzs.sub(r.amountUzs);
+      e.cogsUzs = e.cogsUzs.sub(r.cogsUzs);
     }
 
     let rows = Array.from(map.values()).map((v) => {

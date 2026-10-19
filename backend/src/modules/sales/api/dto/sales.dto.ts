@@ -21,7 +21,9 @@ import {
 import { Type } from 'class-transformer';
 import { PaginationQueryDto } from '../../../../core/dto/pagination-query.dto';
 
-const MONEY_PATTERN = /^\d+(\.\d{1,4})?$/;
+// At most 14 integer digits: money columns are Decimal(18,4), so a longer
+// value overflows in Postgres (22003) instead of failing validation.
+const MONEY_PATTERN = /^\d{1,14}(\.\d{1,4})?$/;
 
 export class SaleLineItemRequestDto {
   @IsUUID()

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { saasApi } from '@/api/services/saasApi';
+import { getErrorMessage } from '@/utils/errors';
 
 interface SaaSState {
   admin: { id: string; email: string } | null;
@@ -25,7 +26,7 @@ export const useSaaSStore = create<SaaSState>((set) => ({
       localStorage.setItem('saas_refresh_token', data.refreshToken);
       set({ admin: data.admin, isAuthenticated: true, loading: false });
     } catch (err: any) {
-      const msg = err.response?.data?.message ?? 'Tizimga kirishda xatolik yuz berdi';
+      const msg = getErrorMessage(err, 'Tizimga kirishda xatolik yuz berdi');
       set({ error: msg, loading: false });
       throw err;
     }

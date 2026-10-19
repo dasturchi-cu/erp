@@ -37,16 +37,18 @@ apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   return config;
 });
 
-let refreshPromise: Promise<boolean> | null = null;
+type RefreshOutcome = 'refreshed' | 'auth_failed' | 'transient';
 
-async function tryRefreshSession(): Promise<boolean> {
+let refreshPromise: Promise<RefreshOutcome> | null = null;
+
+async function tryRefreshSession(): Promise<RefreshOutcome> {
   const refreshToken = useAuthStore.getState().tokens?.refreshToken;
-  if (!refreshToken) return false;
+  if (!refreshToken) return 'auth_failed';
 
   if (!refreshPromise) {
     refreshPromise = authApi
       .refresh(refreshToken)
-      .then((result) => {
+      .then((result): RefreshOutcome => {
         const companies = result.companies;
         useAuthStore.setState({
           user: result.user,
@@ -60,9 +62,13 @@ async function tryRefreshSession(): Promise<boolean> {
           isAuthenticated: true,
           error: null,
         });
-        return true;
+        return 'refreshed';
       })
-      .catch(() => false)
+      // Only a definitive rejection of the refresh token ends the session; a
+      // network error or 5xx (server restarting, offline) keeps it for a retry.
+      .catch((err: ApiError): RefreshOutcome =>
+        err?.status === 401 || err?.status === 403 ? 'auth_failed' : 'transient',
+      )
       .finally(() => {
         refreshPromise = null;
       });
@@ -86,6 +92,7 @@ apiClient.interceptors.response.use(
       data && 'error' in data && data.error
         ? data.error.code
         : (data as { code?: string } | undefined)?.code;
+    let refreshOutcome: RefreshOutcome | null = null;
 
     if (
       status === 401 &&
@@ -94,15 +101,17 @@ apiClient.interceptors.response.use(
       !isAuthEndpoint(originalConfig.url)
     ) {
       originalConfig._retry = true;
-      const refreshed = await tryRefreshSession();
-      if (refreshed) {
+      refreshOutcome = await tryRefreshSession();
+      if (refreshOutcome === 'refreshed') {
         const token = useAuthStore.getState().tokens?.accessToken;
         if (token) {
           originalConfig.headers.Authorization = `Bearer ${token}`;
         }
         return apiClient.request(originalConfig);
       }
-      await useAuthStore.getState().logout();
+      if (refreshOutcome === 'auth_failed') {
+        await useAuthStore.getState().logout();
+      }
     }
 
     let apiError: ApiError;
@@ -124,6 +133,10 @@ apiClient.interceptors.response.use(
         code: legacy?.code,
         status: error.response?.status,
       };
+    }
+
+    if (refreshOutcome === 'transient') {
+      apiError.refreshDeferred = true;
     }
 
     if (!status || status >= 500 || !error.response) {

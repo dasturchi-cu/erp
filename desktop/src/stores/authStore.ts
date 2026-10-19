@@ -3,7 +3,9 @@ import { persist } from 'zustand/middleware';
 import { authApi } from '@/api/services/authApi';
 import type { AuthTokens, Company, ModuleCode } from '@/types';
 import type { User } from '@/types/entities';
+import type { ApiError } from '@/types/api';
 import { DEFAULT_MODULES } from '@/config/permissions';
+import { resetCompanyScopedStores } from './resetCompanyStores';
 
 interface AuthState {
   user: User | null;
@@ -101,6 +103,7 @@ export const useAuthStore = create<AuthState>()(
         } catch {
           // ignore network errors on logout
         }
+        resetCompanyScopedStores();
         set({
           user: null,
           companies: [],
@@ -136,6 +139,9 @@ export const useAuthStore = create<AuthState>()(
           if (get().rememberCompanyChoice) {
             updates.lastCompanyId = companyId;
           }
+          if (get().activeCompany?.id !== result.activeCompany?.id) {
+            resetCompanyScopedStores();
+          }
           set(updates);
         } catch (err: unknown) {
           set({
@@ -155,8 +161,13 @@ export const useAuthStore = create<AuthState>()(
             permissions: me.permissions,
             enabledModules: me.modules.length ? me.modules : get().enabledModules,
           });
-        } catch {
-          get().logout();
+        } catch (err: unknown) {
+          // A network error / 5xx (or a refresh deferred for the same reason)
+          // must not log the user out; only a definitive auth rejection does.
+          const e = err as ApiError;
+          if ((e?.status === 401 || e?.status === 403) && !e.refreshDeferred && get().isAuthenticated) {
+            await get().logout();
+          }
         }
       },
 

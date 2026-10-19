@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/api_service.dart';
+import 'product_search_field.dart';
 
 class InventoryReceiveView extends StatefulWidget {
   final Map<String, dynamic>? initialProduct;
@@ -46,6 +47,13 @@ class _InventoryReceiveViewState extends State<InventoryReceiveView> {
     _costController.dispose();
     _newWarehouseNameCtrl.dispose();
     super.dispose();
+  }
+
+  /// Up to 4 decimals without trailing zeros, for prefilling an input.
+  String _plainAmount(double v) {
+    var s = v.toStringAsFixed(4);
+    s = s.replaceFirst(RegExp(r'0+$'), '').replaceFirst(RegExp(r'\.$'), '');
+    return s;
   }
 
   Future<void> _loadDependencies() async {
@@ -105,9 +113,13 @@ class _InventoryReceiveViewState extends State<InventoryReceiveView> {
                     _selectedProduct!['purchasePriceUzs'].toString(),
                   ) ??
                   0;
-              if (cost > 0) _costController.text = cost.toStringAsFixed(0);
+              if (cost > 0) _costController.text = _plainAmount(cost);
             }
           }
+          _products = ProductSearchField.withSelected(
+            _products,
+            _selectedProduct,
+          );
           if (_warehouses.isNotEmpty) {
             _selectedWarehouse = _warehouses.first as Map<String, dynamic>;
           }
@@ -128,6 +140,10 @@ class _InventoryReceiveViewState extends State<InventoryReceiveView> {
         ? _branches.first['id']
         : null;
 
+    // Outside the StatefulBuilder: declared inside, they were recreated on
+    // every setModalState, so the form never switched to showing errors.
+    final whFormKey = GlobalKey<FormState>();
+    bool whSubmitted = false;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -136,8 +152,6 @@ class _InventoryReceiveViewState extends State<InventoryReceiveView> {
       ),
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setModalState) {
-          final whFormKey = GlobalKey<FormState>();
-          bool whSubmitted = false;
 
           return Padding(
             padding: EdgeInsets.only(
@@ -301,7 +315,9 @@ class _InventoryReceiveViewState extends State<InventoryReceiveView> {
     final qtyNum = double.tryParse(qtyRaw);
     final costNum = double.tryParse(costRaw);
 
-    if (qtyNum == null || qtyNum <= 0) {
+    // 4 decimals, like the API (and the transfer screen) — a fractional
+    // quantity (kg, m) or cost must not be rounded to a whole number.
+    if (qtyNum == null || double.parse(qtyNum.toStringAsFixed(4)) <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Miqdor musbat son bo\'lishi kerak!')),
       );
@@ -321,8 +337,8 @@ class _InventoryReceiveViewState extends State<InventoryReceiveView> {
       final res = await _apiService.post('/inventory/receive', {
         'productId': _selectedProduct!['id'],
         'warehouseId': _selectedWarehouse!['id'],
-        'quantity': qtyNum.toStringAsFixed(0),
-        'unitCostUzs': costNum.toStringAsFixed(0),
+        'quantity': qtyNum.toStringAsFixed(4),
+        'unitCostUzs': costNum.toStringAsFixed(4),
         'supplierId': _selectedSupplier!['id'],
         'paymentType': _paymentType,
       });
@@ -428,6 +444,15 @@ class _InventoryReceiveViewState extends State<InventoryReceiveView> {
                           ),
                           const SizedBox(height: 16),
                           // Product Picker
+                          ProductSearchField(
+                            onResults: (list) => setState(
+                              () => _products = ProductSearchField.withSelected(
+                                list,
+                                _selectedProduct,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
                           DropdownButtonFormField<Map<String, dynamic>>(
                             value: _selectedProduct,
                             isExpanded: true,
@@ -467,9 +492,7 @@ class _InventoryReceiveViewState extends State<InventoryReceiveView> {
                                         val['purchasePriceUzs'].toString(),
                                       ) ??
                                       0;
-                                  _costController.text = cost.toStringAsFixed(
-                                    0,
-                                  );
+                                  _costController.text = _plainAmount(cost);
                                 }
                               });
                             },

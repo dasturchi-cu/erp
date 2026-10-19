@@ -17,6 +17,7 @@ import { useListState } from '@/hooks/useListState';
 import { useInventoryStore } from '@/stores/inventoryStore';
 import { useNotification } from '@/components/feedback/NotificationProvider';
 import type { StockTransfer } from '@/types/entities';
+import { getErrorMessage } from '@/utils/errors';
 
 function formatDateTime(iso: string) {
   return new Date(iso).toLocaleString('uz-UZ', { dateStyle: 'short', timeStyle: 'short' });
@@ -85,7 +86,7 @@ export function TransferPage() {
       await fetchTransfers();
       setTab(1);
     } catch (err) {
-      notifyError(err instanceof Error ? err.message : 'O\'tkazma xatolik');
+      notifyError(getErrorMessage(err, 'O\'tkazma xatolik'));
     } finally {
       setSubmitting(false);
     }

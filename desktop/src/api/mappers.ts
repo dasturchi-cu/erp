@@ -184,6 +184,7 @@ const movementTypeMap: Record<string, StockMovement['type']> = {
 export function mapStockMovement(wire: {
   id: string;
   type: string;
+  productId?: string;
   productName: string;
   quantity: string;
   warehouseName: string;
@@ -194,6 +195,7 @@ export function mapStockMovement(wire: {
   return {
     id: wire.id,
     type: movementTypeMap[wire.type] ?? 'adjustment',
+    productId: wire.productId,
     productName: wire.productName,
     quantity: parseMoney(wire.quantity),
     warehouse: wire.warehouseName,
@@ -297,7 +299,7 @@ export function mapSaleDetail(wire: {
   paymentType: string;
   status: string;
   createdAt: string;
-  lineItems: Array<{
+  lineItems?: Array<{
     id?: string;
     productId: string;
     productName: string;
@@ -310,7 +312,7 @@ export function mapSaleDetail(wire: {
     cogsUzs?: string;
     cogsUsd?: string;
   }>;
-  fifoAllocations: Array<{
+  fifoAllocations?: Array<{
     id?: string;
     batchId: string;
     productId: string;
@@ -319,7 +321,7 @@ export function mapSaleDetail(wire: {
     unitCostUzs: string;
     costUzs: string;
   }>;
-  payments: Array<{
+  payments?: Array<{
     method: string;
     amountUzs: string;
     amountUsd: string;
@@ -345,7 +347,7 @@ export function mapSaleDetail(wire: {
     currency: wire.originalCurrency as 'UZS' | 'USD',
     exchangeRate: rate,
     notes: wire.notes ?? undefined,
-    lineItems: wire.lineItems.map((li) => ({
+    lineItems: (wire.lineItems ?? []).map((li) => ({
       productId: li.productId,
       productName: li.productName,
       sku: li.sku,
@@ -355,14 +357,14 @@ export function mapSaleDetail(wire: {
       totalUzs: parseMoney(li.totalUzs),
       totalUsd: parseMoney(li.totalUsd),
     })),
-    fifoAllocations: wire.fifoAllocations.map((a) => ({
+    fifoAllocations: (wire.fifoAllocations ?? []).map((a) => ({
       batchId: a.batchId,
       productId: a.productId,
       productName: a.productName,
       quantity: parseMoney(a.quantity),
       costUzs: parseMoney(a.costUzs),
     })),
-    payments: wire.payments.map((p) => ({
+    payments: (wire.payments ?? []).map((p) => ({
       method: paymentTypeMap[p.method] ?? 'cash',
       amountUzs: parseMoney(p.amountUzs),
       amountUsd: parseMoney(p.amountUsd),

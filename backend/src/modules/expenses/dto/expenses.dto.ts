@@ -1,4 +1,13 @@
-import { IsEnum, IsNumber, IsOptional, IsString, IsUUID, Min } from 'class-validator';
+import {
+  IsDateString,
+  IsEnum,
+  IsNumber,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Max,
+  Min,
+} from 'class-validator';
 import { ExpenseCategory, OriginalCurrency } from '@prisma/client';
 
 export class CreateExpenseDto {
@@ -13,9 +22,12 @@ export class CreateExpenseDto {
 
   @IsNumber()
   @Min(0.01)
+  // Decimal(18,4) column: larger values overflow in Postgres.
+  @Max(99_999_999_999_999)
   amount!: number;
 
-  @IsString()
+  // An unparseable date used to reach new Date() → Invalid Date → 500.
+  @IsDateString()
   expenseDate!: string;
 
   @IsString()
@@ -32,11 +44,11 @@ export class ExpenseQueryDto {
   @IsOptional()
   category?: ExpenseCategory;
 
-  @IsString()
+  @IsDateString()
   @IsOptional()
   dateFrom?: string;
 
-  @IsString()
+  @IsDateString()
   @IsOptional()
   dateTo?: string;
 

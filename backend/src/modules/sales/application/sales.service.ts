@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import {
   CompanyStatus,
+  DebtHistoryType,
   InventoryBatchSourceType,
   InventoryMovementType,
   OriginalCurrency,
@@ -30,6 +31,7 @@ import {
 } from '../../../core/utils/pagination.util';
 import { CurrencyService } from '../../currency/application/currency.service';
 import { DebtService } from '../../debt/application/debt.service';
+import { lockCustomerForDebtUpdate } from '../../debt/application/debt-lock.util';
 import {
   createMovement,
   createReceiptBatch,
@@ -46,6 +48,8 @@ import {
   SaleReturnResponseDto,
   VoidSaleRequestDto,
 } from '../api/dto/sales.dto';
+
+const MAX_MONEY_UZS = new Decimal('1e14');
 
 type SaleWithRelations = Prisma.SaleGetPayload<{
   include: {
@@ -83,6 +87,7 @@ export class SalesService {
     idempotencyKey: string,
     ip?: string,
     requestId?: string,
+    permissions: string[] = [],
   ): Promise<SaleResponseDto> {
     const endpoint = 'POST /sales';
     const requestHash = this.idempotency.hashRequest(dto);
@@ -93,7 +98,15 @@ export class SalesService {
       endpoint,
       requestHash,
       handler: async () => {
-        const body = await this.executeCreateSale(companyId, userId, branchId, dto, ip, requestId);
+        const body = await this.executeCreateSale(
+          companyId,
+          userId,
+          branchId,
+          dto,
+          ip,
+          requestId,
+          permissions,
+        );
         return { status: 201, body };
       },
     });
@@ -167,8 +180,22 @@ export class SalesService {
     };
   }
 
-  async getById(companyId: string, id: string): Promise<SaleResponseDto> {
+  async getById(
+    companyId: string,
+    id: string,
+    viewer?: { userId: string; permissions: string[] },
+  ): Promise<SaleResponseDto> {
     const sale = await this.findSaleOrThrow(companyId, id);
+    // Same visibility rule as list(): without sales.view_all a user only sees
+    // their own sales. 404 (not 403) so sale ids can't be probed.
+    if (
+      viewer &&
+      !viewer.permissions.includes('sales.view_all') &&
+      !viewer.permissions.includes('admin.*') &&
+      sale.cashierId !== viewer.userId
+    ) {
+      throw AppException.notFound('Sale', id);
+    }
     return this.toSaleResponse(sale);
   }
 
@@ -361,16 +388,46 @@ export class SalesService {
         (existing.sale.paymentType === SalePaymentType.CREDIT ||
           existing.sale.paymentType === SalePaymentType.MIXED)
       ) {
-        await this.debtService.applyReturnCredit(tx, {
-          companyId,
-          customerId: existing.customerId,
-          amountUzs: existing.amountUzs,
-          exchangeRate: existing.exchangeRateUsed,
-          referenceType: 'sale_return',
-          referenceId: existing.id,
-          referenceLabel: existing.sale.saleNumber,
-          recordedBy: userId,
+        // Only the unpaid (credit) part of the sale can come off the debt.
+        // For a MIXED sale the cash part was never debt; crediting the full
+        // return amount used to wipe the customer's other debts. Lock the
+        // customer first so concurrent approvals of returns on the same sale
+        // see each other's credits.
+        await lockCustomerForDebtUpdate(tx, companyId, existing.customerId);
+        const saleCreditUzs = this.getSaleCreditUzs(
+          existing.sale.paymentType,
+          existing.sale.totalUzs,
+          existing.sale.amountPaidUzs,
+          existing.sale.amountPaidUsd,
+          existing.sale.exchangeRateUsed,
+        );
+        const alreadyCredited = await tx.debtHistory.aggregate({
+          where: {
+            companyId,
+            customerId: existing.customerId,
+            type: DebtHistoryType.return,
+            referenceType: 'sale_return',
+            referenceLabel: existing.sale.saleNumber,
+          },
+          _sum: { amountUzs: true },
         });
+        const creditableUzs = Decimal.max(
+          0,
+          saleCreditUzs.sub(alreadyCredited._sum.amountUzs ?? 0),
+        );
+        const returnCreditUzs = Decimal.min(existing.amountUzs, creditableUzs);
+        if (returnCreditUzs.gt(0)) {
+          await this.debtService.applyReturnCredit(tx, {
+            companyId,
+            customerId: existing.customerId,
+            amountUzs: returnCreditUzs,
+            exchangeRate: existing.exchangeRateUsed,
+            referenceType: 'sale_return',
+            referenceId: existing.id,
+            referenceLabel: existing.sale.saleNumber,
+            recordedBy: userId,
+          });
+        }
       }
 
       const cumulativeAfterApprove = await this.getCumulativeReturnedQtyByProduct(
@@ -484,8 +541,11 @@ export class SalesService {
     dto: CreateSaleRequestDto,
     ip?: string,
     requestId?: string,
+    permissions: string[] = [],
   ): Promise<SaleResponseDto> {
     this.validateCreateSale(dto);
+    const canOverridePriceFloor =
+      permissions.includes('admin.*') || permissions.includes('sales.price_override');
 
     const activeRate = await this.currencyService.getActiveRateOrThrow(companyId);
     const exchangeRate = activeRate.rate;
@@ -493,6 +553,18 @@ export class SalesService {
     const saleId = await this.basePrisma.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT set_config('app.company_id', ${companyId}, true)`;
       const resolvedBranchId = await this.resolveBranchId(tx, companyId, branchId);
+      // customerId comes from the client: it must belong to this company,
+      // otherwise the debt/customer updates below hit another tenant's row
+      // (or a missing one → P2025 → 500).
+      if (dto.customerId) {
+        const customer = await tx.customer.findFirst({
+          where: { id: dto.customerId, companyId, deletedAt: null },
+          select: { id: true },
+        });
+        if (!customer) {
+          throw AppException.notFound('Customer', dto.customerId);
+        }
+      }
       const warehouse = await this.resolveWarehouse(tx, companyId, userId, resolvedBranchId);
       const saleNumber = await this.generateSaleNumber(tx, companyId);
 
@@ -533,10 +605,24 @@ export class SalesService {
             { field: 'lineItems.unitPriceUzs', message: 'Must be > 0', code: 'INVALID_PRICE' },
           ]);
         }
+        // A client-supplied price may not go below the product's floor (its
+        // min price, else its purchase cost) unless the user is allowed to
+        // override it — otherwise any cashier could sell at 0.0001 UZS.
+        if (line.unitPriceUzs && !canOverridePriceFloor) {
+          const floorUzs = this.getPriceFloorUzs(product.prices, exchangeRate);
+          if (unitPriceUzs.lt(floorUzs)) {
+            throw AppException.businessRule('Sale price is below the allowed minimum', {
+              productId: line.productId,
+              unitPriceUzs: formatMoney(unitPriceUzs),
+              minPriceUzs: formatMoney(floorUzs),
+            });
+          }
+        }
         const unitPriceUsd = product.prices.salePriceUsd.gt(0) && !line.unitPriceUzs
           ? product.prices.salePriceUsd
           : uzsToUsd(unitPriceUzs, exchangeRate);
         const totalUzs = unitPriceUzs.mul(quantity).toDecimalPlaces(4);
+        this.assertMoneyWithinLimit(totalUzs, 'lineItems.quantity');
         const totalUsd = uzsToUsd(totalUzs, exchangeRate);
 
         lineData.push({
@@ -552,6 +638,7 @@ export class SalesService {
       }
 
       const subtotalUzs = lineData.reduce((s, l) => s.add(l.totalUzs), new Decimal(0));
+      this.assertMoneyWithinLimit(subtotalUzs, 'lineItems');
       const subtotalUsd = uzsToUsd(subtotalUzs, exchangeRate);
       const totalUzs = subtotalUzs;
       const totalUsd = subtotalUsd;
@@ -675,7 +762,7 @@ export class SalesService {
         }
 
         await tx.customer.update({
-          where: { id: dto.customerId },
+          where: { id: dto.customerId, companyId },
           data: {
             totalPurchasesUzs: { increment: totalUzs },
             lastPurchaseAt: new Date(),
@@ -771,7 +858,7 @@ export class SalesService {
         }
 
         await tx.customer.update({
-          where: { id: sale.customerId },
+          where: { id: sale.customerId, companyId },
           data: {
             totalPurchasesUzs: {
               decrement: sale.totalUzs,
@@ -920,6 +1007,21 @@ export class SalesService {
   }
 
   private validateCreateSale(dto: CreateSaleRequestDto): void {
+    // One line per product: duplicate lines each ran their own FIFO deduction
+    // and price check, and made per-product return quantities ambiguous.
+    const seen = new Set<string>();
+    for (const line of dto.lineItems ?? []) {
+      if (seen.has(line.productId)) {
+        throw AppException.validation('Validation failed', [
+          {
+            field: 'lineItems.productId',
+            message: 'Duplicate product line; merge quantities into one line',
+            code: 'DUPLICATE_PRODUCT_LINE',
+          },
+        ]);
+      }
+      seen.add(line.productId);
+    }
     if (
       (dto.paymentType === SalePaymentType.CREDIT || dto.paymentType === SalePaymentType.MIXED) &&
       !dto.customerId
@@ -942,8 +1044,18 @@ export class SalesService {
     exchangeRate: Decimal,
   ): void {
     const paidTotalUzs = amountPaidUzs.add(usdToUzs(amountPaidUsd, exchangeRate));
+    // Clients can only show/enter USD to the cent, so total/rate rounded to
+    // 2 decimals can land up to half a cent short (e.g. 50 000 UZS at 12 620
+    // → $3.96 = 49 975 UZS). Accept that rounding gap for USD tenders instead
+    // of rejecting roughly every other USD cash sale.
+    const usdRoundingToleranceUzs = amountPaidUsd.gt(0)
+      ? usdToUzs(new Decimal('0.005'), exchangeRate)
+      : new Decimal(0);
 
-    if (paymentType === SalePaymentType.CASH && paidTotalUzs.lt(totalUzs)) {
+    if (
+      paymentType === SalePaymentType.CASH &&
+      paidTotalUzs.add(usdRoundingToleranceUzs).lt(totalUzs)
+    ) {
       throw AppException.businessRule('Cash payment less than sale total', {
         totalUzs: formatMoney(totalUzs),
         amountPaidUzs: formatMoney(paidTotalUzs),
@@ -967,6 +1079,25 @@ export class SalesService {
         });
       }
     }
+  }
+
+  // Money columns are Decimal(18,4): a total at or above 1e14 overflows the
+  // column and Postgres raises 22003 mid-transaction.
+  private assertMoneyWithinLimit(value: Decimal, field: string): void {
+    if (value.gte(MAX_MONEY_UZS)) {
+      throw AppException.validation('Validation failed', [
+        { field, message: 'Amount is too large', code: 'AMOUNT_TOO_LARGE' },
+      ]);
+    }
+  }
+
+  private getPriceFloorUzs(
+    prices: { minPriceUzs: Decimal; minPriceUsd: Decimal; purchasePriceUzs: Decimal },
+    exchangeRate: Decimal,
+  ): Decimal {
+    if (prices.minPriceUzs.gt(0)) return prices.minPriceUzs;
+    if (prices.minPriceUsd.gt(0)) return usdToUzs(prices.minPriceUsd, exchangeRate);
+    return prices.purchasePriceUzs;
   }
 
   private getSaleCreditUzs(

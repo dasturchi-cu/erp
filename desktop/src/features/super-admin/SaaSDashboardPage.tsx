@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Box, Grid, Card, CardContent, Typography, CircularProgress, Alert, Paper, LinearProgress, Table, TableBody, TableCell, TableContainer, TableHead, TableRow } from '@mui/material';
 import { Business as BusinessIcon, Money as MoneyIcon, People as PeopleIcon, Speed as SpeedIcon, Warning as WarningIcon } from '@mui/icons-material';
 import { saasApi } from '@/api/services/saasApi';
+import { getErrorMessage } from '@/utils/errors';
 
 export function SaaSDashboardPage() {
   const [stats, setStats] = useState<any>(null);
@@ -14,7 +15,7 @@ export function SaaSDashboardPage() {
         setStats(data);
       })
       .catch((err) => {
-        setError(err.response?.data?.message ?? 'Statistikalarni yuklashda xatolik yuz berdi');
+        setError(getErrorMessage(err, 'Statistikalarni yuklashda xatolik yuz berdi'));
       })
       .finally(() => {
         setLoading(false);

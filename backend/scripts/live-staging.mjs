@@ -305,12 +305,33 @@ async function runSuite() {
     custUpd.ok ? custUpd.data?.name : JSON.stringify(custUpd.data),
   );
 
-  const recv = await request('POST', '/inventory/receive', {
+  // Receiving stock requires a supplier and how it was paid for.
+  const supplierRes = await request('POST', '/suppliers', {
     token,
     companyId,
     deviceId,
-    body: { productId, warehouseId, quantity: money(50), unitCostUzs: money(7200) },
+    body: {
+      name: `Live Supplier ${Date.now().toString(36)}`,
+      phone: `+99891${String(Math.floor(Math.random() * 1e7)).padStart(7, '0')}`,
+    },
   });
+  const supplierId = supplierRes.data?.id;
+
+  const recv = supplierId
+    ? await request('POST', '/inventory/receive', {
+        token,
+        companyId,
+        deviceId,
+        body: {
+          productId,
+          warehouseId,
+          quantity: money(50),
+          unitCostUzs: money(7200),
+          supplierId,
+          paymentType: 'CREDIT',
+        },
+      })
+    : supplierRes;
   record('L-04', 'Inventory receive', recv.ok, recv.ok ? 'qty=50' : JSON.stringify(recv.data));
 
   const cashSale = await createCashSale(session, productId, 1, unitPrice, uuid());

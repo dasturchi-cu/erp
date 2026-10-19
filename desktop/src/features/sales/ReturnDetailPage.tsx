@@ -6,6 +6,8 @@ import { StatusChip } from '@/components/common/DataTable';
 import { useSalesStore } from '@/stores/salesStore';
 import { useNotification } from '@/components/feedback/NotificationProvider';
 import { formatUzs, formatUsd } from '@/utils/format';
+import { usePermissions } from '@/hooks/usePermissions';
+import { getErrorMessage } from '@/utils/errors';
 
 const statusLabels = { pending: 'Kutilmoqda', approved: 'Tasdiqlangan', rejected: 'Rad etilgan' };
 const statusColors = { pending: 'warning', approved: 'success', rejected: 'error' } as const;
@@ -13,7 +15,9 @@ const statusColors = { pending: 'warning', approved: 'success', rejected: 'error
 export function ReturnDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { success } = useNotification();
+  const { success, error: notifyError } = useNotification();
+  const { can } = usePermissions();
+  const [deciding, setDeciding] = useState<'approve' | 'reject' | null>(null);
   const ret = useSalesStore((s) => s.getReturnById(id ?? ''));
   const fetchReturnById = useSalesStore((s) => s.fetchReturnById);
   const approveReturn = useSalesStore((s) => s.approveReturn);
@@ -49,14 +53,22 @@ export function ReturnDetailPage() {
     );
   }
 
-  const handleApprove = async () => {
-    await approveReturn(ret.id);
-    success('Qaytarish tasdiqlandi');
-  };
-
-  const handleReject = async () => {
-    await rejectReturn(ret.id);
-    success('Qaytarish rad etildi');
+  const decide = async (kind: 'approve' | 'reject') => {
+    if (deciding) return;
+    setDeciding(kind);
+    try {
+      if (kind === 'approve') {
+        await approveReturn(ret.id);
+        success('Qaytarish tasdiqlandi');
+      } else {
+        await rejectReturn(ret.id);
+        success('Qaytarish rad etildi');
+      }
+    } catch (err: unknown) {
+      notifyError(getErrorMessage(err, kind === 'approve' ? 'Tasdiqlashda xatolik' : 'Rad etishda xatolik'));
+    } finally {
+      setDeciding(null);
+    }
   };
 
   return (
@@ -67,13 +79,23 @@ export function ReturnDetailPage() {
         secondaryActions={
           <>
             <StatusChip label={statusLabels[ret.status]} color={statusColors[ret.status]} />
-            {ret.status === 'pending' && (
+            {ret.status === 'pending' && can('sales.return') && (
               <>
-                <Button color="success" variant="contained" onClick={handleApprove}>
-                  Tasdiqlash
+                <Button
+                  color="success"
+                  variant="contained"
+                  onClick={() => void decide('approve')}
+                  disabled={deciding !== null}
+                >
+                  {deciding === 'approve' ? 'Jarayonda…' : 'Tasdiqlash'}
                 </Button>
-                <Button color="error" variant="outlined" onClick={handleReject}>
-                  Rad etish
+                <Button
+                  color="error"
+                  variant="outlined"
+                  onClick={() => void decide('reject')}
+                  disabled={deciding !== null}
+                >
+                  {deciding === 'reject' ? 'Jarayonda…' : 'Rad etish'}
                 </Button>
               </>
             )}
@@ -107,7 +129,7 @@ export function ReturnDetailPage() {
             </TableRow>
           </TableHead>
           <TableBody>
-            {ret.lineItems.map((line) => (
+            {(ret.lineItems ?? []).map((line) => (
               <TableRow key={line.productId}>
                 <TableCell>{line.productName}</TableCell>
                 <TableCell align="right">{line.quantity}</TableCell>

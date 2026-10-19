@@ -180,10 +180,19 @@ export class CustomersService {
   ): Promise<void> {
     const existing = await this.findCustomerOrThrow(companyId, id);
 
-    await this.prisma.customer.update({
-      where: { id, companyId },
+    // A deleted customer drops out of every debt list, so open debt (or a
+    // credit balance we owe them) would silently vanish. The balance is part
+    // of the update's WHERE so a sale/payment landing in between can't slip
+    // past the check.
+    const deleted = await this.prisma.customer.updateMany({
+      where: { id, companyId, deletedAt: null, totalDebtUzs: 0 },
       data: { deletedAt: new Date(), status: CustomerStatus.ARCHIVED },
     });
+    if (deleted.count === 0) {
+      throw AppException.businessRule('Customer has an outstanding balance and cannot be deleted', {
+        totalDebtUzs: formatMoney(existing.totalDebtUzs),
+      });
+    }
 
     await this.audit.log({
       companyId,

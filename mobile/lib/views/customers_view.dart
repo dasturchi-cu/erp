@@ -69,6 +69,16 @@ class _CustomersViewState extends State<CustomersView> {
     return double.tryParse(val.toString().replaceAll(',', '')) ?? 0.0;
   }
 
+  /// Amount as typed input: up to 4 decimals, no trailing zeros (the API's
+  /// "12500.5000" becomes "12500.5").
+  String _plainAmount(dynamic raw, double parsed) {
+    var str = raw is String && double.tryParse(raw) != null ? raw : parsed.toStringAsFixed(4);
+    if (str.contains('.')) {
+      str = str.replaceFirst(RegExp(r'0+$'), '').replaceFirst(RegExp(r'\.$'), '');
+    }
+    return str;
+  }
+
   String _formatCurrency(double amount, [String unit = 'UZS']) {
     final str = amount.abs().toStringAsFixed(0);
     final buffer = StringBuffer();
@@ -410,8 +420,16 @@ class _CustomersViewState extends State<CustomersView> {
     final debtUzs = _parseAmount(c['debtUzs'] ?? c['totalDebtUzs'] ?? c['debt']);
     final purchases = _parseAmount(c['totalPurchasesUzs']);
 
-    final payAmountController = TextEditingController(text: debtUzs > 0 ? debtUzs.toStringAsFixed(0) : '');
+    // Prefill the exact outstanding debt (the API keeps 4 decimals) — a
+    // rounded value would leave a few tiyin of debt behind or overpay.
+    final payAmountController = TextEditingController(
+      text: debtUzs > 0 ? _plainAmount(c['debtUzs'] ?? c['totalDebtUzs'] ?? c['debt'], debtUzs) : '',
+    );
     String payMethod = 'CASH';
+    bool paying = false;
+    // One key for this dialog's payment: a retry after a timeout (or a
+    // second tap) is recognised by the server instead of paying twice.
+    final paymentKey = ApiService.newIdempotencyKey();
 
     showModalBottomSheet(
       context: context,
@@ -602,15 +620,21 @@ class _CustomersViewState extends State<CustomersView> {
                   ),
                   const SizedBox(height: 12),
                   ElevatedButton.icon(
-                    icon: const Icon(Icons.payments_outlined),
+                    icon: paying
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
+                        : const Icon(Icons.payments_outlined),
                     label: const Text('To\'lovni Saqlash'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.green,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
-                    onPressed: () async {
-                      final payAmt = payAmountController.text.trim();
+                    onPressed: paying ? null : () async {
+                      final payAmt = payAmountController.text.trim().replaceAll(',', '.');
                       if (payAmt.isEmpty) return;
                       final payNum = double.tryParse(payAmt) ?? 0;
                       if (payNum <= 0) {
@@ -619,16 +643,18 @@ class _CustomersViewState extends State<CustomersView> {
                         );
                         return;
                       }
-                      final paymentType = payNum >= debtUzs ? 'FULL' : 'PARTIAL';
+                      final amountStr = payNum.toStringAsFixed(4);
+                      final paymentType = double.parse(amountStr) >= double.parse(debtUzs.toStringAsFixed(4)) ? 'FULL' : 'PARTIAL';
+                      setModalState(() => paying = true);
                       try {
                         final res = await _apiService.post('/debt-payments', {
                           'customerId': c['id'],
-                          'amount': payNum.toStringAsFixed(0),
+                          'amount': amountStr,
                           'currency': 'UZS',
                           'paymentMethod': payMethod,
                           'paymentType': paymentType,
                           'notes': 'Mobil ilovadan qarz to\'lovi',
-                        });
+                        }, idempotencyKey: paymentKey);
                         if (res.statusCode == 200 || res.statusCode == 201) {
                           if (mounted) {
                             Navigator.pop(ctx);
@@ -644,6 +670,8 @@ class _CustomersViewState extends State<CustomersView> {
                             SnackBar(backgroundColor: Colors.red, content: Text('Xatolik: ${ApiService.parseError(e)}')),
                           );
                         }
+                      } finally {
+                        if (ctx.mounted) setModalState(() => paying = false);
                       }
                     },
                   ),

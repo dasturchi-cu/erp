@@ -3,12 +3,15 @@ import { salesApi } from '@/api/services';
 import { refreshAfterReturnMutation, refreshAfterSaleMutation } from '@/utils/domainRefresh';
 import type { SaleReturn } from '@/types/entities';
 import type { SaleDetail } from '@/types/sales';
+import { getErrorMessage } from '@/utils/errors';
 
 export interface CreateReturnInput {
   saleId: string;
   reason: string;
   lineItems: Array<{ productId: string; productName: string; quantity: number; amountUzs: number }>;
   recordedBy: string;
+  /** Stable per return operation so a retried submit can't create two returns. */
+  idempotencyKey?: string;
 }
 
 interface SalesState {
@@ -26,7 +29,7 @@ interface SalesState {
   getSaleById: (id: string) => SaleDetail | undefined;
   getSaleByNumber: (number: string) => SaleDetail | undefined;
   getSalesByCustomerId: (customerId: string) => SaleDetail[];
-  voidSale: (id: string, note?: string) => Promise<SaleDetail>;
+  voidSale: (id: string, note?: string, idempotencyKey?: string) => Promise<SaleDetail>;
   createReturn: (input: CreateReturnInput) => Promise<SaleReturn>;
   approveReturn: (id: string, note?: string) => Promise<SaleReturn>;
   rejectReturn: (id: string, note?: string) => Promise<SaleReturn>;
@@ -45,8 +48,10 @@ export const useSalesStore = create<SalesState>()((set, get) => ({
   fetchSales: async () => {
     set({ isLoading: true, error: null });
     try {
+      // Rows carry the full detail shape (lineItems, customerId, payments), so
+      // replacing cached details with them is safe for detail/receipt pages.
       const list = await salesApi.list();
-      set({ sales: list as any, isLoading: false });
+      set({ sales: list, isLoading: false });
     } catch (err: unknown) {
       set({
         isLoading: false,
@@ -56,8 +61,12 @@ export const useSalesStore = create<SalesState>()((set, get) => ({
   },
 
   fetchReturns: async () => {
-    const returns = await salesApi.listReturns();
-    set({ returns });
+    try {
+      const returns = await salesApi.listReturns();
+      set({ returns });
+    } catch (err: unknown) {
+      set({ error: getErrorMessage(err, 'Qaytarishlar yuklanmadi') });
+    }
   },
 
   fetchSaleById: async (id) => {
@@ -95,8 +104,8 @@ export const useSalesStore = create<SalesState>()((set, get) => ({
   getSalesByCustomerId: (customerId) =>
     get().sales.filter((s) => s.customerId === customerId),
 
-  voidSale: async (id, note) => {
-    const sale = await salesApi.void(id, note);
+  voidSale: async (id, note, idempotencyKey) => {
+    const sale = await salesApi.void(id, note, idempotencyKey);
     set((s) => ({
       sales: s.sales.map((x) => (x.id === id ? sale : x)),
     }));
@@ -111,8 +120,8 @@ export const useSalesStore = create<SalesState>()((set, get) => ({
         productId: li.productId,
         quantity: li.quantity,
       })),
-    });
-    set((s) => ({ returns: [ret, ...s.returns] }));
+    }, input.idempotencyKey);
+    set((s) => ({ returns: [ret, ...s.returns.filter((r) => r.id !== ret.id)] }));
     return ret;
   },
 

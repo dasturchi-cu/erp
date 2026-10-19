@@ -39,6 +39,7 @@ import {
   Dns as DnsIcon
 } from '@mui/icons-material';
 import { saasApi } from '@/api/services/saasApi';
+import { getErrorMessage } from '@/utils/errors';
 
 export function SaaSReleasesPage() {
   const [activeTab, setActiveTab] = useState(0);
@@ -131,7 +132,7 @@ export function SaaSReleasesPage() {
       setPlatform('desktop');
       fetchReleases();
     } catch (err: any) {
-      setUploadError(err.response?.data?.message || 'Yuklashda xatolik yuz berdi');
+      setUploadError(getErrorMessage(err, 'Yuklashda xatolik yuz berdi'));
     } finally {
       setUploading(false);
     }

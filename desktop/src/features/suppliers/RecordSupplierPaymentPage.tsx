@@ -9,6 +9,8 @@ import { useSupplierStore } from '@/stores/supplierStore';
 import { useCurrencyStore } from '@/stores/currencyStore';
 import { useNotification } from '@/components/feedback/NotificationProvider';
 import { formatUzs, formatUsd } from '@/utils/format';
+import { uzsToUsdFloor } from '@/utils/currency';
+import { getErrorMessage } from '@/utils/errors';
 
 const schema = z.object({
   amount: z.coerce.number().min(0.01, 'Minimal miqdor kiritilishi shart'),
@@ -27,7 +29,10 @@ export function RecordSupplierPaymentPage() {
   const isLoading = useSupplierStore((s) => s.isLoading);
   const fetchSuppliers = useSupplierStore((s) => s.fetchSuppliers);
   const recordPayment = useSupplierStore((s) => s.recordPayment);
-  const activeRate = useCurrencyStore((s) => s.rates.find((r) => r.status === 'active')?.rate ?? 12_620);
+  // 0 = not loaded: USD payment is blocked instead of using a hardcoded rate.
+  const activeRate = useCurrencyStore(
+    (s) => s.activeRate || s.rates.find((r) => r.status === 'active')?.rate || 0,
+  );
 
   const { register, handleSubmit, reset, formState: { errors, isSubmitting }, watch, setValue } = useForm<z.infer<typeof schema>>({
     resolver: zodResolver(schema),
@@ -44,7 +49,7 @@ export function RecordSupplierPaymentPage() {
   useEffect(() => {
     if (supplier) {
       reset({
-        amount: currency === 'UZS' ? supplier.remainingDebtUzs : Number((supplier.remainingDebtUzs / activeRate).toFixed(2)),
+        amount: currency === 'UZS' ? supplier.remainingDebtUzs : uzsToUsdFloor(supplier.remainingDebtUzs, activeRate),
         currency: currency,
         method: 'cash',
         note: '',
@@ -69,9 +74,15 @@ export function RecordSupplierPaymentPage() {
     );
   }
 
-  const maxDebt = currency === 'UZS' ? supplier.remainingDebtUzs : Number((supplier.remainingDebtUzs / activeRate).toFixed(2));
+  const maxDebt = currency === 'UZS' ? supplier.remainingDebtUzs : uzsToUsdFloor(supplier.remainingDebtUzs, activeRate);
+
+  const rateMissing = currency === 'USD' && activeRate <= 0;
 
   const onSubmit = async (data: z.infer<typeof schema>) => {
+    if (data.currency === 'USD' && activeRate <= 0) {
+      notifyError("Valyuta kursi yuklanmagan. UZS da to'lang yoki avval kursni kiriting.");
+      return;
+    }
     if (data.amount > maxDebt) {
       notifyError("To'lov miqdori qarzdan oshmasligi kerak");
       return;
@@ -85,15 +96,15 @@ export function RecordSupplierPaymentPage() {
       });
       success("To'lov qayd etildi");
       navigate(`/suppliers/${supplier.id}`);
-    } catch {
-      notifyError("To'lovni saqlashda xatolik");
+    } catch (err: unknown) {
+      notifyError(getErrorMessage(err, "To'lovni saqlashda xatolik"));
     }
   };
 
   const handleCurrencyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const cur = e.target.value as 'UZS' | 'USD';
     setValue('currency', cur);
-    setValue('amount', cur === 'UZS' ? supplier.remainingDebtUzs : Number((supplier.remainingDebtUzs / activeRate).toFixed(2)));
+    setValue('amount', cur === 'UZS' ? supplier.remainingDebtUzs : uzsToUsdFloor(supplier.remainingDebtUzs, activeRate));
   };
 
   return (
@@ -101,7 +112,8 @@ export function RecordSupplierPaymentPage() {
       <PageHeader title="Firma to'lovi" subtitle={supplier.name} />
       <Card variant="outlined" sx={{ p: 3, maxWidth: 480 }}>
         <Typography variant="body2" color="text.secondary" gutterBottom>
-          Qoldiq qarz: {formatUzs(supplier.remainingDebtUzs)} ({formatUsd(supplier.remainingDebtUzs / activeRate)} ekvivalent)
+          Qoldiq qarz: {formatUzs(supplier.remainingDebtUzs)}
+          {activeRate > 0 && <> ({formatUsd(supplier.remainingDebtUzs / activeRate)} ekvivalent)</>}
         </Typography>
         <Box component="form" onSubmit={handleSubmit(onSubmit)} sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 2 }}>
           <TextField
@@ -129,7 +141,7 @@ export function RecordSupplierPaymentPage() {
           <TextField label="Izoh" multiline rows={2} {...register('note')} />
           <Box sx={{ display: 'flex', gap: 1 }}>
             <Button onClick={() => navigate(-1)}>Bekor</Button>
-            <Button type="submit" variant="contained" disabled={isSubmitting || maxDebt === 0 || amount > maxDebt}>
+            <Button type="submit" variant="contained" disabled={isSubmitting || maxDebt === 0 || amount > maxDebt || rateMissing}>
               Saqlash
             </Button>
           </Box>

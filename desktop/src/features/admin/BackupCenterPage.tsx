@@ -15,6 +15,7 @@ import { useListState } from '@/hooks/useListState';
 import { useAdminStore } from '@/stores/adminStore';
 import { useNotification } from '@/components/feedback/NotificationProvider';
 import type { BackupJob } from '@/types/entities';
+import { getErrorMessage } from '@/utils/errors';
 
 const typeLabels: Record<BackupJob['type'], string> = {
   full: 'To\'liq',
@@ -76,7 +77,7 @@ export function BackupCenterPage() {
       else success('Zaxira nusxa jarayoni boshlandi');
       await fetchBackups();
     } catch (err) {
-      notifyError(err instanceof Error ? err.message : 'Zaxira nusxasi yaratilmadi');
+      notifyError(getErrorMessage(err, 'Zaxira nusxasi yaratilmadi'));
     } finally {
       setCreating(false);
     }
@@ -88,7 +89,7 @@ export function BackupCenterPage() {
       await restoreBackup(id);
       success('Zaxira nusxadan tiklash muvaffaqiyatli');
     } catch (err) {
-      notifyError(err instanceof Error ? err.message : 'Tiklash xatolik');
+      notifyError(getErrorMessage(err, 'Tiklash xatolik'));
     } finally {
       setRestoringId(null);
     }

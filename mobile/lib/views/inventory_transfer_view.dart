@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/api_service.dart';
+import 'product_search_field.dart';
 
 class InventoryTransferView extends StatefulWidget {
   final Map<String, dynamic>? initialProduct;
@@ -75,6 +76,10 @@ class _InventoryTransferViewState extends State<InventoryTransferView> {
           } else if (_products.isNotEmpty) {
             _selectedProduct = _products.first as Map<String, dynamic>;
           }
+          _products = ProductSearchField.withSelected(
+            _products,
+            _selectedProduct,
+          );
 
           _loading = false;
         });
@@ -121,7 +126,7 @@ class _InventoryTransferViewState extends State<InventoryTransferView> {
     }
 
     final qtyNum = double.tryParse(_quantityController.text.trim());
-    if (qtyNum == null || qtyNum <= 0) {
+    if (qtyNum == null || double.parse(qtyNum.toStringAsFixed(4)) <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Miqdor musbat son bo\'lishi kerak!')),
       );
@@ -209,6 +214,15 @@ class _InventoryTransferViewState extends State<InventoryTransferView> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
+                          ProductSearchField(
+                            onResults: (list) => setState(
+                              () => _products = ProductSearchField.withSelected(
+                                list,
+                                _selectedProduct,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
                           DropdownButtonFormField<Map<String, dynamic>>(
                             value: _selectedProduct,
                             isExpanded: true,

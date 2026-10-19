@@ -1,5 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { Box, Button, Card, Chip, CircularProgress, Tab,
+import { Box, Button, Card, Chip, CircularProgress, Dialog, DialogActions, DialogContent,
+  DialogContentText, DialogTitle, Tab, TextField,
   Tabs,
   Table,
   TableBody,
@@ -17,6 +18,8 @@ import { useSalesStore } from '@/stores/salesStore';
 import { useNotification } from '@/components/feedback/NotificationProvider';
 import { formatUzs, formatUsd } from '@/utils/format';
 import { usePermissions } from '@/hooks/usePermissions';
+import { useIdempotencyKey } from '@/hooks/useIdempotencyKey';
+import { getErrorMessage } from '@/utils/errors';
 
 const statusLabels = {
   completed: 'Yakunlangan',
@@ -42,6 +45,9 @@ export function SaleDetailPage() {
   const fetchSaleById = useSalesStore((s) => s.fetchSaleById);
   const [tab, setTab] = useState(0);
   const [voiding, setVoiding] = useState(false);
+  const [voidOpen, setVoidOpen] = useState(false);
+  const [voidNote, setVoidNote] = useState('');
+  const voidKey = useIdempotencyKey();
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -83,7 +89,7 @@ export function SaleDetailPage() {
             <Button startIcon={<PrintIcon />} onClick={() => navigate(`/sales/receipt/${sale.id}`)}>
               Chek
             </Button>
-            {sale.status === 'completed' && (
+            {(sale.status === 'completed' || sale.status === 'partially_returned') && can('sales.return') && (
               <Button
                 startIcon={<UndoIcon />}
                 color="warning"
@@ -114,7 +120,7 @@ export function SaleDetailPage() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {sale.lineItems.map((l) => (
+                  {(sale.lineItems ?? []).map((l) => (
                     <TableRow key={l.productId}>
                       <TableCell>{l.productName}</TableCell>
                       <TableCell align="right">{l.quantity}</TableCell>
@@ -135,7 +141,7 @@ export function SaleDetailPage() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {sale.fifoAllocations.map((f) => (
+                  {(sale.fifoAllocations ?? []).map((f) => (
                     <TableRow key={f.batchId}>
                       <TableCell>{f.batchId}</TableCell>
                       <TableCell>{f.productName}</TableCell>
@@ -151,7 +157,7 @@ export function SaleDetailPage() {
                 <Typography variant="body2" gutterBottom>
                   To&apos;lov turi: <strong>{paymentLabels[sale.paymentType]}</strong>
                 </Typography>
-                {sale.payments.map((p, i) => (
+                {(sale.payments ?? []).map((p, i) => (
                   <Box key={i} sx={{ mt: 1 }}>
                     <Typography variant="body2">{formatUzs(p.amountUzs)} / {formatUsd(p.amountUsd)}</Typography>
                     {p.changeUzs !== undefined && p.changeUzs > 0 && (
@@ -189,17 +195,7 @@ export function SaleDetailPage() {
               color="error"
               variant="outlined"
               sx={{ mt: 2 }}
-              onClick={async () => {
-                setVoiding(true);
-                try {
-                  await voidSale(sale.id);
-                  success('Sotuv bekor qilindi');
-                } catch (err: unknown) {
-                  notifyError((err as { message?: string }).message ?? 'Bekor qilishda xatolik');
-                } finally {
-                  setVoiding(false);
-                }
-              }}
+              onClick={() => setVoidOpen(true)}
               disabled={voiding}
             >
               Sotuvni bekor qilish
@@ -207,6 +203,52 @@ export function SaleDetailPage() {
           )}
         </Card>
       </Box>
+
+      <Dialog open={voidOpen} onClose={() => !voiding && setVoidOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>Sotuvni bekor qilish</DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ mb: 2 }}>
+            {sale.number} sotuvi bekor qilinadi: mahsulotlar omborga qaytadi, nasiya bo&apos;lsa
+            mijoz qarzidan ayriladi. Bu amalni ortga qaytarib bo&apos;lmaydi.
+          </DialogContentText>
+          <TextField
+            fullWidth
+            multiline
+            minRows={2}
+            label="Sabab (ixtiyoriy)"
+            value={voidNote}
+            onChange={(e) => setVoidNote(e.target.value)}
+            inputProps={{ maxLength: 2000 }}
+            disabled={voiding}
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setVoidOpen(false)} disabled={voiding}>
+            Bekor qilish
+          </Button>
+          <Button
+            variant="contained"
+            color="error"
+            disabled={voiding}
+            onClick={async () => {
+              if (voiding) return;
+              setVoiding(true);
+              try {
+                await voidSale(sale.id, voidNote.trim() || undefined, voidKey.get());
+                voidKey.reset();
+                setVoidOpen(false);
+                success('Sotuv bekor qilindi');
+              } catch (err: unknown) {
+                notifyError(getErrorMessage(err, 'Bekor qilishda xatolik'));
+              } finally {
+                setVoiding(false);
+              }
+            }}
+          >
+            {voiding ? 'Jarayonda…' : 'Tasdiqlash'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </>
   );
 }

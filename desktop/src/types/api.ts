@@ -33,6 +33,8 @@ export interface ApiError {
   status?: number;
   details?: Record<string, unknown>;
   requestId?: string;
+  /** Set when a 401 could not be refreshed for a transient reason (network/5xx); the session is kept. */
+  refreshDeferred?: boolean;
 }
 
 export interface ListParams {

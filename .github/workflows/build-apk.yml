@@ -38,6 +38,45 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      # Release tag/name come from pubspec.yaml's `version: <name>+<build>`
+      # so every version bump gets its own GitHub release.
+      - name: Read app version
+        id: version
+        run: |
+          RAW=$(grep -E '^version:' pubspec.yaml | head -n1 | sed -E 's/^version:[[:space:]]*//' | tr -d '[:space:]')
+          NAME=${RAW%%+*}
+          BUILD=${RAW#*+}
+          [ "$BUILD" = "$RAW" ] && BUILD=""
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "build=$BUILD" >> "$GITHUB_OUTPUT"
+          echo "App version: $NAME (build ${BUILD:-n/a})"
+
+      # Writes android/key.properties + the keystore from repository secrets
+      # (ANDROID_KEYSTORE_BASE64 = base64 of the .jks file). Without them the
+      # Gradle build falls back to the debug key — such APKs cannot update an
+      # installed release-signed app.
+      - name: Configure release signing
+        id: signing
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ] || [ -z "$ANDROID_KEYSTORE_PASSWORD" ] || [ -z "$ANDROID_KEY_ALIAS" ] || [ -z "$ANDROID_KEY_PASSWORD" ]; then
+            echo "::warning::Android signing secrets are not set - the release APK will be signed with the DEBUG key."
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/release.jks
+          {
+            echo "storeFile=release.jks"
+            echo "storePassword=$ANDROID_KEYSTORE_PASSWORD"
+            echo "keyAlias=$ANDROID_KEY_ALIAS"
+            echo "keyPassword=$ANDROID_KEY_PASSWORD"
+          } > android/key.properties
+          echo "signed=true" >> "$GITHUB_OUTPUT"
+
       - name: Build Universal and Split APKs
         run: |
           flutter build apk --release
@@ -53,11 +92,13 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: github.ref == 'refs/heads/main'
         with:
-          tag_name: mobile-v2.1.0
-          name: ERP Mobile v2.1.0 APK
+          tag_name: mobile-v${{ steps.version.outputs.name }}
+          name: ERP Mobile v${{ steps.version.outputs.name }} APK
           body: |
             ## ERP Mobile Release APK (Android)
             Avtomatik yig'ilgan rasmiy release APK fayllari.
+            Versiya: ${{ steps.version.outputs.name }} (build ${{ steps.version.outputs.build }})
+            ${{ steps.signing.outputs.signed != 'true' && '> **Diqqat:** bu APK debug kalit bilan imzolangan (signing secrets sozlanmagan) - o''rnatilgan release ilovani yangilay olmaydi.' || '' }}
             
             - **app-release.apk:** Barcha Android qurilmalar uchun universal APK.
             - **app-arm64-v8a-release.apk:** Zamonaviy 64-bit Android telefonlar uchun (tavsiya etiladi).
@@ -68,3 +109,7 @@ jobs:
             mobile/build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Remove signing material
+        if: always()
+        run: rm -f android/key.properties android/app/release.jks

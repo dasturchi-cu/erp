@@ -18,11 +18,14 @@ import { useEffect, useMemo, useState } from 'react';
 import type { PaymentMethod } from '@/types/sales';
 import { formatUzs, formatUsd } from '@/utils/format';
 import { calcChange } from '@/stores/posCartStore';
+import { uzsToUsdCeil } from '@/utils/currency';
 
 interface PaymentDialogProps {
   open: boolean;
   totalUzs: number;
   totalUsd: number;
+  /** Active USD rate; 0 when not loaded (USD payment is then blocked). */
+  exchangeRate: number;
   currency: 'UZS' | 'USD';
   hasCustomer: boolean;
   loading?: boolean;
@@ -39,6 +42,7 @@ export function PaymentDialog({
   open,
   totalUzs,
   totalUsd,
+  exchangeRate,
   currency,
   hasCustomer,
   loading,
@@ -54,7 +58,10 @@ export function PaymentDialog({
   const creditNum = parseFloat(credit.replace(/\s/g, '')) || 0;
 
   const isUsd = dialogCurrency === 'USD';
-  const payTotal = isUsd ? totalUsd : totalUzs;
+  // USD due is rounded UP to the cent: a nearest-cent amount can be below the
+  // UZS total (50 000 / 12 620 = 3.9619 -> $3.96 = 49 975 so'm).
+  const usdDue = exchangeRate > 0 ? uzsToUsdCeil(totalUzs, exchangeRate) : totalUsd;
+  const payTotal = isUsd ? usdDue : totalUzs;
   const change = method === 'cash' ? calcChange(receivedNum, payTotal) : 0;
 
   const mixedCreditAuto = Math.max(0, payTotal - receivedNum);
@@ -70,14 +77,20 @@ export function PaymentDialog({
     }
     if (method === 'cash') {
       if (isUsd) {
-        if (receivedNum + 0.001 < totalUsd) {
-          return `Naqd to'lov yetarli emas. Kamida $${totalUsd.toFixed(2)} kerak.`;
+        if (exchangeRate <= 0) {
+          return 'Valyuta kursi yuklanmagan. USD da to\'lov qabul qilib bo\'lmaydi.';
+        }
+        if (receivedNum + 1e-9 < usdDue) {
+          return `Naqd to'lov yetarli emas. Kamida $${usdDue.toFixed(2)} kerak.`;
         }
       } else if (receivedNum < totalUzs) {
         return `Naqd to'lov yetarli emas. Kamida ${formatUzs(totalUzs)} kerak.`;
       }
     }
     if (method === 'mixed') {
+      if (isUsd && exchangeRate <= 0) {
+        return 'Valyuta kursi yuklanmagan. USD da to\'lov qabul qilib bo\'lmaydi.';
+      }
       if (receivedNum <= 0) {
         return 'Naqd qism 0 dan katta bo\'lishi kerak.';
       }
@@ -90,7 +103,7 @@ export function PaymentDialog({
       }
     }
     return null;
-  }, [method, hasCustomer, receivedNum, creditNum, totalUzs, totalUsd, isUsd, payTotal, mixedCreditAuto]);
+  }, [method, hasCustomer, receivedNum, creditNum, totalUzs, isUsd, payTotal, mixedCreditAuto, exchangeRate, usdDue]);
 
   useEffect(() => {
     if (open) {
@@ -102,12 +115,12 @@ export function PaymentDialog({
   useEffect(() => {
     if (!open) return;
     if (dialogCurrency === 'USD') {
-      setReceived(totalUsd.toFixed(2));
+      setReceived(usdDue.toFixed(2));
     } else {
       setReceived(String(Math.ceil(totalUzs)));
     }
     setCredit('0');
-  }, [dialogCurrency, open, totalUzs, totalUsd]);
+  }, [dialogCurrency, open, totalUzs, usdDue]);
 
   useEffect(() => {
     if (method === 'mixed' && open) {
@@ -117,11 +130,15 @@ export function PaymentDialog({
   }, [method, receivedNum, payTotal, open]);
 
   const handleConfirm = () => {
-    if (validationError) return;
+    if (validationError || loading) return;
+    // A credit (nasiya) sale takes no money now; the received field still
+    // holds the pre-filled total, and the backend rejects a CREDIT sale with
+    // any paid amount — so every credit sale failed.
+    const paidNum = method === 'credit' ? 0 : receivedNum;
     onConfirm({
       method,
-      receivedUzs: dialogCurrency === 'UZS' ? Math.round(receivedNum) : 0,
-      receivedUsd: dialogCurrency === 'USD' ? receivedNum : undefined,
+      receivedUzs: dialogCurrency === 'UZS' ? Math.round(paidNum) : 0,
+      receivedUsd: dialogCurrency === 'USD' ? paidNum : undefined,
       dialogCurrency,
     });
   };
@@ -135,7 +152,7 @@ export function PaymentDialog({
             Jami to&apos;lov
           </Typography>
           <Typography variant="h5" fontWeight={700}>
-            {isUsd ? formatUsd(totalUsd) : formatUzs(totalUzs)}
+            {isUsd ? formatUsd(usdDue) : formatUzs(totalUzs)}
           </Typography>
           {!isUsd && (
             <Typography variant="caption" color="text.secondary">
@@ -216,7 +233,7 @@ export function PaymentDialog({
 
         {method === 'credit' && hasCustomer && (
           <Alert severity="info">
-            Butun summa ({isUsd ? formatUsd(totalUsd) : formatUzs(totalUzs)}) mijoz qarziga yoziladi.
+            Butun summa ({isUsd ? formatUsd(usdDue) : formatUzs(totalUzs)}) mijoz qarziga yoziladi.
           </Alert>
         )}
 

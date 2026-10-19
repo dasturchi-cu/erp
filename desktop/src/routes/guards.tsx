@@ -92,6 +92,17 @@ export function RoutePermissionGuard() {
     perm = 'sales.return';
   }
 
+  // '/sales' has no base entry, so without these the detail screens had no
+  // check at all. GET /sales/:id and /sales/returns/:id need sales.view;
+  // approving/rejecting a return is gated in-page by sales.return.
+  if (
+    !perm &&
+    /^\/sales\/(history|receipt|returns)\/[^/]+$/.test(location.pathname) &&
+    location.pathname !== '/sales/returns/new'
+  ) {
+    perm = 'sales.view';
+  }
+
   if (!perm) {
     perm = routePermissions[location.pathname] ?? routePermissions[basePath];
   }

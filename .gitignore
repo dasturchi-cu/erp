@@ -45,3 +45,6 @@ uploads/
 scratch/
 BUILDS/
 *.apk
+
+# Built installers handed to clients (not source)
+chiqarish/

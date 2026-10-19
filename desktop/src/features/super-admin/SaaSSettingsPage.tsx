@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Box, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Typography, CircularProgress, Alert, Dialog, DialogTitle, DialogContent, DialogActions, TextField, IconButton } from '@mui/material';
 import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon } from '@mui/icons-material';
 import { saasApi } from '@/api/services/saasApi';
+import { getErrorMessage } from '@/utils/errors';
 
 export function SaaSSettingsPage() {
   const [admins, setAdmins] = useState<any[]>([]);
@@ -25,7 +26,7 @@ export function SaaSSettingsPage() {
         setAdmins(data);
       })
       .catch((err) => {
-        setError(err.response?.data?.message ?? 'Adminlarni yuklashda xatolik yuz berdi');
+        setError(getErrorMessage(err, 'Adminlarni yuklashda xatolik yuz berdi'));
       })
       .finally(() => {
         setLoading(false);
@@ -45,7 +46,7 @@ export function SaaSSettingsPage() {
       setPassword('');
       fetchAdmins();
     } catch (err: any) {
-      alert(err.response?.data?.message ?? 'Yangi admin qo\'shishda xatolik');
+      alert(getErrorMessage(err, 'Yangi admin qo\'shishda xatolik'));
     }
   };
 
@@ -66,7 +67,7 @@ export function SaaSSettingsPage() {
       setEditOpen(false);
       fetchAdmins();
     } catch (err: any) {
-      alert(err.response?.data?.message ?? 'Admin ma\'lumotlarini tahrirlashda xatolik');
+      alert(getErrorMessage(err, 'Admin ma\'lumotlarini tahrirlashda xatolik'));
     }
   };
 
@@ -82,7 +83,7 @@ export function SaaSSettingsPage() {
       setDeleteOpen(false);
       fetchAdmins();
     } catch (err: any) {
-      alert(err.response?.data?.message ?? 'Adminni o\'chirishda xatolik');
+      alert(getErrorMessage(err, 'Adminni o\'chirishda xatolik'));
     }
   };
 

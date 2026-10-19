@@ -74,7 +74,7 @@ export const mainNavigation: NavGroup[] = [
     label: 'Moliya',
     module: 'sales',
     items: [
-      { id: 'expenses', label: 'Xarajatlar', path: '/expenses', icon: 'Payments', permission: 'sales.view' },
+      { id: 'expenses', label: 'Xarajatlar', path: '/expenses', icon: 'Payments', permission: 'expenses.view' },
     ],
   },
   {
@@ -148,7 +148,7 @@ export const routePermissions: Record<string, string> = {
   '/dashboard': 'dashboard.view',
   '/sales/new': 'sales.create',
   '/sales/history': 'sales.view',
-  '/expenses': 'sales.view',
+  '/expenses': 'expenses.view',
   '/sales/returns/new': 'sales.return',
   '/sales/returns': 'sales.return',
   '/products': 'products.view',
@@ -158,6 +158,12 @@ export const routePermissions: Record<string, string> = {
   '/inventory': 'inventory.view',
   '/inventory/receive': 'inventory.receive',
   '/inventory/adjustments': 'inventory.adjust',
+  // Match the backend: POST /inventory/transfers needs inventory.transfer;
+  // listing warehouses needs only inventory.view (create/edit is gated in-page by warehouses.manage).
+  '/inventory/transfers': 'inventory.transfer',
+  '/inventory/warehouses': 'inventory.view',
+  '/inventory/movements': 'inventory.view',
+  '/inventory/batches': 'inventory.view',
   '/customers': 'customers.view',
   '/customers/new': 'customers.create',
   '/customers/debt': 'debt.view',
@@ -170,5 +176,9 @@ export const routePermissions: Record<string, string> = {
   '/settings': 'settings.view',
   '/settings/exchange-rates': 'currency.manage',
   '/admin': 'admin.*',
+  // These backend endpoints accept the narrower admin.* sub-permissions.
+  '/admin/users': 'admin.users.view',
+  '/admin/audit-logs': 'admin.audit.view',
+  '/admin/logs': 'admin.audit.view',
   '/notifications': 'notifications.view',
 };

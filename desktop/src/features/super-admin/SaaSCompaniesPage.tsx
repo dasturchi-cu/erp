@@ -3,6 +3,7 @@ import { Box, Button, TextField, MenuItem, Table, TableBody, TableCell, TableCon
 import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon, OpenInNew as OpenIcon, Archive as ArchiveIcon } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { saasApi } from '@/api/services/saasApi';
+import { getErrorMessage } from '@/utils/errors';
 
 export function SaaSCompaniesPage() {
   const navigate = useNavigate();
@@ -41,7 +42,7 @@ export function SaaSCompaniesPage() {
         setTotal(res.total);
       })
       .catch((err) => {
-        setError(err.response?.data?.message ?? 'Kompaniyalarni yuklashda xatolik yuz berdi');
+        setError(getErrorMessage(err, 'Kompaniyalarni yuklashda xatolik yuz berdi'));
       })
       .finally(() => {
         setLoading(false);
@@ -68,7 +69,7 @@ export function SaaSCompaniesPage() {
       setCode('');
       fetchCompanies();
     } catch (err: any) {
-      alert(err.response?.data?.message ?? 'Kompaniya yaratishda xatolik yuz berdi');
+      alert(getErrorMessage(err, 'Kompaniya yaratishda xatolik yuz berdi'));
     }
   };
 
@@ -87,7 +88,7 @@ export function SaaSCompaniesPage() {
       setEditOpen(false);
       fetchCompanies();
     } catch (err: any) {
-      alert(err.response?.data?.message ?? 'Kompaniyani tahrirlashda xatolik yuz berdi');
+      alert(getErrorMessage(err, 'Kompaniyani tahrirlashda xatolik yuz berdi'));
     }
   };
 
@@ -103,7 +104,7 @@ export function SaaSCompaniesPage() {
       setDeleteOpen(false);
       fetchCompanies();
     } catch (err: any) {
-      alert(err.response?.data?.message ?? 'Kompaniyani o\'chirishda xatolik yuz berdi');
+      alert(getErrorMessage(err, 'Kompaniyani o\'chirishda xatolik yuz berdi'));
     }
   };
 
@@ -113,7 +114,7 @@ export function SaaSCompaniesPage() {
       await saasApi.updateCompany(company.id, { status: nextStatus });
       fetchCompanies();
     } catch (err: any) {
-      alert(err.response?.data?.message ?? 'Kompaniya holatini o\'zgartirishda xatolik');
+      alert(getErrorMessage(err, 'Kompaniya holatini o\'zgartirishda xatolik'));
     }
   };
 

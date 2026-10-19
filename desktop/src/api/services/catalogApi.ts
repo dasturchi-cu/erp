@@ -2,6 +2,7 @@ import { apiClient } from '@/api/client';
 import { API_ENDPOINTS } from '@/api/endpoints';
 import { mapCategory, mapProduct } from '@/api/mappers';
 import { toMoneyString } from '@/utils/money';
+import { fetchAllPages } from '@/api/pagination';
 import type { PaginatedResponse, ListParams } from '@/types/api';
 import type { Category, Product } from '@/types/entities';
 
@@ -20,6 +21,10 @@ export const productsApi = {
       meta: data.meta,
     };
   },
+
+  /** Every product (all pages) — the default list is only 20 rows. */
+  listAll: (params?: ListParams): Promise<Product[]> =>
+    fetchAllPages((page, limit) => productsApi.listPaginated({ ...params, page, limit })),
 
   getById: async (id: string): Promise<Product> => {
     const { data } = await apiClient.get(API_ENDPOINTS.products + `/${id}`);

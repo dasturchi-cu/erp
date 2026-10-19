@@ -15,6 +15,9 @@ import { downloadSpreadsheet, type ExportFormat } from '@/utils/spreadsheet';
 import { API_BASE_URL } from '@/api/client';
 import type { Product, Sale } from '@/types/entities';
 import { usePermissions } from '@/hooks/usePermissions';
+import { fetchAllPages } from '@/api/pagination';
+import { getErrorMessage } from '@/utils/errors';
+import type { PaginatedResponse } from '@/types/api';
 
 const statusLabels: Record<Product['status'], string> = {
   active: 'Faol',
@@ -220,8 +223,17 @@ export function ProductsPage() {
 
   const handleRowClick = useCallback((r: Product) => navigate(`/products/${r.id}`), [navigate]);
 
+  const runExport = async (fn: () => Promise<void>) => {
+    try {
+      await fn();
+    } catch (err: unknown) {
+      notifyError(getErrorMessage(err, 'Eksportda xatolik'));
+    }
+  };
+
   const handleExportProducts = async () => {
-    const list = await productsApi.list({ limit: 5000 });
+    // The API caps limit at 1000 (a larger value is rejected), so walk all pages.
+    const list = await productsApi.listAll();
     downloadSpreadsheet(
       'mahsulotlar',
       ['SKU', 'Barcode', 'Name', 'Category', 'Unit', 'Purchase Price', 'Selling Price', 'Stock'],
@@ -240,7 +252,7 @@ export function ProductsPage() {
   };
 
   const handleExportCustomers = async () => {
-    const list = await customersApi.list({ limit: 5000 });
+    const list = await customersApi.listAll();
     downloadSpreadsheet(
       'mijozlar',
       ['Name', 'Phone', 'Debt UZS', 'Status'],
@@ -268,7 +280,7 @@ export function ProductsPage() {
   };
 
   const handleExportSales = async () => {
-    const data = await salesApi.list({ limit: 5000 });
+    const data = await fetchAllPages((page, limit) => salesApi.listPaginated({ page, limit }));
     downloadSpreadsheet(
       'sotuvlar',
       ['Number', 'Customer', 'Total UZS', 'Payment Type', 'Status', 'Date'],
@@ -278,8 +290,10 @@ export function ProductsPage() {
   };
 
   const handleExportInventory = async () => {
-    const stock = await inventoryApi.listStock({ limit: 5000 });
-    const rows = (stock.data as Array<Record<string, string>>) ?? [];
+    const rows = await fetchAllPages(
+      (page, limit) =>
+        inventoryApi.listStock({ page, limit }) as Promise<PaginatedResponse<Record<string, string>>>,
+    );
     downloadSpreadsheet(
       'zaxira',
       ['Product', 'SKU', 'Warehouse', 'Stock'],
@@ -312,11 +326,11 @@ export function ProductsPage() {
                 <MenuItem value="csv">CSV</MenuItem>
               </Select>
             </FormControl>
-            <Button variant="outlined" onClick={() => void handleExportProducts()}>Export</Button>
-            <Button variant="outlined" onClick={() => void handleExportCustomers()}>Mijozlar</Button>
-            <Button variant="outlined" onClick={() => void handleExportSupplierDebts()}>Firma qarzlari</Button>
-            <Button variant="outlined" onClick={() => void handleExportSales()}>Sotuvlar</Button>
-            <Button variant="outlined" onClick={() => void handleExportInventory()}>Zaxira</Button>
+            <Button variant="outlined" onClick={() => void runExport(handleExportProducts)}>Export</Button>
+            <Button variant="outlined" onClick={() => void runExport(handleExportCustomers)}>Mijozlar</Button>
+            <Button variant="outlined" onClick={() => void runExport(handleExportSupplierDebts)}>Firma qarzlari</Button>
+            <Button variant="outlined" onClick={() => void runExport(handleExportSales)}>Sotuvlar</Button>
+            <Button variant="outlined" onClick={() => void runExport(handleExportInventory)}>Zaxira</Button>
           </>
         }
       />

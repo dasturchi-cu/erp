@@ -3,6 +3,10 @@ import { Prisma, ReportPeriod } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import { RLS_PRISMA, RlsPrismaClient } from '../../../core/database/rls-prisma.service';
 import { chartBucketSql } from './analytics-period.util';
+import {
+  approvedReturnLinesSql,
+  approvedReturnsBySaleSql,
+} from '../../sales/application/approved-returns.util';
 
 export interface SalesAggRow {
   revenue_uzs: Decimal;
@@ -68,11 +72,12 @@ export class AnalyticsQueriesService {
 
   async aggregateSales(scope: AnalyticsQueryScope): Promise<SalesAggRow> {
     const where = this.saleFilters(scope);
+    // Net of approved returns (see approved-returns.util).
     const rows = await this.prisma.$queryRaw<SalesAggRow[]>`
       SELECT
-        COALESCE(SUM(s.total_uzs), 0) AS revenue_uzs,
-        COALESCE(SUM(s.total_usd), 0) AS revenue_usd,
-        COALESCE(SUM(si.cogs_uzs), 0) AS cogs_uzs,
+        COALESCE(SUM(s.total_uzs - COALESCE(rt.amount_uzs, 0)), 0) AS revenue_uzs,
+        COALESCE(SUM(s.total_usd - COALESCE(rt.amount_usd, 0)), 0) AS revenue_usd,
+        COALESCE(SUM(COALESCE(si.cogs_uzs, 0) - COALESCE(rt.cogs_uzs, 0)), 0) AS cogs_uzs,
         COUNT(s.id)::bigint AS order_count
       FROM sales s
       LEFT JOIN (
@@ -80,6 +85,7 @@ export class AnalyticsQueriesService {
         FROM sale_items
         GROUP BY sale_id
       ) si ON si.sale_id = s.id
+      LEFT JOIN ${approvedReturnsBySaleSql(scope.companyId)} rt ON rt.sale_id = s.id
       WHERE ${where}
     `;
     return rows[0] ?? {
@@ -102,8 +108,12 @@ export class AnalyticsQueriesService {
     return this.prisma.$queryRaw<ChartBucketRow[]>`
       SELECT
         date_trunc(${truncLiteral}, s.created_at) AS bucket,
-        COALESCE(SUM(s.total_uzs), 0) AS revenue,
-        COALESCE(SUM(s.total_uzs) - SUM(COALESCE(si.cogs_uzs, 0)), 0) AS profit,
+        COALESCE(SUM(s.total_uzs - COALESCE(rt.amount_uzs, 0)), 0) AS revenue,
+        COALESCE(
+          SUM(s.total_uzs - COALESCE(rt.amount_uzs, 0))
+            - SUM(COALESCE(si.cogs_uzs, 0) - COALESCE(rt.cogs_uzs, 0)),
+          0
+        ) AS profit,
         COUNT(s.id)::bigint AS orders
       FROM sales s
       LEFT JOIN (
@@ -111,6 +121,7 @@ export class AnalyticsQueriesService {
         FROM sale_items
         GROUP BY sale_id
       ) si ON si.sale_id = s.id
+      LEFT JOIN ${approvedReturnsBySaleSql(scope.companyId)} rt ON rt.sale_id = s.id
       WHERE ${where}
       GROUP BY 1
       ORDER BY 1 DESC
@@ -156,18 +167,30 @@ export class AnalyticsQueriesService {
 
   async topProducts(scope: AnalyticsQueryScope, limit: number): Promise<TopProductRow[]> {
     const where = this.saleFilters(scope);
+    // Sold and returned are aggregated separately per product, then netted.
     return this.prisma.$queryRaw<TopProductRow[]>`
+      WITH sold AS (
+        SELECT si.product_id, SUM(si.quantity) AS qty, SUM(si.total_uzs) AS revenue_uzs
+        FROM sale_items si
+        INNER JOIN sales s ON s.id = si.sale_id
+        WHERE ${where}
+        GROUP BY si.product_id
+      ), ret AS (
+        SELECT rl.product_id, SUM(rl.qty) AS qty, SUM(rl.amount_uzs) AS revenue_uzs
+        FROM ${approvedReturnLinesSql(scope.companyId)} rl
+        INNER JOIN sales s ON s.id = rl.sale_id
+        WHERE ${where}
+        GROUP BY rl.product_id
+      )
       SELECT
         p.id AS product_id,
         p.name,
         p.sku,
-        COALESCE(SUM(si.quantity), 0) AS quantity,
-        COALESCE(SUM(si.total_uzs), 0) AS revenue_uzs
-      FROM sale_items si
-      INNER JOIN sales s ON s.id = si.sale_id
-      INNER JOIN products p ON p.id = si.product_id
-      WHERE ${where}
-      GROUP BY p.id, p.name, p.sku
+        COALESCE(sold.qty, 0) - COALESCE(ret.qty, 0) AS quantity,
+        COALESCE(sold.revenue_uzs, 0) - COALESCE(ret.revenue_uzs, 0) AS revenue_uzs
+      FROM sold
+      INNER JOIN products p ON p.id = sold.product_id
+      LEFT JOIN ret ON ret.product_id = sold.product_id
       ORDER BY revenue_uzs DESC
       LIMIT ${limit}
     `;
@@ -181,9 +204,10 @@ export class AnalyticsQueriesService {
         c.name,
         c.phone,
         COUNT(s.id)::bigint AS order_count,
-        COALESCE(SUM(s.total_uzs), 0) AS revenue_uzs
+        COALESCE(SUM(s.total_uzs - COALESCE(rt.amount_uzs, 0)), 0) AS revenue_uzs
       FROM sales s
       INNER JOIN customers c ON c.id = s.customer_id
+      LEFT JOIN ${approvedReturnsBySaleSql(scope.companyId)} rt ON rt.sale_id = s.id
       WHERE ${where}
         AND s.customer_id IS NOT NULL
       GROUP BY c.id, c.name, c.phone

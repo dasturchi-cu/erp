@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Box, Button, Card, Grid, Tab, Tabs, Typography } from '@mui/material';
+import { Box, Button, Card, CircularProgress, Grid, Tab, Tabs, Typography } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import EditIcon from '@mui/icons-material/Edit';
 import ArchiveIcon from '@mui/icons-material/Archive';
@@ -15,6 +15,7 @@ import { productUsdFromUzs } from '@/utils/currency';
 import { useNotification } from '@/components/feedback/NotificationProvider';
 import { formatUzs, formatUsd } from '@/utils/format';
 import { usePermissions } from '@/hooks/usePermissions';
+import { salesApi } from '@/api/services';
 import type { DebtHistoryEntry, Payment, Sale } from '@/types/entities';
 import type { SaleDetail } from '@/types/sales';
 
@@ -38,33 +39,74 @@ export function CustomerProfilePage() {
   const navigate = useNavigate();
   const { success } = useNotification();
   const { can } = usePermissions();
-  const customer = useCustomerStore((s) => s.getCustomerById(id ?? ''));
-  const exchangeRate = useCurrencyStore((s) => s.rates.find((r) => r.status === 'active')?.rate ?? 12_620);
-  const getPaymentsByCustomer = useCustomerStore((s) => s.getPaymentsByCustomer);
-  const getDebtHistory = useCustomerStore((s) => s.getDebtHistory);
+  const customer = useCustomerStore((s) => s.customers.find((c) => c.id === id));
+  const exchangeRate = useCurrencyStore(
+    (s) => s.activeRate || s.rates.find((r) => r.status === 'active')?.rate || 0,
+  );
+  // Subscribe to the data slices themselves (not the getter functions) so the
+  // lists recompute when the stores fill after mount.
+  const allPayments = useCustomerStore((s) => s.payments);
+  const debtHistoryMap = useCustomerStore((s) => s.debtHistory);
   const fetchDebtHistory = useCustomerStore((s) => s.fetchDebtHistory);
+  const fetchCustomerById = useCustomerStore((s) => s.fetchCustomerById);
   const archiveCustomer = useCustomerStore((s) => s.archiveCustomer);
-  const getSalesByCustomerId = useSalesStore((s) => s.getSalesByCustomerId);
+  const allSales = useSalesStore((s) => s.sales);
   const [tab, setTab] = useState(0);
   const [confirmArchive, setConfirmArchive] = useState(false);
+  const [loadingCustomer, setLoadingCustomer] = useState(!customer);
+  // The store keeps only the latest sales page; ask the server for this customer's sales.
+  const [serverSales, setServerSales] = useState<SaleDetail[] | null>(null);
 
   useEffect(() => {
     if (id) void fetchDebtHistory(id);
   }, [id, fetchDebtHistory]);
 
+  const customerLoaded = Boolean(customer);
+  useEffect(() => {
+    if (!id || customerLoaded) {
+      setLoadingCustomer(false);
+      return;
+    }
+    let cancelled = false;
+    setLoadingCustomer(true);
+    void fetchCustomerById(id).finally(() => {
+      if (!cancelled) setLoadingCustomer(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [id, customerLoaded, fetchCustomerById]);
+
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+    setServerSales(null);
+    salesApi
+      .list({ customerId: id, limit: 200 })
+      .then((rows) => {
+        if (!cancelled) setServerSales(rows);
+      })
+      .catch(() => {
+        // Fall back to whatever the store has.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [id, allSales]);
+
   const customerSales = useMemo(
-    () => (id ? getSalesByCustomerId(id) : []),
-    [id, getSalesByCustomerId],
+    () => serverSales ?? (id ? allSales.filter((s) => s.customerId === id) : []),
+    [id, allSales, serverSales],
   );
 
   const customerPayments = useMemo(
-    () => (id ? getPaymentsByCustomer(id) : []),
-    [id, getPaymentsByCustomer],
+    () => (id ? allPayments.filter((p) => p.customerId === id) : []),
+    [id, allPayments],
   );
 
   const debtHistory = useMemo(
-    () => (id ? getDebtHistory(id) : []),
-    [id, getDebtHistory],
+    () => (id ? debtHistoryMap[id] ?? [] : []),
+    [id, debtHistoryMap],
   );
 
   const saleStatusLabels: Record<Sale['status'], string> = {
@@ -94,6 +136,13 @@ export function CustomerProfilePage() {
   };
 
   if (!customer) {
+    if (loadingCustomer) {
+      return (
+        <Box sx={{ textAlign: 'center', py: 8 }}>
+          <CircularProgress size={32} />
+        </Box>
+      );
+    }
     return (
       <Box sx={{ textAlign: 'center', py: 8 }}>
         <Typography variant="h6" gutterBottom>
@@ -146,7 +195,7 @@ export function CustomerProfilePage() {
           <StatCard
             label="Qarz (UZS)"
             value={formatUzs(customer.debtUzs)}
-            secondaryValue={customer.debtUzs > 0 ? formatUsd(productUsdFromUzs(customer.debtUzs, exchangeRate)) : undefined}
+            secondaryValue={customer.debtUzs > 0 && exchangeRate > 0 ? formatUsd(productUsdFromUzs(customer.debtUzs, exchangeRate)) : undefined}
             currencyColor="uzs"
           />
         </Grid>

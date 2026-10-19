@@ -33,6 +33,7 @@ interface InventoryState {
 
   fetchAll: () => Promise<void>;
   fetchProducts: () => Promise<void>;
+  fetchProductById: (id: string) => Promise<Product | undefined>;
   fetchWarehouses: () => Promise<void>;
   fetchStockLevels: (warehouseId?: string) => Promise<void>;
   fetchMovements: () => Promise<void>;
@@ -167,9 +168,25 @@ export const useInventoryStore = create<InventoryState>()((set, get) => ({
     }
   },
 
+  // All pages: pickers and detail/edit pages look products up in this list,
+  // and the API default page is only 20 rows.
   fetchProducts: async () => {
-    const products = await productsApi.list();
+    const products = await productsApi.listAll();
     set({ products });
+  },
+
+  fetchProductById: async (id) => {
+    try {
+      const product = await productsApi.getById(id);
+      set((s) => ({
+        products: s.products.some((p) => p.id === id)
+          ? s.products.map((p) => (p.id === id ? product : p))
+          : [...s.products, product],
+      }));
+      return product;
+    } catch {
+      return undefined;
+    }
   },
 
   fetchWarehouses: async () => {
@@ -229,11 +246,8 @@ export const useInventoryStore = create<InventoryState>()((set, get) => ({
 
   getWarehouseById: (id) => get().warehouses.find((w) => w.id === id),
 
-  getMovementsByProduct: (productId) => {
-    const product = get().products.find((p) => p.id === productId);
-    if (!product) return [];
-    return get().movements.filter((m) => m.productName === product.name);
-  },
+  getMovementsByProduct: (productId) =>
+    get().movements.filter((m) => m.productId === productId),
 
   getBatchesByProduct: (productId) =>
     get()
@@ -253,7 +267,8 @@ export const useInventoryStore = create<InventoryState>()((set, get) => ({
   },
 
   updateProductPriceUzs: async (id, priceUzs) => {
-    await productsApi.update(id, { salePriceUzs: priceUzs, purchasePriceUzs: priceUzs * 0.72 });
+    // Only the sale price changes here; the purchase price is the real cost.
+    await productsApi.update(id, { salePriceUzs: priceUzs });
     await get().fetchProducts();
   },
 

@@ -35,7 +35,16 @@ import { PaymentDialog } from './components/PaymentDialog';
 import { BelowCostConfirmDialog } from './components/BelowCostConfirmDialog';
 import { InsufficientStockDialog } from './components/InsufficientStockDialog';
 import { SaleSuccessOverlay } from './components/SaleSuccessOverlay';
-import { usePosCartStore, lineStockQty } from '@/stores/posCartStore';
+import {
+  usePosCartStore,
+  lineStockQty,
+  isLineBelowCost,
+  cartLineServerQuantity,
+  cartLineServerUnitPrice,
+  cartLineTotalUzs,
+} from '@/stores/posCartStore';
+import { useIdempotencyKey } from '@/hooks/useIdempotencyKey';
+import { getErrorMessage } from '@/utils/errors';
 import { refreshAfterSaleMutation } from '@/utils/domainRefresh';
 import { useCurrencyStore } from '@/stores/currencyStore';
 import { useNotification } from '@/components/feedback/NotificationProvider';
@@ -143,7 +152,9 @@ const PosProductCard = memo(function PosProductCard({
         <Typography variant="body2" color="primary.main" fontWeight={700}>
           {currency === 'UZS'
             ? formatUzs(product.priceUzs)
-            : formatUsd(productUsdFromUzs(product.priceUzs, exchangeRate))}
+            : exchangeRate > 0
+              ? formatUsd(productUsdFromUzs(product.priceUzs, exchangeRate))
+              : '—'}
         </Typography>
         <Chip
           size="small"
@@ -172,15 +183,14 @@ export function SalesPosPage() {
   const clearCart = usePosCartStore((s) => s.clearCart);
   const setProcessing = usePosCartStore((s) => s.setProcessing);
 
-  const exchangeRate = useCurrencyStore((s) => s.rates.find((r) => r.status === 'active')?.rate ?? 12_620);
+  // 0 = not loaded. No hardcoded fallback: a stale rate would misprice USD sales.
+  const exchangeRate = useCurrencyStore(
+    (s) => s.activeRate || s.rates.find((r) => r.status === 'active')?.rate || 0,
+  );
+  const rateMissing = exchangeRate <= 0;
   const { totalUzs, totalUsd, itemCount } = useMemo(() => {
-    const totalUzs = items.reduce(
-      (s, i) =>
-        s +
-        i.quantity *
-          (i.saleUnit === 'box' ? i.unitPriceUzs * i.product.unitsPerBox : i.unitPriceUzs),
-      0,
-    );
+    // Same per-line rounding the server applies, so the shown total is the sale total.
+    const totalUzs = Number(items.reduce((s, i) => s + cartLineTotalUzs(i), 0).toFixed(4));
     const itemCount = items.reduce((s, i) => s + i.quantity, 0);
     return {
       totalUzs,
@@ -189,14 +199,8 @@ export function SalesPosPage() {
     };
   }, [items, exchangeRate]);
 
-  const belowCostLines = useMemo(
-    () =>
-      items.filter((i) => {
-        const purchasePricePerPiece = i.product.purchasePriceUzs / (i.product.unitsPerBox || 1);
-        return purchasePricePerPiece > 0 && i.unitPriceUzs < purchasePricePerPiece;
-      }),
-    [items],
-  );
+  const belowCostLines = useMemo(() => items.filter(isLineBelowCost), [items]);
+  const saleKey = useIdempotencyKey();
 
   const paymentDialog = useDisclosure();
   const [search, setSearch] = useState('');
@@ -283,6 +287,12 @@ export function SalesPosPage() {
   );
 
   const submitSale = async (data: PaymentDialogData) => {
+    // In-flight guard: Ctrl+Enter / double click must not post a second sale.
+    if (usePosCartStore.getState().isProcessing) return;
+    if (data.dialogCurrency === 'USD' && rateMissing) {
+      notifyError("Valyuta kursi yuklanmagan. USD da sotish uchun avval kursni kiriting.");
+      return;
+    }
     setProcessing(true);
     try {
       const paymentType =
@@ -299,13 +309,13 @@ export function SalesPosPage() {
         amountPaidUsd,
         lineItems: items.map((item) => ({
           productId: item.product.id,
-          quantity: lineStockQty(item),
-          unitPriceUzs:
-            item.product.unitOfMeasure === 'box'
-              ? item.unitPriceUzs * item.product.unitsPerBox
-              : item.unitPriceUzs,
+          quantity: cartLineServerQuantity(item),
+          unitPriceUzs: cartLineServerUnitPrice(item),
         })),
-      });
+      // Same key for every retry of this checkout (e.g. after a timeout);
+      // a fresh one only after it succeeded.
+      }, saleKey.get());
+      saleKey.reset();
       paymentDialog.onClose();
       setBelowCostOpen(false);
       setPendingPayment(null);
@@ -315,7 +325,7 @@ export function SalesPosPage() {
       await refreshAfterSaleMutation();
       success('Sotuv muvaffaqiyatli yakunlandi');
     } catch (err: unknown) {
-      notifyError((err as { message?: string }).message ?? 'Sotuvda xatolik');
+      notifyError(getErrorMessage(err, 'Sotuvda xatolik'));
     } finally {
       setProcessing(false);
     }
@@ -418,14 +428,17 @@ export function SalesPosPage() {
         subtitle="Mahsulot qo'shing va to'lovni yakunlang"
         secondaryActions={
           <>
-            <Typography variant="body2" color="text.secondary" sx={{ mr: 1 }}>
-              Kurs: 1 USD = {exchangeRate.toLocaleString()} so&apos;m
+            <Typography variant="body2" color={rateMissing ? 'warning.main' : 'text.secondary'} sx={{ mr: 1 }}>
+              {rateMissing
+                ? 'Valyuta kursi yuklanmagan'
+                : <>Kurs: 1 USD = {exchangeRate.toLocaleString()} so&apos;m</>}
             </Typography>
             <Button
               size="small"
               startIcon={<RefreshIcon />}
               onClick={() => {
                 clearCart();
+                saleKey.reset();
                 success('Yangi savat boshlandi');
               }}
             >
@@ -481,6 +494,11 @@ export function SalesPosPage() {
                 onChange={setCurrency}
                 aria-label="Valyuta"
               />
+              {currency === 'USD' && rateMissing && (
+                <Typography variant="caption" color="warning.main" display="block" sx={{ mt: 1 }}>
+                  Valyuta kursi yuklanmagan — USD narxlar va USD to&apos;lov mavjud emas.
+                </Typography>
+              )}
             </Box>
 
             <Divider sx={{ mb: 2 }} />
@@ -519,8 +537,7 @@ export function SalesPosPage() {
                     <Box sx={{ flex: 1, minWidth: 0 }}>
                       <Typography variant="body2" fontWeight={600} noWrap>
                         {item.product.name}
-                        {item.product.purchasePriceUzs > 0 &&
-                          item.unitPriceUzs < item.product.purchasePriceUzs / (item.product.unitsPerBox || 1) && (
+                        {isLineBelowCost(item) && (
                             <Typography
                               component="span"
                               variant="caption"
@@ -540,9 +557,10 @@ export function SalesPosPage() {
                               ? item.saleUnit === 'box' ? 'Karobka narxi (USD)' : 'Dona narxi (USD)'
                               : item.saleUnit === 'box' ? 'Karobka narxi (UZS)' : 'Dona narxi (UZS)'
                           }
+                          disabled={currency === 'USD' && rateMissing}
                           value={
                             currency === 'USD'
-                              ? Number(
+                              ? rateMissing ? '' : Number(
                                   (
                                     (item.saleUnit === 'box'
                                       ? item.unitPriceUzs * item.product.unitsPerBox
@@ -598,8 +616,8 @@ export function SalesPosPage() {
                         </IconButton>
                         <Typography variant="body2" fontWeight={600} sx={{ ml: 'auto' }}>
                           {currency === 'UZS'
-                            ? formatUzs(Math.round(item.quantity * (item.saleUnit === 'box' ? item.unitPriceUzs * item.product.unitsPerBox : item.unitPriceUzs)))
-                            : formatUsd((item.quantity * (item.saleUnit === 'box' ? item.unitPriceUzs * item.product.unitsPerBox : item.unitPriceUzs)) / exchangeRate)}
+                            ? formatUzs(cartLineTotalUzs(item))
+                            : rateMissing ? '—' : formatUsd(cartLineTotalUzs(item) / exchangeRate)}
                         </Typography>
                       </Box>
                     </Box>
@@ -612,7 +630,7 @@ export function SalesPosPage() {
             <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
               <Typography variant="body1" fontWeight={600}>Jami</Typography>
               <Typography variant="h6" fontWeight={700}>
-                {currency === 'UZS' ? formatUzs(totalUzs) : formatUsd(totalUsd)}
+                {currency === 'UZS' ? formatUzs(totalUzs) : rateMissing ? '—' : formatUsd(totalUsd)}
               </Typography>
             </Box>
 
@@ -645,6 +663,7 @@ export function SalesPosPage() {
         open={paymentDialog.open}
         totalUzs={totalUzs}
         totalUsd={totalUsd}
+        exchangeRate={exchangeRate}
         currency={currency}
         hasCustomer={Boolean(customer)}
         loading={isProcessing}
@@ -680,6 +699,7 @@ export function SalesPosPage() {
         onNewCart={() => {
           setCompletedSale(null);
           clearCart();
+          saleKey.reset();
         }}
         onClose={() => setCompletedSale(null)}
       />

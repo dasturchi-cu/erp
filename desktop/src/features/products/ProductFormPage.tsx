@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
+  Alert,
   Box,
   Button,
   Card,
+  CircularProgress,
   FormControl,
   InputLabel,
   MenuItem,
@@ -30,6 +32,7 @@ import { PRODUCT_UNITS } from '@/constants/productUnits';
 import { productUzsFromUsd, productUsdFromUzs } from '@/utils/currency';
 import { formatUzs, formatUsd } from '@/utils/format';
 import type { Category } from '@/types/entities';
+import { getErrorMessage } from '@/utils/errors';
 
 const schema = z.object({
   name: z.string().min(2, 'Nom talab qilinadi'),
@@ -40,7 +43,8 @@ const schema = z.object({
   unitsPerBox: z.coerce.number().int().min(1, 'Kamida 1'),
   minStockLevel: z.coerce.number().min(0).optional(),
   priceCurrency: z.enum(['UZS', 'USD']),
-  purchasePrice: z.coerce.number().min(0.01, 'Olish narxi musbat bo\'lishi kerak'),
+  // 0 = cost unknown (the API allows it); a new product still needs a cost, checked on submit.
+  purchasePrice: z.coerce.number().min(0, 'Olish narxi manfiy bo\'lmasligi kerak'),
   salePrice: z.coerce.number().min(0.01, 'Sotish narxi musbat bo\'lishi kerak'),
   wholesalePrice: z.coerce.number().min(0).optional(),
   recommendedPrice: z.coerce.number().min(0).optional(),
@@ -58,7 +62,9 @@ export function ProductFormPage() {
   const isEdit = Boolean(id);
   const navigate = useNavigate();
   const { success, error: notifyError } = useNotification();
-  const existing = useInventoryStore((s) => (id ? s.getProductById(id) : undefined));
+  const existing = useInventoryStore((s) => (id ? s.products.find((p) => p.id === id) : undefined));
+  const fetchProductById = useInventoryStore((s) => s.fetchProductById);
+  const [loadingExisting, setLoadingExisting] = useState(isEdit && !existing);
   const createProduct = useInventoryStore((s) => s.createProduct);
   const updateProduct = useInventoryStore((s) => s.updateProduct);
   const warehouses = useInventoryStore((s) => s.warehouses);
@@ -73,13 +79,34 @@ export function ProductFormPage() {
   const [newFromUnit, setNewFromUnit] = useState('box');
   const [newConversionFactor, setNewConversionFactor] = useState('');
 
-  const exchangeRate = useCurrencyStore((s) => s.rates.find((r) => r.status === 'active')?.rate ?? 12_620);
+  // 0 = not loaded; USD entry is blocked then instead of using a hardcoded rate.
+  const exchangeRate = useCurrencyStore(
+    (s) => s.activeRate || s.rates.find((r) => r.status === 'active')?.rate || 0,
+  );
+  const rateMissing = exchangeRate <= 0;
 
   useEffect(() => {
     void categoriesApi.list().then(setCategories);
   }, []);
 
-  const { register, handleSubmit, reset, control, watch, formState: { errors, isSubmitting } } = useForm<FormData>({
+  // The cached list may not contain this product (deep link, beyond the first page): fetch it.
+  const existingLoaded = Boolean(existing);
+  useEffect(() => {
+    if (!id || existingLoaded) {
+      setLoadingExisting(false);
+      return;
+    }
+    let cancelled = false;
+    setLoadingExisting(true);
+    void fetchProductById(id).finally(() => {
+      if (!cancelled) setLoadingExisting(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [id, existingLoaded, fetchProductById]);
+
+  const { register, handleSubmit, reset, control, watch, setError, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
       name: '',
@@ -118,7 +145,8 @@ export function ProductFormPage() {
       unitsPerBox: existing.unitsPerBox || 1,
       minStockLevel: existing.minStockLevel ?? 0,
       priceCurrency: 'UZS',
-      purchasePrice: existing.purchasePriceUzs || Math.round(existing.priceUzs * 0.72),
+      // Show the real cost; never invent one (a fake 72% cost used to be saved back).
+      purchasePrice: existing.purchasePriceUzs || 0,
       salePrice: existing.priceUzs,
       wholesalePrice: existing.wholesalePriceUzs || 0,
       recommendedPrice: existing.recommendedPriceUzs || 0,
@@ -225,6 +253,14 @@ export function ProductFormPage() {
     priceCurrency === 'UZS' ? salePrice : productUzsFromUsd(salePrice, exchangeRate);
 
   const onSubmit = async (data: FormData) => {
+    if (data.priceCurrency === 'USD' && rateMissing) {
+      notifyError("Valyuta kursi yuklanmagan. Narxlarni UZS da kiriting yoki avval kursni o'rnating.");
+      return;
+    }
+    if (!isEdit && data.purchasePrice <= 0) {
+      setError('purchasePrice', { message: "Olish narxi musbat bo'lishi kerak" });
+      return;
+    }
     const purchasePriceUzs =
       data.priceCurrency === 'UZS'
         ? Math.round(data.purchasePrice)
@@ -246,7 +282,8 @@ export function ProductFormPage() {
       unitOfMeasure: data.unitOfMeasure,
       unitsPerBox: data.unitsPerBox,
       minStockLevel: data.minStockLevel ?? 0,
-      purchasePriceUzs,
+      // On edit, 0 means "cost not entered": leave the stored purchase price alone.
+      purchasePriceUzs: isEdit && purchasePriceUzs <= 0 ? undefined : purchasePriceUzs,
       salePriceUzs,
       wholesalePriceUzs: getUzsPrice(data.wholesalePrice),
       recommendedPriceUzs: getUzsPrice(data.recommendedPrice),
@@ -281,13 +318,21 @@ export function ProductFormPage() {
       success('Mahsulot yaratildi');
       navigate(`/products/${created.id}`);
     } catch (err: unknown) {
-      notifyError((err as { message?: string }).message ?? 'Saqlashda xatolik');
+      notifyError(getErrorMessage(err, 'Saqlashda xatolik'));
     }
   };
 
   if (isEdit && !existing) {
+    if (loadingExisting) {
+      return (
+        <Box sx={{ textAlign: 'center', py: 8 }}>
+          <CircularProgress size={32} />
+        </Box>
+      );
+    }
     return (
       <Box sx={{ textAlign: 'center', py: 8 }}>
+        <Typography variant="h6" gutterBottom>Mahsulot topilmadi</Typography>
         <Button onClick={() => navigate('/products')}>Mahsulotlar ro&apos;yxatiga qaytish</Button>
       </Box>
     );
@@ -436,6 +481,11 @@ export function ProductFormPage() {
                     </FormControl>
                   )}
                 />
+                {priceCurrency === 'USD' && rateMissing && (
+                  <Alert severity="warning">
+                    Valyuta kursi yuklanmagan — USD narxni so&apos;mga o&apos;girib bo&apos;lmaydi. Narxlarni UZS da kiriting.
+                  </Alert>
+                )}
 
                 <TextField
                   label={priceCurrency === 'UZS' ? 'Olish narxi (UZS)' : 'Olish narxi (USD)'}
@@ -484,13 +534,15 @@ export function ProductFormPage() {
 
                 <Box sx={{ p: 1.5, bgcolor: 'action.hover', borderRadius: 1 }}>
                   <Typography variant="caption" color="text.secondary" display="block">
-                    Kurs: 1 USD = {exchangeRate.toLocaleString('uz-UZ')} so&apos;m
+                    {rateMissing
+                      ? 'Valyuta kursi yuklanmagan'
+                      : <>Kurs: 1 USD = {exchangeRate.toLocaleString('uz-UZ')} so&apos;m</>}
                   </Typography>
                   <Typography variant="body2">
-                    Olish: {formatUzs(purchaseUzs)} / {formatUsd(productUsdFromUzs(purchaseUzs, exchangeRate))}
+                    Olish: {formatUzs(purchaseUzs)}{!rateMissing && <> / {formatUsd(productUsdFromUzs(purchaseUzs, exchangeRate))}</>}
                   </Typography>
                   <Typography variant="body2">
-                    Sotish: {formatUzs(saleUzs)} / {formatUsd(productUsdFromUzs(saleUzs, exchangeRate))}
+                    Sotish: {formatUzs(saleUzs)}{!rateMissing && <> / {formatUsd(productUsdFromUzs(saleUzs, exchangeRate))}</>}
                   </Typography>
                 </Box>
               </Box>
@@ -625,7 +677,7 @@ export function ProductFormPage() {
             </Box>
             <Box sx={{ display: 'flex', gap: 1 }}>
               <Button onClick={() => navigate(-1)}>Bekor qilish</Button>
-              <Button type="submit" variant="contained" disabled={isSubmitting}>
+              <Button type="submit" variant="contained" disabled={isSubmitting || (priceCurrency === 'USD' && rateMissing)}>
                 Saqlash
               </Button>
             </Box>

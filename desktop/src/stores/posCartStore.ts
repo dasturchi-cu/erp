@@ -34,6 +34,45 @@ function lineStockQty(line: CartLine): number {
   );
 }
 
+/** Same 4-dp rounding toMoneyString applies when the line is sent to the API. */
+function round4(value: number): number {
+  return Number(value.toFixed(4));
+}
+
+/**
+ * Quantity in stock units exactly as the server will store it (4 dp). For a
+ * box-stocked product sold by the piece this is fractional (1 of 12 = 0.0833),
+ * so totals must be computed from this, not from the raw piece count.
+ */
+function cartLineServerQuantity(line: CartLine): number {
+  return round4(lineStockQty(line));
+}
+
+/** Unit price per stock unit as sent to the server (box products: per box). */
+function cartLineServerUnitPrice(line: CartLine): number {
+  return round4(
+    line.product.unitOfMeasure === 'box'
+      ? line.unitPriceUzs * line.product.unitsPerBox
+      : line.unitPriceUzs,
+  );
+}
+
+/** Line total the server will compute (qty x unit price, 4 dp), so cart total = sale total. */
+function cartLineTotalUzs(line: CartLine): number {
+  return round4(cartLineServerQuantity(line) * cartLineServerUnitPrice(line));
+}
+
+/**
+ * Box-stocked products keep purchase/sale prices per box while the cart line
+ * price is per piece; every other product is priced per piece throughout.
+ */
+function isLineBelowCost(line: CartLine): boolean {
+  const { purchasePriceUzs, unitOfMeasure, unitsPerBox } = line.product;
+  const costPerLineUnit =
+    unitOfMeasure === 'box' ? purchasePriceUzs / Math.max(1, unitsPerBox) : purchasePriceUzs;
+  return costPerLineUnit > 0 && line.unitPriceUzs < costPerLineUnit;
+}
+
 function currentBaseQty(items: CartLine[], productId: string): number {
   const line = items.find((i) => i.product.id === productId);
   return line ? lineStockQty(line) : 0;
@@ -142,13 +181,7 @@ export const usePosCartStore = create<PosCartState>((set, get) => ({
   getTotals: () => {
     const { items } = get();
     const rate = useCurrencyStore.getState().getActiveRate();
-    const totalUzs = items.reduce(
-      (s, i) =>
-        s +
-        i.quantity *
-          (i.saleUnit === 'box' ? i.unitPriceUzs * i.product.unitsPerBox : i.unitPriceUzs),
-      0,
-    );
+    const totalUzs = round4(items.reduce((s, i) => s + cartLineTotalUzs(i), 0));
     return {
       totalUzs,
       totalUsd: lineTotalUsd(totalUzs, rate),
@@ -156,10 +189,7 @@ export const usePosCartStore = create<PosCartState>((set, get) => ({
     };
   },
 
-  getBelowCostLines: () =>
-    get().items.filter(
-      (i) => i.product.purchasePriceUzs > 0 && i.unitPriceUzs <= i.product.purchasePriceUzs,
-    ),
+  getBelowCostLines: () => get().items.filter(isLineBelowCost),
 }));
 
 export function calcChange(received: number, total: number) {
@@ -177,4 +207,4 @@ export function inferPaymentMethod(
   return 'cash';
 }
 
-export { lineStockQty };
+export { lineStockQty, isLineBelowCost, cartLineServerQuantity, cartLineServerUnitPrice, cartLineTotalUzs };

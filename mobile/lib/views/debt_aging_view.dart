@@ -36,10 +36,18 @@ class _DebtAgingViewState extends State<DebtAgingView> with SingleTickerProvider
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
+      // Built with Uri so bucket values like '120+' are percent-encoded
+      // ('120%2B'); a raw '+' in a query string is decoded as a space.
+      final query = Uri(
+        queryParameters: {
+          'limit': '100',
+          'bucket': ?_selectedBucket,
+        },
+      ).query;
       final results = await Future.wait([
         _api.get('/debt/aging/summary'),
-        _api.get('/debt/aging/customers?limit=100${_selectedBucket != null ? '&bucket=$_selectedBucket' : ''}'),
-        _api.get('/debt/aging/suppliers?limit=100${_selectedBucket != null ? '&bucket=$_selectedBucket' : ''}'),
+        _api.get('/debt/aging/customers?$query'),
+        _api.get('/debt/aging/suppliers?$query'),
       ]);
       if (mounted) {
         setState(() {

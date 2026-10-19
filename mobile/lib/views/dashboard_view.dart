@@ -45,6 +45,9 @@ class _DashboardViewState extends State<DashboardView> {
 
   bool _loading = true;
   int _pendingSyncCount = 0;
+  int _failedSyncCount = 0;
+  int _foreignSyncCount = 0;
+  bool _syncing = false;
   int _unreadNotifications = 0;
   String _userName = 'Admin';
   String _userEmail = 'admin@erp.uz';
@@ -195,8 +198,7 @@ class _DashboardViewState extends State<DashboardView> {
 
   Future<void> _loadDashboardData() async {
     setState(() => _loading = true);
-    final pending = await _syncService.getPendingSalesCount();
-    setState(() => _pendingSyncCount = pending);
+    await _refreshPendingSales();
 
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -239,24 +241,219 @@ class _DashboardViewState extends State<DashboardView> {
     }
   }
 
+  Future<void> _refreshPendingSales() async {
+    final pending = await _syncService.getPendingSales();
+    if (!mounted) return;
+    setState(() {
+      _pendingSyncCount = pending.length;
+      _failedSyncCount = pending
+          .where((s) => s.failed && s.ownedByCurrentSession)
+          .length;
+      _foreignSyncCount = pending
+          .where((s) => !s.ownedByCurrentSession)
+          .length;
+    });
+  }
+
   Future<void> _handleSync() async {
-    final success = await _syncService.syncPendingSales();
-    if (mounted) {
-      if (success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Offline sotuvlar sinxronizatsiya qilindi!'),
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Sinxronizatsiyada ba\'zi xatoliklar yuz berdi'),
-          ),
-        );
-      }
-      _loadDashboardData();
+    if (_syncing) return;
+    setState(() => _syncing = true);
+    final SyncResult result;
+    try {
+      result = await _syncService.syncPendingSales();
+    } finally {
+      if (mounted) setState(() => _syncing = false);
     }
+    if (!mounted) return;
+    if (result.allSuccess) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Offline sotuvlar sinxronizatsiya qilindi!'),
+        ),
+      );
+    } else if (result.failed > 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '${result.failed} ta sotuv server tomonidan rad etildi',
+          ),
+          backgroundColor: Colors.red.shade700,
+          action: SnackBarAction(
+            label: 'Ko\'rish',
+            textColor: Colors.white,
+            onPressed: _showPendingSales,
+          ),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Sinxronizatsiyada ba\'zi xatoliklar yuz berdi'),
+        ),
+      );
+    }
+    _loadDashboardData();
+  }
+
+  /// Lists every offline-queued sale with its state; refused ones can be
+  /// retried or discarded here.
+  Future<void> _showPendingSales() async {
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) {
+          return FutureBuilder<List<PendingSale>>(
+            future: _syncService.getPendingSales(),
+            builder: (ctx, snap) {
+              final sales = snap.data ?? const <PendingSale>[];
+              return SafeArea(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.of(ctx).size.height * 0.75,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Text(
+                          'Oflayn sotuvlar',
+                          style: GoogleFonts.outfit(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      if (snap.connectionState != ConnectionState.done)
+                        const Padding(
+                          padding: EdgeInsets.all(24),
+                          child: Center(child: CircularProgressIndicator()),
+                        )
+                      else if (sales.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.all(24),
+                          child: Center(child: Text('Navbatda sotuv yo\'q')),
+                        )
+                      else
+                        Flexible(
+                          child: ListView.builder(
+                            shrinkWrap: true,
+                            itemCount: sales.length,
+                            itemBuilder: (ctx, idx) => _buildPendingSaleTile(
+                              ctx,
+                              sales[idx],
+                              () {
+                                setSheetState(() {});
+                                _refreshPendingSales();
+                              },
+                            ),
+                          ),
+                        ),
+                      const SizedBox(height: 8),
+                    ],
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+    _refreshPendingSales();
+  }
+
+  Widget _buildPendingSaleTile(
+    BuildContext ctx,
+    PendingSale sale,
+    VoidCallback onChanged,
+  ) {
+    final String status;
+    final Color color;
+    if (!sale.ownedByCurrentSession) {
+      status =
+          'Boshqa foydalanuvchi yoki kompaniya nomidan saqlangan — o\'sha akkaunt bilan kirilganda yuboriladi';
+      color = Colors.grey;
+    } else if (sale.failed) {
+      final code = sale.lastStatus != null ? ' (${sale.lastStatus})' : '';
+      status = 'Rad etildi$code: ${sale.lastError ?? 'Noma\'lum xato'}';
+      color = Colors.red;
+    } else {
+      status = 'Yuborilishini kutmoqda';
+      color = Colors.orange;
+    }
+    final queuedAt = sale.queuedAt != null
+        ? '${_formatQueuedAt(sale.queuedAt!)}\n'
+        : '';
+    return ListTile(
+      leading: Icon(
+        sale.failed ? Icons.error_outline : Icons.schedule,
+        color: color,
+      ),
+      title: Text(
+        _formatStatValue(sale.totalUzs),
+        style: const TextStyle(fontWeight: FontWeight.bold),
+      ),
+      subtitle: Text('$queuedAt$status'),
+      isThreeLine: sale.queuedAt != null,
+      trailing: sale.failed && sale.ownedByCurrentSession
+          ? Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  tooltip: 'Qayta urinish',
+                  icon: const Icon(Icons.refresh),
+                  onPressed: () async {
+                    await _syncService.markForRetry(sale.idempotencyKey);
+                    onChanged();
+                  },
+                ),
+                IconButton(
+                  tooltip: 'O\'chirish',
+                  icon: const Icon(Icons.delete_outline, color: Colors.red),
+                  onPressed: () async {
+                    final ok = await showDialog<bool>(
+                      context: ctx,
+                      builder: (dCtx) => AlertDialog(
+                        title: const Text('Sotuvni o\'chirish'),
+                        content: const Text(
+                          'Bu sotuv serverga yuborilmaydi va butunlay o\'chiriladi. Davom etasizmi?',
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(dCtx, false),
+                            child: const Text('Yo\'q'),
+                          ),
+                          TextButton(
+                            onPressed: () => Navigator.pop(dCtx, true),
+                            child: const Text(
+                              'Ha, o\'chirish',
+                              style: TextStyle(color: Colors.red),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                    if (ok != true) return;
+                    await _syncService.discardSale(sale.idempotencyKey);
+                    onChanged();
+                  },
+                ),
+              ],
+            )
+          : null,
+    );
+  }
+
+  String _formatQueuedAt(String iso) {
+    final d = DateTime.tryParse(iso)?.toLocal();
+    if (d == null) return iso;
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${two(d.day)}.${two(d.month)}.${d.year} ${two(d.hour)}:${two(d.minute)}';
   }
 
   String _formatStatValue(dynamic val) {
@@ -319,7 +516,7 @@ class _DashboardViewState extends State<DashboardView> {
                 label: Text('$_pendingSyncCount'),
                 child: const Icon(Icons.sync_problem, color: Colors.orange),
               ),
-              onPressed: _handleSync,
+              onPressed: _syncing ? null : _handleSync,
             )
           else
             IconButton(
@@ -647,7 +844,7 @@ class _DashboardViewState extends State<DashboardView> {
                 ),
               ),
               onTap: () async {
-                await _apiService.clearSession();
+                await _apiService.logout();
                 if (context.mounted) {
                   Navigator.of(context).pushReplacement(
                     MaterialPageRoute(builder: (_) => const LoginView()),
@@ -778,10 +975,17 @@ class _DashboardViewState extends State<DashboardView> {
                             style: TextStyle(fontWeight: FontWeight.bold),
                           ),
                           subtitle: Text(
-                            '$_pendingSyncCount ta sotuv internetga ulanishni kutmoqda.',
+                            [
+                              '$_pendingSyncCount ta sotuv internetga ulanishni kutmoqda.',
+                              if (_failedSyncCount > 0)
+                                '$_failedSyncCount tasi server tomonidan rad etildi — ko\'rib chiqing.',
+                              if (_foreignSyncCount > 0)
+                                '$_foreignSyncCount tasi boshqa akkauntga tegishli.',
+                            ].join('\n'),
                           ),
+                          onTap: _showPendingSales,
                           trailing: ElevatedButton(
-                            onPressed: _handleSync,
+                            onPressed: _syncing ? null : _handleSync,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.orange,
                               foregroundColor: Colors.white,

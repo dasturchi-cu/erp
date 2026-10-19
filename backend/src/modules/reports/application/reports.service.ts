@@ -71,6 +71,10 @@ export class ReportsService {
       id: e.id,
       name: e.name,
       category: e.category,
+      // Clients need these to call POST /reports/generate; ids like
+      // `profit_gross` don't split back into category + template.
+      categoryCode: e.categoryCode,
+      template: e.template,
       description: e.description,
       lastGenerated: lastMap.get(`${e.categoryCode}:${e.template}`)?.toISOString(),
     }));
@@ -293,7 +297,10 @@ export class ReportsService {
       permissions.includes('reports.*') ||
       permissions.includes(required.replace(/\.[^.]+$/, '.*'));
 
-    if (!hasAccess && !permissions.includes('reports.view')) {
+    // reports.view only opens the report center; it must not stand in for
+    // the category permission (it let every report viewer pull profit and
+    // expense reports).
+    if (!hasAccess) {
       throw AppException.forbidden('PERMISSION_DENIED', `Missing permission: ${required}`);
     }
   }

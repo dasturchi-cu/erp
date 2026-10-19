@@ -55,6 +55,7 @@ export class SalesController {
       idempotencyKey,
       ip,
       requestId,
+      user.permissions,
     );
   }
 
@@ -112,7 +113,10 @@ export class SalesController {
   @Get(':id')
   @RequirePermissions('sales.view')
   getById(@CurrentUser() user: JwtPayload, @Param('id', ParseUUIDPipe) id: string) {
-    return this.salesService.getById(user.companyId!, id);
+    return this.salesService.getById(user.companyId!, id, {
+      userId: user.sub,
+      permissions: user.permissions,
+    });
   }
 
   @Post(':id/void')

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -17,6 +18,16 @@ class _PosViewState extends State<PosView> {
   final _syncService = SyncService();
   final _printer = PrinterService();
   final _searchController = TextEditingController();
+  final _searchFocus = FocusNode();
+
+  // Search is debounced, and each request carries a sequence number so a
+  // slow response for an older query can never overwrite newer results.
+  Timer? _searchDebounce;
+  int _searchSeq = 0;
+
+  // True while a checkout request is in flight. Each tap mints its own
+  // Idempotency-Key, so without this guard a double tap records two sales.
+  bool _checkingOut = false;
 
   List<dynamic> _searchResults = [];
   final List<Map<String, dynamic>> _cart = [];
@@ -33,7 +44,11 @@ class _PosViewState extends State<PosView> {
   // which amountPaid* field carries the payment, exactly like the desktop
   // POS's currency toggle.
   String _currency = 'UZS'; // UZS or USD
-  double _exchangeRate = 12620;
+  // The company's active rate from the server (GET /currency/rate) — the
+  // same rate the backend converts USD payments with. There is deliberately
+  // no hardcoded fallback: USD stays disabled until this has loaded.
+  double _exchangeRate = 0;
+  bool get _rateLoaded => _exchangeRate > 0;
 
   @override
   void initState() {
@@ -45,21 +60,41 @@ class _PosViewState extends State<PosView> {
   Future<void> _loadExchangeRate() async {
     try {
       final res = await _apiService.get('/currency/rate');
-      if (res.statusCode == 200) {
+      if (res.statusCode == 200 && res.data is Map) {
         final rate = double.tryParse(
-          (res.data?['rateUzs'] ?? res.data?['rate'])?.toString() ?? '',
+          (res.data['rate'] ?? res.data['rateUzs'])?.toString() ?? '',
         );
         if (rate != null && rate > 0 && mounted) {
           setState(() => _exchangeRate = rate);
         }
       }
     } catch (_) {
-      // Keep the fallback rate; the toggle still works, just less precisely.
+      // No active rate (or no currency.view permission): USD checkout stays
+      // blocked with a message instead of guessing a rate.
     }
+  }
+
+  void _showRateMissing() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Valyuta kursi yuklanmadi. USD da sotish uchun avval faol kursni o\'rnating yoki internetni tekshiring.',
+        ),
+      ),
+    );
+  }
+
+  /// USD amount that is never less than [amountUzs] at the server's rate:
+  /// rounded UP to the cent (the backend tolerates at most half a cent short).
+  String _usdCeil(double amountUzs) {
+    final cents = ((amountUzs / _exchangeRate) * 100 - 1e-6).ceil();
+    return (cents / 100).toStringAsFixed(2);
   }
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
+    _searchFocus.dispose();
     _searchController.dispose();
     _paidNowController.dispose();
     super.dispose();
@@ -68,7 +103,7 @@ class _PosViewState extends State<PosView> {
   Future<void> _loadCustomers() async {
     try {
       final res = await _apiService.get('/customers?limit=100');
-      if (res.statusCode == 200) {
+      if (res.statusCode == 200 && mounted) {
         final raw = res.data;
         setState(() {
           if (raw is Map && raw.containsKey('data')) {
@@ -90,15 +125,28 @@ class _PosViewState extends State<PosView> {
     }
   }
 
-  Future<void> _searchProducts(String q) async {
-    if (q.isEmpty) {
+  void _onSearchChanged(String q) {
+    _searchDebounce?.cancel();
+    final query = q.trim();
+    if (query.isEmpty) {
+      _searchSeq++; // drop any response still in flight
       setState(() => _searchResults = []);
       return;
     }
+    _searchDebounce = Timer(
+      const Duration(milliseconds: 300),
+      () => _searchProducts(query),
+    );
+  }
+
+  Future<void> _searchProducts(String q) async {
+    final seq = ++_searchSeq;
+    bool isStale() => !mounted || seq != _searchSeq;
     try {
       final res = await _apiService.get(
         '/pos/products?q=${Uri.encodeComponent(q)}',
       );
+      if (isStale()) return;
       if (res.statusCode == 200) {
         final raw = res.data;
         final list = raw is Map && raw.containsKey('data')
@@ -110,11 +158,13 @@ class _PosViewState extends State<PosView> {
     } catch (_) {
       // Fall through to the /products fallback below before reporting an error.
     }
+    if (isStale()) return;
 
     try {
       final fb = await _apiService.get(
         '/products?q=${Uri.encodeComponent(q)}&limit=20',
       );
+      if (isStale()) return;
       if (fb.statusCode == 200) {
         final raw = fb.data;
         final list = raw is Map && raw.containsKey('data')
@@ -123,7 +173,7 @@ class _PosViewState extends State<PosView> {
         setState(() => _searchResults = list);
       }
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || seq != _searchSeq) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Qidiruvda xatolik: ${ApiService.parseError(e)}'),
@@ -185,7 +235,20 @@ class _PosViewState extends State<PosView> {
   }
 
   Future<void> _handleCheckout() async {
-    if (_cart.isEmpty) return;
+    if (_checkingOut || _cart.isEmpty) return;
+    setState(() => _checkingOut = true);
+    try {
+      await _submitCheckout();
+    } finally {
+      if (mounted) setState(() => _checkingOut = false);
+    }
+  }
+
+  Future<void> _submitCheckout() async {
+    if (_currency == 'USD' && !_rateLoaded) {
+      _showRateMissing();
+      return;
+    }
 
     if ((_paymentType == 'DEBT' || _paymentType == 'MIXED') &&
         _selectedCustomer == null) {
@@ -205,8 +268,10 @@ class _PosViewState extends State<PosView> {
     // display currency — the "paid now" field is typed in `_currency` and
     // converted here so the rest of the checkout math stays in one unit.
     double? paidNow;
+    double? typedPaidNow;
     if (_paymentType == 'MIXED') {
       final typed = double.tryParse(_paidNowController.text.trim());
+      typedPaidNow = typed;
       paidNow = typed != null && _currency == 'USD'
           ? typed * _exchangeRate
           : typed;
@@ -279,8 +344,13 @@ class _PosViewState extends State<PosView> {
     final salePayload = {
       'originalCurrency': _currency,
       'paymentType': backendPaymentType,
+      // Full USD cash is rounded UP to the cent so it never lands short of
+      // the UZS total at the server's rate; a MIXED part-payment sends
+      // exactly what the cashier typed.
       if (payingInUsd)
-        'amountPaidUsd': (amountPaidUzsValue / _exchangeRate).toStringAsFixed(4)
+        'amountPaidUsd': isMixed
+            ? typedPaidNow!.toStringAsFixed(4)
+            : _usdCeil(amountPaidUzsValue)
       else
         'amountPaidUzs': amountPaidUzsValue.toStringAsFixed(4),
       if (_selectedCustomer != null) 'customerId': _selectedCustomer!['id'],
@@ -321,11 +391,25 @@ class _PosViewState extends State<PosView> {
         ? 'O\'tkazma'
         : 'Naqd';
 
+    // One key per sale: if this attempt times out after the server already
+    // recorded it, the offline retry must send the same key so the backend
+    // returns the existing sale instead of creating a duplicate.
+    final idempotencyKey = ApiService.newIdempotencyKey();
+
     try {
-      final res = await _apiService.post('/sales', salePayload);
+      final res = await _apiService.post(
+        '/sales',
+        salePayload,
+        idempotencyKey: idempotencyKey,
+      );
       if (res.statusCode == 200 || res.statusCode == 201) {
+        // The sale response calls it `number`; `saleNumber` is kept as a
+        // fallback for older backends.
         final saleNumber =
-            (res.data is Map ? res.data['saleNumber'] : null)?.toString() ??
+            (res.data is Map
+                    ? (res.data['number'] ?? res.data['saleNumber'])
+                    : null)
+                ?.toString() ??
             DateTime.now().millisecondsSinceEpoch.toString();
         _successCheckout(
           saleNumber: saleNumber,
@@ -350,7 +434,7 @@ class _PosViewState extends State<PosView> {
               e.type == DioExceptionType.connectionTimeout ||
               e.type == DioExceptionType.sendTimeout ||
               e.type == DioExceptionType.receiveTimeout)) {
-        _queueOffline(salePayload);
+        await _queueOffline(salePayload, idempotencyKey);
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -452,8 +536,11 @@ class _PosViewState extends State<PosView> {
     }
   }
 
-  void _queueOffline(Map<String, dynamic> salePayload) async {
-    await _syncService.queueOfflineSale(salePayload);
+  Future<void> _queueOffline(
+    Map<String, dynamic> salePayload,
+    String idempotencyKey,
+  ) async {
+    await _syncService.queueOfflineSale(salePayload, idempotencyKey);
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
@@ -490,19 +577,26 @@ class _PosViewState extends State<PosView> {
                 Expanded(
                   child: TextField(
                     controller: _searchController,
+                    focusNode: _searchFocus,
                     decoration: const InputDecoration(
                       labelText: 'Mahsulot qidirish...',
                       prefixIcon: Icon(Icons.search),
                       border: OutlineInputBorder(),
                     ),
-                    onChanged: _searchProducts,
+                    onChanged: _onSearchChanged,
                   ),
                 ),
                 const SizedBox(width: 8),
+                // No camera scanner is bundled: this focuses the search
+                // field so a USB/Bluetooth barcode scanner (which types the
+                // code like a keyboard) fills it directly.
                 IconButton.filled(
                   icon: const Icon(Icons.qr_code_scanner),
+                  tooltip: 'Shtrix-kod skaneri',
                   onPressed: () {
-                    _searchProducts('BARCODE-101');
+                    _searchController.clear();
+                    _onSearchChanged('');
+                    _searchFocus.requestFocus();
                   },
                 ),
               ],
@@ -664,6 +758,11 @@ class _PosViewState extends State<PosView> {
                       ],
                       selected: {_currency},
                       onSelectionChanged: (sel) {
+                        if (sel.first == 'USD' && !_rateLoaded) {
+                          _showRateMissing();
+                          _loadExchangeRate();
+                          return;
+                        }
                         setState(() {
                           _currency = sel.first;
                           _paidNowController.clear();
@@ -851,8 +950,14 @@ class _PosViewState extends State<PosView> {
                         ],
                       ),
                       ElevatedButton.icon(
-                        onPressed: _handleCheckout,
-                        icon: const Icon(Icons.check),
+                        onPressed: _checkingOut ? null : _handleCheckout,
+                        icon: _checkingOut
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.check),
                         label: const Text('To\'lov qilish'),
                         style: ElevatedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(

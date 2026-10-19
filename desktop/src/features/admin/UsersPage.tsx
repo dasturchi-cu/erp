@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  Alert,
   Button,
   CircularProgress,
   FormControl,
@@ -17,6 +18,7 @@ import { useListState, useDisclosure } from '@/hooks/useListState';
 import { useAdminStore } from '@/stores/adminStore';
 import { useNotification } from '@/components/feedback/NotificationProvider';
 import type { User } from '@/types/entities';
+import { usePermissions } from '@/hooks/usePermissions';
 
 const roleLabels: Record<User['role'], string> = {
   admin: 'Administrator',
@@ -51,6 +53,9 @@ export function UsersPage() {
   const addUser = useAdminStore((s) => s.addUser);
   const toggleUserStatus = useAdminStore((s) => s.toggleUserStatus);
   const { success, error: notifyError } = useNotification();
+  const { can } = usePermissions();
+  // GET /admin/roles requires admin.users.create (or admin.*) on the backend.
+  const canListRoles = can('admin.users.create');
   const dialog = useDisclosure();
   const [roleFilter, setRoleFilter] = useState('all');
   const [submitting, setSubmitting] = useState(false);
@@ -64,8 +69,8 @@ export function UsersPage() {
 
   useEffect(() => {
     void fetchUsers();
-    void fetchRoles();
-  }, [fetchUsers, fetchRoles]);
+    if (canListRoles) void fetchRoles();
+  }, [fetchUsers, fetchRoles, canListRoles]);
 
   useEffect(() => {
     if (!form.roleId && roles.length > 0) {
@@ -242,6 +247,13 @@ export function UsersPage() {
             onChange={(e) => setForm({ ...form, password: e.target.value })}
             fullWidth
           />
+          {roles.length === 0 && (
+            <Alert severity="warning">
+              {canListRoles
+                ? 'Rollar yuklanmadi.'
+                : "Rollar ro'yxatini ko'rish uchun foydalanuvchi yaratish (admin.users.create) huquqi kerak."}
+            </Alert>
+          )}
           <FormControl fullWidth>
             <InputLabel>Rol</InputLabel>
             <Select
