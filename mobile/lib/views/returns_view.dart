@@ -262,7 +262,7 @@ class _ReturnsViewState extends State<ReturnsView> {
                             title: Text(r['reason'] ?? 'Vozvrat', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
                             subtitle: Text('Status: ${r['status'] ?? 'PENDING'}'),
                             trailing: Text(
-                              '${r['totalRefundUzs'] ?? '0'} UZS',
+                              '${r['amountUzs'] ?? r['totalRefundUzs'] ?? '0'} UZS',
                               style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
                             ),
                           ),

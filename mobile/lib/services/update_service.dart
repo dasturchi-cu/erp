@@ -1,9 +1,11 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:open_file/open_file.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'api_service.dart';
+import 'rsa_signature.dart';
 
 class UpdateInfo {
   final String releaseId;
@@ -12,17 +14,23 @@ class UpdateInfo {
   final String downloadUrl;
   final String checksum;
 
+  /// Base64 RSA-SHA256 signature of the package, made with the backend's
+  /// release-signing key when the release was uploaded.
+  final String? signature;
+
   UpdateInfo({
     required this.releaseId,
     required this.latestVersion,
     required this.changelog,
     required this.downloadUrl,
     required this.checksum,
+    this.signature,
   });
 }
 
 /// Checks the SaaS release system for a newer Android build, downloads it,
-/// verifies its SHA-256, then hands it to Android's own installer via
+/// verifies its SHA-256 and RSA signature, then hands it to Android's own
+/// installer via
 /// open_file — Android always shows its own "install this app" prompt for a
 /// non-Play-Store APK, so this can never be fully silent, only as automatic
 /// as the platform allows.
@@ -32,6 +40,14 @@ class UpdateService {
   UpdateService._internal();
 
   final _api = ApiService();
+
+  /// Optional release-signing public key (SPKI PEM, base64-encoded) baked in
+  /// at build time with `--dart-define=UPDATE_PUBLIC_KEY_B64=...`. When set,
+  /// it is used instead of the key served by the backend, so a compromised
+  /// or impersonated server cannot also swap the key it signs with.
+  static const String _pinnedPublicKeyB64 = String.fromEnvironment(
+    'UPDATE_PUBLIC_KEY_B64',
+  );
 
   Future<String> currentVersion() async {
     final info = await PackageInfo.fromPlatform();
@@ -65,15 +81,28 @@ class UpdateService {
         changelog: data['changelog']?.toString() ?? '',
         downloadUrl: downloadUrl,
         checksum: checksum,
+        signature: data['signature']?.toString(),
       );
     } catch (_) {
       return null;
     }
   }
 
-  /// Downloads the APK, verifies its checksum (throws on mismatch — never
-  /// hands a corrupt/tampered file to the installer), and returns the local
-  /// path. [onProgress] receives 0.0–1.0.
+  Future<String> _publicKeyPem() async {
+    if (_pinnedPublicKeyB64.isNotEmpty) {
+      return utf8.decode(base64.decode(_pinnedPublicKeyB64));
+    }
+    final res = await _api.get('/saas/updates/public-key');
+    final key = res.data is Map ? res.data['publicKey']?.toString() : null;
+    if (key == null || key.isEmpty) {
+      throw Exception('Yangilanish kaliti topilmadi');
+    }
+    return key;
+  }
+
+  /// Downloads the APK, verifies its checksum and signature (throws on
+  /// mismatch — never hands a corrupt/tampered file to the installer), and
+  /// returns the local path. [onProgress] receives 0.0–1.0.
   Future<String> download(
     UpdateInfo info, {
     void Function(double)? onProgress,
@@ -103,6 +132,25 @@ class UpdateService {
     if (actual.toLowerCase() != info.checksum.toLowerCase()) {
       await File(filePath).delete().catchError((_) => File(filePath));
       throw Exception('Yangilanish fayli buzilgan (checksum mos kelmadi)');
+    }
+
+    // Every release uploaded through the admin panel is signed; one without
+    // a signature (or with one that does not verify) is refused.
+    final signature = info.signature;
+    bool signatureOk = false;
+    if (signature != null && signature.isNotEmpty) {
+      try {
+        final pem = await _publicKeyPem();
+        signatureOk = RsaSignature.verifySha256(bytes, signature, pem);
+      } catch (_) {
+        signatureOk = false;
+      }
+    }
+    if (!signatureOk) {
+      await File(filePath).delete().catchError((_) => File(filePath));
+      throw Exception(
+        'Yangilanish fayli imzosi tasdiqlanmadi — o\'rnatish bekor qilindi',
+      );
     }
     return filePath;
   }

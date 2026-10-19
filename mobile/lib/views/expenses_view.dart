@@ -107,7 +107,10 @@ class _ExpensesViewState extends State<ExpensesView> {
         'description': desc,
         'originalCurrency': 'UZS',
         'amount': parsedAmt,
-        'expenseDate': DateTime.now().toIso8601String(),
+        // expense_date is a DATE column: send the cashier's local calendar
+        // day (YYYY-MM-DD). A local timestamp without an offset — or its UTC
+        // form — lands on the previous day for entries made before 05:00 (UTC+5).
+        'expenseDate': DateTime.now().toIso8601String().substring(0, 10),
         if (note.isNotEmpty) 'notes': note,
       });
 

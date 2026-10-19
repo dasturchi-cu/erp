@@ -13,6 +13,7 @@ class _PrinterSettingsViewState extends State<PrinterSettingsView> {
   final _printer = PrinterService();
   bool _loading = true;
   bool _bluetoothOn = false;
+  bool _permissionDenied = false;
   bool _connecting = false;
   List<PrinterDevice> _devices = [];
 
@@ -24,13 +25,25 @@ class _PrinterSettingsViewState extends State<PrinterSettingsView> {
 
   Future<void> _refresh() async {
     setState(() => _loading = true);
+    _permissionDenied = false;
     try {
+      // Ask for the Android 12+ Bluetooth permissions first — without them
+      // the paired-device list and connecting silently fail.
+      if (!await _printer.ensurePermission()) {
+        _permissionDenied = true;
+        _devices = [];
+        if (mounted) setState(() => _loading = false);
+        return;
+      }
       _bluetoothOn = await _printer.isBluetoothEnabled();
       if (_bluetoothOn) {
         _devices = await _printer.pairedDevices();
       } else {
         _devices = [];
       }
+    } on BluetoothPermissionDenied {
+      _permissionDenied = true;
+      _devices = [];
     } catch (_) {
       _bluetoothOn = false;
       _devices = [];
@@ -40,17 +53,30 @@ class _PrinterSettingsViewState extends State<PrinterSettingsView> {
 
   Future<void> _connect(PrinterDevice device) async {
     setState(() => _connecting = true);
-    final ok = await _printer.connect(device.macAddress, name: device.name);
+    final permitted = await _printer.ensurePermission();
+    final ok = permitted &&
+        await _printer.connect(device.macAddress, name: device.name);
     if (mounted) {
-      setState(() => _connecting = false);
+      setState(() {
+        _connecting = false;
+        if (!permitted) _permissionDenied = true;
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(ok ? '${device.name} ga ulandi' : 'Ulanib bo\'lmadi'),
+          content: Text(
+            ok
+                ? '${device.name} ga ulandi'
+                : (!permitted ? _permissionMessage : 'Ulanib bo\'lmadi'),
+          ),
           backgroundColor: ok ? Colors.green : Colors.red,
         ),
       );
     }
   }
+
+  static const _permissionMessage =
+      'Printerga ulanish uchun "Yaqin atrofdagi qurilmalar" (Bluetooth) ruxsati kerak. '
+      'Ruxsat oynasi chiqmasa, telefon Sozlamalar → Ilovalar → ERP Enterprise → Ruxsatlar bo\'limidan yoqing.';
 
   Future<void> _forget() async {
     await _printer.forget();
@@ -98,7 +124,39 @@ class _PrinterSettingsViewState extends State<PrinterSettingsView> {
           : ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                if (!_bluetoothOn)
+                if (_permissionDenied)
+                  Card(
+                    color: theme.colorScheme.errorContainer,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.bluetooth_disabled, color: theme.colorScheme.onErrorContainer),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  _permissionMessage,
+                                  style: TextStyle(color: theme.colorScheme.onErrorContainer),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: TextButton(
+                              onPressed: _refresh,
+                              child: const Text('Ruxsat berish'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                else if (!_bluetoothOn)
                   Card(
                     color: theme.colorScheme.errorContainer,
                     child: Padding(

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/api_service.dart';
+import 'product_search_field.dart';
 
 class InventoryAdjustView extends StatefulWidget {
   final Map<String, dynamic>? initialProduct;
@@ -91,6 +92,10 @@ class _InventoryAdjustViewState extends State<InventoryAdjustView> {
           } else if (_products.isNotEmpty) {
             _selectedProduct = _products.first as Map<String, dynamic>;
           }
+          _products = ProductSearchField.withSelected(
+            _products,
+            _selectedProduct,
+          );
 
           _loading = false;
         });
@@ -128,7 +133,9 @@ class _InventoryAdjustViewState extends State<InventoryAdjustView> {
 
     final qtyRaw = _quantityController.text.trim();
     final qtyNum = double.tryParse(qtyRaw);
-    if (qtyNum == null || qtyNum <= 0) {
+    // Sent with 4 decimals like the API (and the transfer screen); a value
+    // that rounds to 0 at that precision is rejected rather than sent.
+    if (qtyNum == null || double.parse(qtyNum.toStringAsFixed(4)) <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Miqdor musbat son bo\'lishi kerak!')),
       );
@@ -157,7 +164,7 @@ class _InventoryAdjustViewState extends State<InventoryAdjustView> {
     }
 
     final delta = _adjustType == 'OUT' ? -qtyNum : qtyNum;
-    final deltaStr = delta.toStringAsFixed(0);
+    final deltaStr = delta.toStringAsFixed(4);
 
     setState(() => _submitting = true);
 
@@ -351,6 +358,16 @@ class _InventoryAdjustViewState extends State<InventoryAdjustView> {
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               // Product Picker
+                              ProductSearchField(
+                                onResults: (list) => setState(
+                                  () => _products =
+                                      ProductSearchField.withSelected(
+                                        list,
+                                        _selectedProduct,
+                                      ),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
                               DropdownButtonFormField<Map<String, dynamic>>(
                                 value: _selectedProduct,
                                 isExpanded: true,

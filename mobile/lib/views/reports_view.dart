@@ -158,10 +158,17 @@ class _ReportsViewState extends State<ReportsView> with SingleTickerProviderStat
     int progress = 0;
     String? errorMsg;
 
+    // Prefer the catalog entry's own categoryCode/template. Only when an
+    // older backend omits them is the id (`<categoryCode>_<template>`) split
+    // — on the first '_' only, so templates like `by_product` stay intact.
     final reportId = (report['id'] ?? '').toString();
-    final parts = reportId.split('_');
-    final categoryCode = parts.isNotEmpty ? parts.first : '';
-    final template = parts.length > 1 ? parts.sublist(1).join('_') : '';
+    final sep = reportId.indexOf('_');
+    final categoryCode = (report['categoryCode'] ??
+            (sep > 0 ? reportId.substring(0, sep) : reportId))
+        .toString();
+    final template = (report['template'] ??
+            (sep > 0 ? reportId.substring(sep + 1) : ''))
+        .toString();
 
     showModalBottomSheet(
       context: context,
@@ -198,10 +205,25 @@ class _ReportsViewState extends State<ReportsView> with SingleTickerProviderStat
                 return;
               }
 
-              // Poll job status until COMPLETED/FAILED.
+              // Poll job status until COMPLETED/FAILED — bounded, and stopped
+              // as soon as the sheet or the screen is gone.
+              const pollInterval = Duration(milliseconds: 1500);
+              const maxWait = Duration(minutes: 5);
+              final deadline = DateTime.now().add(maxWait);
               while (true) {
-                await Future.delayed(const Duration(milliseconds: 1500));
+                await Future.delayed(pollInterval);
+                if (!mounted || !ctx.mounted) return;
+                if (DateTime.now().isAfter(deadline)) {
+                  setSheetState(() {
+                    generating = false;
+                    errorMsg =
+                        'Hisobot tayyorlanishi juda uzoq davom etdi. Birozdan so\'ng "Tarix" bo\'limidan yuklab oling.';
+                  });
+                  _fetchHistory();
+                  return;
+                }
                 final statusRes = await _apiService.get('/reports/jobs/$jobId');
+                if (!mounted || !ctx.mounted) return;
                 final job = statusRes.data;
                 final status = job is Map ? job['status']?.toString() : null;
                 if (status == 'COMPLETED') {
@@ -223,6 +245,7 @@ class _ReportsViewState extends State<ReportsView> with SingleTickerProviderStat
                 }
               }
             } catch (e) {
+              if (!ctx.mounted) return;
               setSheetState(() {
                 generating = false;
                 errorMsg = ApiService.parseError(e);

@@ -1,7 +1,15 @@
+import 'dart:io';
 import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+/// The user did not grant the Bluetooth runtime permissions (Android 12+).
+class BluetoothPermissionDenied implements Exception {
+  const BluetoothPermissionDenied();
+  @override
+  String toString() => 'Bluetooth ruxsati berilmagan';
+}
 
 class PrinterDevice {
   final String name;
@@ -47,7 +55,24 @@ class PrinterService {
 
   Future<bool> isBluetoothEnabled() => PrintBluetoothThermal.bluetoothEnabled;
 
+  /// Android 12+ needs the BLUETOOTH_CONNECT/BLUETOOTH_SCAN runtime
+  /// permissions before any paired-device lookup or connection. The plugin's
+  /// check shows the system permission prompt when they are not granted yet
+  /// and resolves to whether the user allowed them (always true on Android
+  /// 11 and below, where the install-time permissions are enough).
+  Future<bool> ensurePermission() async {
+    if (!Platform.isAndroid) return true;
+    try {
+      return await PrintBluetoothThermal.isPermissionBluetoothGranted;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<List<PrinterDevice>> pairedDevices() async {
+    if (!await ensurePermission()) {
+      throw const BluetoothPermissionDenied();
+    }
     final list = await PrintBluetoothThermal.pairedBluetooths;
     return list
         .map((b) => PrinterDevice(name: b.name, macAddress: b.macAdress))
@@ -57,6 +82,7 @@ class PrinterService {
   Future<bool> get isConnected => PrintBluetoothThermal.connectionStatus;
 
   Future<bool> connect(String mac, {String? name}) async {
+    if (!await ensurePermission()) return false;
     final ok = await PrintBluetoothThermal.connect(macPrinterAddress: mac);
     if (ok) {
       _savedMac = mac;
@@ -80,6 +106,7 @@ class PrinterService {
   }
 
   Future<bool> _ensureConnected() async {
+    if (!await ensurePermission()) return false;
     if (await PrintBluetoothThermal.connectionStatus) return true;
     if (_savedMac == null) return false;
     return connect(_savedMac!, name: _savedName);
